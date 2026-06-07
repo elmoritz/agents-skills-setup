@@ -5,7 +5,7 @@ argument-hint: (no arguments; interactive)
 
 # /ticket:init
 
-Generate a `.claude/config.yaml` for this project, then apply the side effects that make the rest of the `/ticket:*` workflow usable: stage folders on the filesystem backend, workflow labels on the GitHub backend. One-time setup. Refuses to run if a config already exists.
+Generate a `.claude/config.yaml` for this project, then apply the side effects that make the rest of the `/ticket:*` workflow usable: stage folders on the filesystem backend, workflow labels (and optional GitHub Project linkage) on the GitHub backend. One-time setup. Refuses to run if a config already exists.
 
 The user's starting input: $ARGUMENTS (ignored; init is fully interactive)
 
@@ -80,7 +80,34 @@ Ask via `AskUserQuestion`:
   - **Labels** — milestones are labels (`milestone:vX.Y`) on either backend. No tracker artifact.
   - **None** — milestone field stays in frontmatter but no tracker logic runs. `milestone-sync` becomes a no-op.
 
-### Step 5 — assemble config
+### Step 5 — GitHub Project linkage (github backend only)
+
+**Skip this step entirely on the filesystem backend** — Projects (v2) hold GitHub issues, and filesystem tickets aren't issues. Leave `projects.enabled: false` in the assembled config and move to Step 6.
+
+On the **github** backend, ask via `AskUserQuestion`:
+
+- **question:** "Link new tickets to a GitHub Project board?"
+- **header:** "Project"
+- **options:**
+  - **Yes** — every ticket is added to a Project (v2) on creation, and its `Status` field tracks the workflow stage as tickets move (Recommended).
+  - **No** — tickets are plain issues; no Project board. Sets `projects.enabled: false`.
+
+If **No**, set `projects.enabled: false` and skip to Step 6.
+
+If **Yes**:
+
+1. **Resolve the owner.** Default to the owner half of `backend.github.repo` (`owner/repo` → `owner`). Detect user vs. org with `gh api users/<owner> -q .type` (`User` → `projects.owner_type: user`; `Organization` → `org`).
+2. **List projects:** `gh project list --owner <owner> --format json`. If the call fails because the token lacks the `project` scope, **stop** with: `"Linking to a GitHub Project needs the 'project' scope. Run 'gh auth refresh -s project --hostname github.com', then re-run /ticket:init."`
+3. **Pick the project** via `AskUserQuestion`:
+   - **question:** "Which Project should tickets land in?"
+   - **header:** "Which board"
+   - **options:** one per discovered project (label = `#<number> <title>`), plus **Specify a number** (free-text follow-up to type the project number).
+4. **Read the Status options:** `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` (the default for new Projects). If there is no `Status` field, tell the user the synced field will be `Status` and they'll need to add it (or hand-edit `projects.status_field` later); proceed with defaults.
+5. **Build `projects.status_map`** by matching each configured stage role to the closest-named Status option (case-insensitive contains; e.g. role `pickable` → "Backlog", `in_progress` → "In progress", `terminal` → "Done"). Fill any unmatched role with the stage's own `label`. The map is written into the config for the user to hand-edit; the engine resolves option IDs at runtime and silently skips any option name that doesn't exist on the board — the stage transition still succeeds (see ticket-engine § GitHub Projects sync).
+
+Record the resolved `number`, `owner`, `owner_type`, `status_field`, and `status_map` for the config skeleton.
+
+### Step 6 — assemble config
 
 Build the `.claude/config.yaml` content based on the gate answers. Use this skeleton; fill the values from the gates. Comments mark each section so the user can later hand-edit confidently.
 
@@ -160,6 +187,21 @@ milestones:
   strategy: <auto | labels | none>
   <strategy-specific block; see ticket-engine for each>
 
+# --- GitHub Project (v2) linkage (github backend only; optional) ------
+# Ignored on the filesystem backend — leave enabled: false there.
+projects:
+  enabled: <true if Step 5 = Yes, else false>
+  number:       <project number from Step 5>   # null when disabled
+  owner:        <project owner login>           # null when disabled
+  owner_type:   <user | org>                    # null when disabled
+  status_field: "Status"                        # single-select field synced to stage
+  status_map:                                   # stage role -> Status option name
+    <inbox: "<option>"  — include only if an inbox stage exists>
+    pickable:    "<option>"
+    in_progress: "<option>"
+    review:      "<option>"
+    terminal:    "<option>"
+
 # --- Commit / activity messages ---------------------------------------
 commits:
   new:            "ticket: new {id} {title}"
@@ -195,11 +237,11 @@ Show the assembled YAML to the user. Gate via `AskUserQuestion`:
 - **question:** "Config ready. Write it and apply setup?"
 - **header:** "Apply"
 - **options:**
-  - **Apply** — write the file and run the side effects (Step 6).
+  - **Apply** — write the file and run the side effects (Step 7).
   - **Edit before applying** — ask which section to revise (free-text follow-up), loop until Apply or Cancel.
   - **Cancel** — discard. Nothing written.
 
-### Step 6 — apply
+### Step 7 — apply
 
 1. **Write `.claude/config.yaml`** with the assembled content.
 
@@ -207,6 +249,7 @@ Show the assembled YAML to the user. Gate via `AskUserQuestion`:
 
    - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If milestones strategy is `trackers`, also create `<root>/milestone/` and ensure `<root>/done/` exists (the milestone tracker may end up here).
    - **GitHub**: invoke the `ticket-engine` skill's auto-label creation procedure (see § Auto-label creation rules) for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
+   - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. No items are added at init — issues join the project as they're created (see `ticket-engine` `create_artifact`).
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
@@ -222,7 +265,7 @@ Show the assembled YAML to the user. Gate via `AskUserQuestion`:
    ticket: init — bootstrap workflow for github (<repo>)
    ```
 
-### Step 7 — report
+### Step 8 — report
 
 Print a concise summary so the user knows what to do next:
 
@@ -237,6 +280,7 @@ Stage folders created under <root>:
 TICKET_TEMPLATE.md written at <root>/TICKET_TEMPLATE.md
 <GitHub only>
 Workflow labels created in <repo>: <count> labels.
+Project: <linked to #<number> <title>, Status synced | none>
 
 Next steps:
 - Fill in `references:` and `verification:` in .claude/config.yaml when you have them.
@@ -246,7 +290,8 @@ Next steps:
 ## Hard rules
 
 - **Never overwrite an existing `.claude/config.yaml`.** Step 0 is non-negotiable. The remove-then-re-run path is the only way to regenerate.
-- **Never overwrite an existing `TICKET_TEMPLATE.md`.** Step 6.3 skips if the file is already there.
+- **Never overwrite an existing `TICKET_TEMPLATE.md`.** Step 7.3 skips if the file is already there.
+- **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there. Step 5 is skipped entirely on filesystem.
 - **Never proceed past validation.** If the assembled YAML fails the engine's own validation in dry-run, surface the error to the user and stop — this should not happen if init's gate options are honored, but guard against it.
 - **Single commit per init.** Folders + config + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.claude/config.yaml` alone.
 - **Never amend.** Never `--no-verify`. Never bypass signing.

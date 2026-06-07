@@ -28,6 +28,7 @@ These hold for every operation, regardless of backend:
 - **Never re-issue an ID.** Dropped or aborted IDs stay reserved as gaps.
 - **Hard-fail on config error** with a line-pointed message. Never proceed past validation with assumed defaults.
 - **Tickets are the source of truth, not derived state.** Milestone trackers, summary docs, etc., reflect tickets — never the other way around.
+- **GitHub Project sync is best-effort and never authoritative.** The issue's labels and state are canonical; the Project board mirrors them. A failed or skipped project update never fails or reverses the underlying transition — it surfaces as a soft warning. (github backend only.)
 
 ---
 
@@ -55,6 +56,7 @@ These primitives operate on any artifact type. Today the only live type is `tick
 10. `milestones.strategy` ∈ {`auto`, `trackers`, `native`, `labels`, `none`}.
 11. On `backend.type: github`, validate `milestones.strategy != trackers` (trackers are filesystem-only).
 12. On `backend.type: filesystem`, validate `milestones.strategy != native` (native is GitHub-only).
+13. **Project linkage is github-only.** A missing `projects:` block is treated as `enabled: false`. On `backend.type: filesystem`, if `projects.enabled` is truthy → `"projects linkage is github-only; set projects.enabled: false on the filesystem backend."` On `backend.type: github` with `projects.enabled: true`: `projects.number` (integer) and `projects.owner` (string) are required; `projects.status_field` defaults to `"Status"` if absent; `projects.status_map`, if present, is a map whose keys are a subset of the declared stage roles and whose values are non-empty strings. An unknown role key → `"projects.status_map: unknown role '<x>'."`
 
 **Output**: a resolved config value the rest of the engine reads. Includes a derived `roles → stage` map.
 
@@ -127,6 +129,7 @@ For a transition from stage `<src>` to stage `<dst>` on issue `#N` with field up
 5. **Verification read** (claim-target transitions only). Re-read `assignees`; if not `@me`, race was lost — reverse the edit and return `{ ok: false, reason: "race lost — #N assigned to <other> between read and write", recovery: "pick a different issue" }`.
 6. **Comment** (only for content-bearing events: see § Message formatting). Post the subject line plus the rendered body block.
 7. **Close issue** (only on target role = `terminal`). `gh issue close #N --reason <reason>` where `<reason>` is one of `completed` / `not_planned` / `duplicate`, derived from `closed_as`.
+8. **Project sync** (only if `projects.enabled`). Per § GitHub Projects sync: ensure `#N` is an item of the configured project, then set its `status_field` to `status_map[<target role>]`. **Best-effort and non-fatal** — the label/state mutation above is authoritative; if the project call fails (missing scope, deleted project, renamed option), the transition still counts as successful and a soft warning is appended to `steps_taken`. Never reverse the transition because project sync failed.
 
 If step 4 fails: no labels have moved (atomic API call); return clean failure.
 If step 5 detects a race: attempt to reverse step 4 with a counter-edit; if the reverse fails, return both errors with the issue's current state.
@@ -142,6 +145,30 @@ When the engine needs a label that doesn't exist:
 - Milestone labels (when `milestones.strategy: labels`): color `#0e8a16`, description `Milestone: <version>`.
 
 The exact colors are not load-bearing — they exist so newly-created labels look reasonable in the UI; a project owner can recolor without breaking the engine.
+
+### § GitHub Projects sync
+
+Active only when `backend.type: github` **and** `projects.enabled: true`. Keeps a Project (v2) board mirroring the workflow: each issue is added to the project on creation, and its `status_field` (default `Status`) follows the stage on every transition. Filesystem tickets are never synced — they aren't issues.
+
+**ID resolution (session-cached, resolved once per engine invocation).** Project items are edited by node ID, not number, so resolve these up front and cache them:
+
+- **Project node ID:** `gh project view <projects.number> --owner <projects.owner> --format json -q .id`.
+- **Status field + options:** `gh project field-list <projects.number> --owner <projects.owner> --format json`. Find the single-select field whose name == `projects.status_field`; cache its field ID and a `{ option name → option ID }` map. If no such field exists, project sync is a no-op for this run (soft warning, see below).
+
+**Add an issue to the project (on creation).** `gh project item-add <projects.number> --owner <projects.owner> --url <issue-url> --format json -q .id` → the item ID. Idempotent: re-adding an existing item returns its existing ID. If the JSON doesn't surface an ID, recover it with `gh project item-list <projects.number> --owner <projects.owner> --format json` and match on the issue URL.
+
+**Set the Status (on transition / creation).** Resolve the option: `status_map[<role>]` → option name → option ID from the cached map.
+
+```
+gh project item-edit --id <item-id> --project-id <project-node-id> \
+  --field-id <status-field-id> --single-select-option-id <option-id>
+```
+
+- If the role has no `status_map` entry, or the mapped option name has no match on the board, **skip the Status set** (no error) — the item is still in the project; only the column is left untouched.
+
+**Best-effort, never authoritative.** Project sync always runs *after* the issue's labels/state have been mutated (the source of truth). Any failure here — missing `project` scope, deleted project, renamed option, network error — is **non-fatal**: the transition (or creation) still succeeds, and the engine appends a soft warning to `steps_taken` such as `"project sync skipped: <reason>; set Status manually or re-run after fixing the project."` The engine never reverses a transition, never fails a command, and never retries silently because of a project-sync error.
+
+**Silent.** Project sync edits the board only — it posts no issue comment, on any event.
 
 ## § Message formatting
 
@@ -170,6 +197,8 @@ Every workflow event has a template in `commits:`. The engine resolves the event
 | `fold` | commit | comment on **both** source and target (carries source body and target reference) |
 | `wontfix` | commit | comment (carries reasoning) |
 | `milestone_flip` | commit | n/a — handled by milestone-sync per strategy |
+
+**Project sync** (when `projects.enabled`) is silent on every event — it edits the Project item's `Status` field but never posts an issue comment. See § GitHub Projects sync.
 
 ## § Error reporting
 
@@ -322,7 +351,7 @@ Every operation below calls this first. Cache for the duration of the engine inv
   2. § Slug generation (FS).
   3. Resolve target stage from role.
   4. **Filesystem**: write file at target stage folder; `git add`; commit with `commits.new` (or `commits.capture` if target_role: inbox).
-  5. **GitHub**: `gh issue create` with title, body (body frontmatter + structured body), labels (type, priority, effort, target stage), milestone (if strategy: native), assignee (null at creation).
+  5. **GitHub**: `gh issue create` with title, body (body frontmatter + structured body), labels (type, priority, effort, target stage), milestone (if strategy: native), assignee (null at creation). Then, if `projects.enabled`: add the new issue to the project and set its `Status` to `status_map[<target_role>]` per § GitHub Projects sync (best-effort; a sync failure does not fail creation).
 - **Returns**: created artifact summary; or validation failure with specific field/section.
 
 ### `transition_artifact(id, target_role, fields={}, event)`
@@ -360,7 +389,7 @@ Used by `/ticket:pick` step 2 (stale-ticket update before claim), and by `/ticke
 - **Input**: artifact ID; `closed_as` ∈ {`shipped`, `wontfix`, `duplicate`}; optional reasoning (required for `wontfix`, embedded in body for `duplicate` via fold's body merge).
 - **Procedure**: transition to `terminal` role, applying:
   - **FS**: `closed_as` set in frontmatter; § pre_close_command runs if defined; one commit.
-  - **GH**: `gh issue close --reason <native_reason>` where native_reason = {shipped → completed, wontfix → not_planned, duplicate → duplicate}. Comment posted carrying reasoning if event is `wontfix` or `fold`.
+  - **GH**: `gh issue close --reason <native_reason>` where native_reason = {shipped → completed, wontfix → not_planned, duplicate → duplicate}. Comment posted carrying reasoning if event is `wontfix` or `fold`. If `projects.enabled`, the transition's project sync sets `Status` to `status_map[terminal]` (e.g. "Done"); closed issues remain project items.
 - **Returns**: closed artifact.
 
 Note: closure source stage is `review` if a review stage exists; otherwise `in_progress`. Engine derives the source via `resolve_role("review") ?? resolve_role("in_progress")`.

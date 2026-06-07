@@ -33,6 +33,8 @@ A small, opinionated issue tracker that lives in your repo and runs through six 
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress → review → done), each carrying a **role** the engine resolves against. Effort caps keep the backlog honest: every ticket landing in the pickable stage must fit the project's allowed size, and `/ticket:new` silently splits work that's too big.
 
+On the GitHub backend you can optionally **link tickets to a GitHub Project (v2) board**: `/ticket:init` lets you pick a project, and from then on every ticket is added to it on creation with its `Status` field synced to the workflow stage. The issue stays the source of truth — a failed board update never blocks a transition.
+
 ### Aligned by design
 
 `/ticket:new` treats shared understanding as a first-class goal. After analyzing the relevant code, it runs an **alignment-grilling pass** — walking the decision tree branch by branch, answering what it can from the codebase and asking you only the questions that genuinely change scope, type, acceptance criteria, or size. Every answer (and every silent default) is recorded in a `## Decisions & assumptions` section on the ticket, so whoever picks it up later sees the same reconciled view you signed off on.
