@@ -1,7 +1,7 @@
 ---
+name: ticket-init
 description: Bootstrap a project for the /ticket-* workflow. Writes .github/config.yaml, creates stage folders or workflow labels, and lays down a starter TICKET_TEMPLATE.md.
 argument-hint: (no arguments; interactive)
-agent: agent
 ---
 
 # /ticket-init
@@ -104,7 +104,7 @@ If **Yes**:
    - **header:** "Which board"
    - **options:** one per discovered project (label = `#<number> <title>`), plus **Specify a number** (free-text follow-up to type the project number).
 4. **Read the Status options:** `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` (the default for new Projects). If there is no `Status` field, tell the user the synced field will be `Status` and they'll need to add it (or hand-edit `projects.status_field` later); proceed with defaults.
-5. **Build `projects.status_map`** by matching each configured stage role to the closest-named Status option (case-insensitive contains; e.g. role `pickable` → "Backlog", `in_progress` → "In progress", `terminal` → "Done"). Fill any unmatched role with the stage's own `label`. The map is written into the config for the user to hand-edit; the engine resolves option IDs at runtime and silently skips any option name that doesn't exist on the board — the stage transition still succeeds (see `.github/shared/ticket-engine.md` § GitHub Projects sync).
+5. **Build `projects.status_map`** by matching each configured stage role to the closest-named Status option (case-insensitive contains; e.g. role `pickable` → "Backlog", `in_progress` → "In progress", `terminal` → "Done"). Fill any unmatched role with the stage's own `label`. The map is written into the config for the user to hand-edit; the engine resolves option IDs at runtime and silently skips any option name that doesn't exist on the board — the stage transition still succeeds (see `../ticket-engine/SKILL.md` § GitHub Projects sync).
 
 Record the resolved `number`, `owner`, `owner_type`, `status_field`, and `status_map` for the config skeleton.
 
@@ -186,7 +186,7 @@ effort:
 milestones:
   enabled: <true if Step 4 != None>
   strategy: <auto | labels | none>
-  <strategy-specific block; see .github/shared/ticket-engine.md for each>
+  <strategy-specific block; see ../ticket-engine/SKILL.md for each>
 
 # --- GitHub Project (v2) linkage (github backend only; optional) ------
 # Ignored on the filesystem backend — leave enabled: false there.
@@ -249,8 +249,8 @@ Show the assembled YAML to the user. Gate (numbered list; user replies with the 
 2. **Backend side effects.**
 
    - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If milestones strategy is `trackers`, also create `<root>/milestone/` and ensure `<root>/done/` exists (the milestone tracker may end up here).
-   - **GitHub**: follow `.github/shared/ticket-engine.md` (read that file and run its matching operation inline) — e.g. its Auto-label creation rules — for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
-   - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. No items are added at init — issues join the project as they're created (see `.github/shared/ticket-engine.md` `create_artifact`).
+   - **GitHub**: follow `../ticket-engine/SKILL.md` (read that file and run its matching operation inline) — e.g. its Auto-label creation rules — for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
+   - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. No items are added at init — issues join the project as they're created (see `../ticket-engine/SKILL.md` `create_artifact`).
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 

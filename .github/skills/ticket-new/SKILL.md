@@ -1,24 +1,24 @@
 ---
+name: ticket-new
 description: Create one or more tickets. Aborts at any gate save to inbox (if an inbox stage is configured); full completion lands in the pickable stage.
 argument-hint: [optional starting description; otherwise the user is prompted]
-agent: agent
 ---
 
 # /ticket-new
 
-Starting description (optional): ${input:description}
+If the user typed a starting description after the command, use it as the seed; otherwise prompt for one.
 
 Run the ticket creation workflow per `.github/config.yaml`. There is a single entry point for new tickets: this command. A request may resolve to **one ticket** or **a small slate of dependent tickets** (typically 2–3). The decision is made silently at step 3 — the user is **not** gated on the split decision. The default is one ticket; split whenever keeping it as one would push effort past the project's `effort.pickable_allowed`. Backlog hygiene is a hard constraint: every ticket landing in a `pickable`-roled stage must satisfy `effort.pickable_allowed` — no exceptions.
 
 **Alignment is a first-class goal.** A ticket is only as good as the shared understanding behind it. Before any ticket is committed, an interview pass (step 2.5) walks the decision tree and resolves every material ambiguity — so what lands on the backlog reflects what the user actually wants, not the AI's best guess. The two understanding gates (steps 1 and 2.5) are where the user's view and the agent's understanding are reconciled.
 
-The user's starting input: the text the user typed after the command, `${input:description}`.
+The user's starting input: the starting description the user provided (if any).
 
-If `${input:description}` is empty, ask the user "What do you want to capture?" and use their reply as the starting input before proceeding.
+If no starting description was provided, ask the user "What do you want to capture?" and use their reply as the starting input before proceeding.
 
 ## Engine dependency
 
-This command delegates every read/write to `.github/shared/ticket-engine.md`. Read that file and run its matching operation inline — once at the start (loads + validates config) and as needed for each operation. The engine resolves:
+This command delegates every read/write to `../ticket-engine/SKILL.md`. Read that file and run its matching operation inline — once at the start (loads + validates config) and as needed for each operation. The engine resolves:
 
 - The `inbox` role → stage (if any). **If null, the "Save as inbox" option is omitted from every gate** and the save-as-inbox semantics block below is unreachable.
 - The `pickable` role → stage. New tickets land here when fully committed.

@@ -1,20 +1,20 @@
 ---
+name: ticket-refine
 description: Resume an inbox entry through to backlog (or close as fold/wontfix). Requires a stage with the `inbox` role.
 argument-hint: [optional inbox ticket ID]
-agent: agent
 ---
 
 # /ticket-refine
 
-Inbox ticket ID (optional): ${input:ticketId}
+If the user provided an inbox ticket ID after the command, use it; otherwise list inbox entries to choose from.
 
 Resume the ticket workflow on one entry in the stage that carries the `inbox` role. Outcome is one of three: promoted to a `pickable`-roled stage (refined), closed as `duplicate` (folded into another ticket), or closed as `wontfix` (rejected with reasoning).
 
-The user's starting input is the text after the command, `${input:ticketId}`.
+The user's starting input is the text after the command, the ticket ID the user provided (if any).
 
 ## Engine dependency
 
-At the start, follow `.github/shared/ticket-engine.md` (read it and run the matching operation inline) to load and validate config. Then:
+At the start, follow `../ticket-engine/SKILL.md` (read it and run the matching operation inline) to load and validate config. Then:
 
 - Resolve the `inbox` role. **If null, the command is unavailable** — print `"This project has no inbox stage configured. /ticket-refine is unavailable. Edit .github/config.yaml to add a stage with `roles: [inbox]` if you want to enable refinement."` and stop.
 - Resolve the `pickable` role for the promote path.
@@ -27,9 +27,9 @@ If the engine reports `"No .github/config.yaml found"`, stop and tell the user `
 
 ### Step 0 — pick the inbox entry
 
-If `${input:ticketId}` contains a ticket ID, invoke `read_artifact(id)`. Verify it lives in the inbox-roled stage. If it doesn't exist or sits elsewhere, report so and stop.
+If the user provided a ticket ID, invoke `read_artifact(id)`. Verify it lives in the inbox-roled stage. If it doesn't exist or sits elsewhere, report so and stop.
 
-If `${input:ticketId}` is empty, invoke `list_artifacts(role: "inbox")` and show each entry with `id`, `title`, `type`, `created`. Ask the user which to refine.
+If no ticket ID was provided, invoke `list_artifacts(role: "inbox")` and show each entry with `id`, `title`, `type`, `created`. Ask the user which to refine.
 
 If the list is empty, report `"Nothing in inbox. /ticket-refine has nothing to do."` and stop.
 

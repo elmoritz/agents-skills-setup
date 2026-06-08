@@ -1,20 +1,20 @@
 ---
+name: ticket-close
 description: Close a ticket as shipped. Closes from the review stage if one exists, otherwise from in_progress. Trusts the user has verified the work.
 argument-hint: [optional ticket ID; otherwise list closable tickets and pick]
-agent: agent
 ---
 
 # /ticket-close
 
-Ticket ID (optional): ${input:ticketId}
+If the user provided a ticket ID after the command, close it; otherwise list closable tickets to choose from.
 
 Complete the closure protocol for a ticket. Source stage is whichever of `review` (preferred) or `in_progress` (fallback) is configured. Trusts the user has already verified the work — does not run tests itself.
 
-The user's starting input is the text after the command, `${input:ticketId}`.
+The user's starting input is the text after the command, the ticket ID the user provided (if any).
 
 ## Engine dependency
 
-At the start, follow `.github/shared/ticket-engine.md` (read it and run the matching operation inline) to load and validate config. Resolve:
+At the start, follow `../ticket-engine/SKILL.md` (read it and run the matching operation inline) to load and validate config. Resolve:
 
 - `review` role → preferred close-source stage.
 - `in_progress` role → fallback close-source stage (used only when no review stage exists).
@@ -30,12 +30,12 @@ If the engine reports `"No .github/config.yaml found"`, stop and tell the user `
 
 ### Step 0 — pick the ticket to close
 
-If `${input:ticketId}` contains a ticket ID:
+If the user provided a ticket ID:
 
 - Invoke `read_artifact(id)`. If the ticket sits in the close-source stage, use it.
-- If it sits elsewhere, report where the ticket actually is and stop. `/ticket-close` only operates on the close-source stage. For `wontfix`/`duplicate` closures from elsewhere, use `/ticket-refine` (inbox) or do it manually.
+- If it sits elsewhere, report where the ticket actually is and stop. `/ticket-close` only operates on the close-source stage. For `wontfix`/`duplicate` closures from elsewhere, use `../ticket-refine/SKILL.md` (inbox) or do it manually.
 
-If `${input:ticketId}` is empty, invoke `list_artifacts(role: <close-source>)`:
+If no ticket ID was provided, invoke `list_artifacts(role: <close-source>)`:
 
 - If 0 entries: report `"Nothing in <close-source-stage label> to close."` Stop.
 - If 1 entry: use it directly (no selection needed — the confirmation gate in step 1 is enough).
@@ -73,7 +73,7 @@ If the engine returns half-state (e.g. FS `git mv` ran but `pre_close_command` f
 
 ### Step 3 — milestone postflight
 
-After the close lands, follow `.github/shared/milestone-sync.md` (read it and run it inline) and pass the just-closed ticket's milestone version as the argument (e.g. `v0.5.5`). Closing a ticket may have just emptied the milestone — every ticket carrying that version now sits in the terminal stage — and the milestone state should flip.
+After the close lands, follow `../milestone-sync/SKILL.md` (read it and run it inline) and pass the just-closed ticket's milestone version as the argument (e.g. `v0.5.5`). Closing a ticket may have just emptied the milestone — every ticket carrying that version now sits in the terminal stage — and the milestone state should flip.
 
 The procedure dispatches on `milestones.strategy`:
 
@@ -115,4 +115,4 @@ That's the whole report. No congratulations, no next-ticket suggestion (that's `
 - Never skip git hooks (no `--no-verify`); never bypass signing.
 - Trust the user's verification. This command does not run `verification.test_commands` — that's `/ticket-review`'s territory and the user's verification responsibility. If the build is broken, that's a regression that should be caught before closure.
 - If the engine reports half-state, surface it and stop. Do not push through.
-- `closed_as: shipped` is what this command writes. Wontfix / duplicate closures of in-progress or in-review work are a different decision and currently a manual edit; the inbox path covers wontfix/duplicate via `/ticket-refine`.
+- `closed_as: shipped` is what this command writes. Wontfix / duplicate closures of in-progress or in-review work are a different decision and currently a manual edit; the inbox path covers wontfix/duplicate via `../ticket-refine/SKILL.md`.

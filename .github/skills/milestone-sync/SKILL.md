@@ -1,3 +1,8 @@
+---
+name: milestone-sync
+description: Detect and fix drift between milestone state and the tickets that reference it; dispatches on .github/config.yaml milestones.strategy; read-only until the user approves a fix. Used as a preflight in /ticket-pick, a postflight in /ticket-close, or standalone when the user asks to sync milestones.
+user-invocable: false
+---
 # milestone-sync
 
 *Detect and fix drift between milestone state and the work tickets that reference it. Dispatches on `.github/config.yaml`'s `milestones.strategy`. Read-only until the user approves a fix; each fix lands as its own atomic event (commit on filesystem, milestone state change on github).*
@@ -6,13 +11,13 @@ This is a shared reference doc, not a user-invoked prompt. Copilot has no automa
 
 Audit the project's milestone state against the work tickets that reference it via the `milestone:` frontmatter field, surface any drift, and apply user-approved fixes as standalone events. Safe to run any time.
 
-The procedure is **strategy-aware** — it dispatches on `milestones.strategy` resolved by the ticket-engine logic in `.github/shared/ticket-engine.md`. The user-visible workflow (scan → report → gate → apply) is identical across strategies; only the storage layer differs.
+The procedure is **strategy-aware** — it dispatches on `milestones.strategy` resolved by the ticket-engine logic in `../ticket-engine/SKILL.md`. The user-visible workflow (scan → report → gate → apply) is identical across strategies; only the storage layer differs.
 
 If the caller passes a version (e.g. `v0.5.5`) as the caller's input, restrict the analysis to that one version. Same checks, smaller surface — but still run the full scan first; reporting drift on neighbouring versions costs nothing and may catch issues the caller cares about.
 
 ## Engine dependency
 
-Apply the ticket-engine logic in `.github/shared/ticket-engine.md` at the start to load and validate config. The engine resolves:
+Apply the ticket-engine logic in `../ticket-engine/SKILL.md` at the start to load and validate config. The engine resolves:
 
 - `milestones.strategy` to one of `trackers` | `native` | `labels` | `none` (after `auto` is resolved to its backend default).
 - Per-strategy operations: `scan_milestone_state(version=null)` returns per-version state; `apply_milestone_flip(version, target_status)` performs the fix.
@@ -207,7 +212,7 @@ The calling command continues from here.
 ## Hard rules
 
 - **Read-only until the user approves a fix.** No tracker frontmatter is touched, no `git mv` runs, no `gh milestone close` runs without an explicit `Apply all` or `Pick one` gate.
-- **The engine, not this procedure, performs the per-strategy mechanics.** Both `scan_milestone_state` and `apply_milestone_flip` live in the engine (`.github/shared/ticket-engine.md`); this procedure only orchestrates and gates.
+- **The engine, not this procedure, performs the per-strategy mechanics.** Both `scan_milestone_state` and `apply_milestone_flip` live in the engine (`../ticket-engine/SKILL.md`); this procedure only orchestrates and gates.
 - **Move-then-edit ordering on trackers.** Editing in place and then moving makes git treat the rename as a "new file" diff. The engine enforces this; this procedure should not work around it.
 - **Tickets are the source of truth.** If a tracker / GH milestone disagrees with ticket distribution, the tracker / GH milestone is wrong — never the other way around. Never edit ticket frontmatter or move tickets to make a milestone happy.
 - **One drift, one event.** Each flip is its own atomic commit (FS) or API call (GH) so the change shows up cleanly in `git log` or the GH activity log and is trivial to revert.

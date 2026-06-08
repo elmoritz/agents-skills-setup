@@ -1,3 +1,8 @@
+---
+name: ticket-engine
+description: The shared execution layer behind every /ticket-* skill — loads and validates .github/config.yaml, assigns IDs, runs backend stage transitions, formats commit/comment messages, and reports half-state on partial failure. Used by the ticket skills and milestone-sync, not invoked directly.
+user-invocable: false
+---
 # ticket-engine
 
 *Project-agnostic execution layer for the /ticket-* commands. Loads .github/config.yaml, validates the schema, resolves roles to stages, assigns IDs, runs stage transitions on the configured backend (filesystem or GitHub), formats commit/comment messages, and reports half-state on partial failure. Invoked by every /ticket-* command and by milestone-sync. Does not gate the user directly — its caller does.*

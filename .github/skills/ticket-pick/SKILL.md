@@ -1,23 +1,23 @@
 ---
+name: ticket-pick
 description: Pick the next ticket from the pickable stage and implement it through to review (or directly to closure-ready, depending on whether a review stage exists).
 argument-hint: [optional ticket ID to pick directly; otherwise top 4 are surfaced]
-agent: agent
 ---
 
 # /ticket-pick
 
-Ticket ID to pick directly (optional): ${input:ticketId}
+If the user provided a ticket ID after the command, pick it directly; otherwise surface the top candidates.
 
 Pick a ticket from the `pickable`-roled stage and implement it end-to-end. The terminal step depends on whether the project declares a `review`-roled stage:
 
 - **With a review stage**: implementation ends by transitioning the ticket to the review stage; closure happens later via `/ticket-close`.
 - **Without a review stage**: implementation ends in the `in_progress` stage; the user runs `/ticket-close` directly from there to finish.
 
-The user's starting input is the text after the command, `${input:ticketId}`.
+The user's starting input is the text after the command, the ticket ID the user provided (if any).
 
 ## Engine dependency
 
-At the start, follow `.github/shared/ticket-engine.md` (read it and run the matching operation inline) to load and validate config. Resolve:
+At the start, follow `../ticket-engine/SKILL.md` (read it and run the matching operation inline) to load and validate config. Resolve:
 
 - `pickable` role → source stage (required).
 - `in_progress` role → claim destination (required).
@@ -31,7 +31,7 @@ If the engine reports `"No .github/config.yaml found"`, stop and tell the user `
 
 ### Preflight — milestone sync
 
-Follow `.github/shared/milestone-sync.md` (read it and run it inline). It dispatches on `milestones.strategy` and is a no-op when strategy is `none` or `labels`. On `trackers` (filesystem default) and `native` (github default), drift is surfaced with a structured `Apply all` / `Pick one` / `Skip` gate, and each fix lands as its own atomic commit (FS) or milestone state change (GH).
+Follow `../milestone-sync/SKILL.md` (read it and run it inline). It dispatches on `milestones.strategy` and is a no-op when strategy is `none` or `labels`. On `trackers` (filesystem default) and `native` (github default), drift is surfaced with a structured `Apply all` / `Pick one` / `Skip` gate, and each fix lands as its own atomic commit (FS) or milestone state change (GH).
 
 The candidate ranking in step 0 prefers tickets whose `milestone:` matches the current focus from `references.roadmap` (if defined); a drifted state would bias that selection, so fixing first is worthwhile. If the user picks `Skip`, proceed to step 0 anyway.
 
@@ -39,7 +39,7 @@ If `references.roadmap` is null, focus-milestone preference is skipped — candi
 
 ### Step 0 — surface candidates
 
-If `${input:ticketId}` contains a ticket ID, invoke `read_artifact(id)` to verify it sits in the pickable stage; if so, jump to step 1. If it's elsewhere, report so and stop (this command only picks from the pickable stage).
+If the user provided a ticket ID, invoke `read_artifact(id)` to verify it sits in the pickable stage; if so, jump to step 1. If it's elsewhere, report so and stop (this command only picks from the pickable stage).
 
 Otherwise, invoke `list_artifacts(role: "pickable", filters: { depends_satisfied: true })`. The engine returns only tickets whose `depends_on` chain is fully resolved to terminal.
 

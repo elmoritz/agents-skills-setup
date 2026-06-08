@@ -1,20 +1,20 @@
 ---
+name: ticket-review
 description: Print a verification guide for a ticket in the review stage. Read-only — does not modify or commit. Requires a stage with the `review` role.
 argument-hint: [optional ticket ID; otherwise auto-pick the oldest in-review ticket]
-agent: agent
 ---
 
 # /ticket-review
 
-Ticket ID (optional): ${input:ticketId}
+If the user provided a ticket ID after the command, review it; otherwise auto-pick the oldest ticket in review.
 
 Print a verification guide for a ticket sitting in the stage that carries the `review` role. **Read-only.** Does not edit files, does not run tests, does not commit, does not call `gh issue edit`. The user runs the verification themselves; closure happens via `/ticket-close`.
 
-The user's starting input is the text after the command, `${input:ticketId}`.
+The user's starting input is the text after the command, the ticket ID the user provided (if any).
 
 ## Engine dependency
 
-At the start, follow `.github/shared/ticket-engine.md` (read it and run the matching operation inline) to load and validate config. Resolve the `review` role.
+At the start, follow `../ticket-engine/SKILL.md` (read it and run the matching operation inline) to load and validate config. Resolve the `review` role.
 
 - **If `review` is null**: the command is unavailable. Print `"This project has no review stage configured. Implementation in /ticket-pick already produced the verification report; run /ticket-close directly when verification passes."` and stop.
 - **If `review` resolves**: proceed.
@@ -27,12 +27,12 @@ This command is fully autonomous when there's something to review. It does not a
 
 ### Step 0 — resolve the ticket
 
-If `${input:ticketId}` contains a ticket ID:
+If the user provided a ticket ID:
 
 - Invoke `read_artifact(id)`. If the ticket exists and sits in the review stage, use it.
 - If it sits elsewhere, report where it is and stop. Do not present a review guide for a ticket outside review — review only applies to that bucket.
 
-If `${input:ticketId}` is empty, invoke `list_artifacts(role: "review")`:
+If no ticket ID was provided, invoke `list_artifacts(role: "review")`:
 
 - If 0 entries: report `"Nothing in <review-stage label>. /ticket-pick something from <pickable-stage label> first."` Stop.
 - If 1 or more entries: pick the **oldest** by frontmatter `created` (ties broken by ID ascending). Print one line at the top of the guide stating which ticket was picked (e.g. "Picked the oldest ticket in <review-stage label>: <id>"). Do not gate the user with a choice — auto-pick is the contract; if the user wanted a different one they would have passed an ID.
