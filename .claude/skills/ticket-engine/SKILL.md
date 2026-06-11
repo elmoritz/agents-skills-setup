@@ -249,7 +249,15 @@ When the engine writes a ticket into any stage carrying the `pickable` role, it 
 
 No effort enforcement on other stages.
 
-## § Type-specific gates
+## § depends_on integrity
+
+Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Three checks:
+
+- **Existence.** Every ID in the `depends_on` being written must resolve via `read_artifact(id)`. Exemption: IDs reserved for the current slate — in-flight siblings exist as in-memory specs, not artifacts yet; the caller passes the reserved-ID list. Failure: `{ ok: false, reason: "depends_on references <id>, which does not exist", recovery: "fix the ID or drop the dependency" }`.
+- **No cycles.** Walk the `depends_on` links depth-first starting from the artifact being written, keeping the chain of IDs walked so far (the artifact's own ID first). For each dependency: if its ID is already on the chain, reject and report the chain as the cycle (e.g. `IV-007 → IV-012 → IV-007`); otherwise `read_artifact` it (slate siblings: use the in-memory spec) and walk its `depends_on` in turn. Never follow `related`. Each ticket appears at most once per chain, so the walk always terminates. Failure: `{ ok: false, reason: "depends_on cycle: <chain>", recovery: "break the cycle by dropping one of the links" }`.
+- **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
+
+Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
 
 Known types have well-defined behavior baked into command logic:
 
@@ -346,13 +354,14 @@ Every operation below calls this first. Cache for the duration of the engine inv
 ### `create_artifact(spec, target_role)`
 
 - **Input**: `spec` carrying type, title, body, frontmatter fields; `target_role` is the stage to land in (`inbox` for save-as-inbox; `pickable` for full /ticket:new).
-- **Reads**: config; if `target_role: pickable`, enforces § Effort caps and § Type-specific gates validation.
+- **Reads**: config; if `target_role: pickable`, enforces § Effort caps and § Type-specific gates validation. Always enforces § depends_on integrity when `spec.depends_on` is non-empty.
 - **Procedure**:
-  1. `assign_next_id()` → assign ID.
-  2. § Slug generation (FS).
-  3. Resolve target stage from role.
-  4. **Filesystem**: write file at target stage folder; `git add`; commit with `commits.new` (or `commits.capture` if target_role: inbox).
-  5. **GitHub**: `gh issue create` with title, body (body frontmatter + structured body), labels (type, priority, effort, target stage), milestone (if strategy: native), assignee (null at creation). Then, if `projects.enabled`: add the new issue to the project and set its `Status` to `status_map[<target_role>]` per § GitHub Projects sync (best-effort; a sync failure does not fail creation).
+  1. § depends_on integrity — existence + cycle check (slate-reserved IDs are exempt from existence; the caller passes the reserved list).
+  2. `assign_next_id()` → assign ID.
+  3. § Slug generation (FS).
+  4. Resolve target stage from role.
+  5. **Filesystem**: write file at target stage folder; `git add`; commit with `commits.new` (or `commits.capture` if target_role: inbox).
+  6. **GitHub**: `gh issue create` with title, body (body frontmatter + structured body), labels (type, priority, effort, target stage), milestone (if strategy: native), assignee (null at creation). Then, if `projects.enabled`: add the new issue to the project and set its `Status` to `status_map[<target_role>]` per § GitHub Projects sync (best-effort; a sync failure does not fail creation).
 - **Returns**: created artifact summary; or validation failure with specific field/section.
 
 ### `transition_artifact(id, target_role, fields={}, event)`
@@ -378,7 +387,7 @@ Used by the move-only transitions: `claim` (pickable → in_progress), `review` 
 ### `update_frontmatter(id, fields)`
 
 - **Input**: artifact ID, field updates.
-- **Procedure**: in-place edit without stage change.
+- **Procedure**: in-place edit without stage change. If `fields` touches `depends_on`, run § depends_on integrity first; refuse the write on a missing ID or a cycle.
   - **FS**: edit the file at its current path; `git add`; commit with `commits.update`.
   - **GH**: `gh issue edit` for any natively-mapped fields; body edit for frontmatter fields; comment per § Message formatting (`update` is content-bearing on GH).
 - **Returns**: updated artifact.
@@ -399,7 +408,7 @@ Note: closure source stage is `review` if a review stage exists; otherwise `in_p
 
 - **Input**: source ticket (typically in inbox), target ticket (anywhere except terminal).
 - **Procedure**:
-  1. `read_artifact(source_id)`, `read_artifact(target_id)`. Verify target exists and is not in terminal.
+  1. `read_artifact(source_id)`, `read_artifact(target_id)`. Verify target exists and is not in terminal. Then run the § depends_on integrity walk from the target: if `source_id` appears anywhere in the target's transitive `depends_on` chain, block with `{ ok: false, reason: "<target_id> depends (directly or transitively) on <source_id> via <chain>; folding would close a ticket the target still needs", recovery: "drop the dependency (update_frontmatter on the chain ticket) first, then re-run the fold" }`.
   2. Append `## Folded notes` section to target's body containing source's body verbatim.
   3. `update_frontmatter(target_id, {})` to commit the body change with the standard update event.
   4. `close_artifact(source_id, "duplicate")` with reasoning `"Folded into <target_id>"`.

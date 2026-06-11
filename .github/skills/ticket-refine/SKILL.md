@@ -65,7 +65,7 @@ If the user picks "save as inbox" at any sub-gate during refinement, the engine'
 
 ### Step 2B — fold path
 
-Ask the user for the target ticket ID. Verify it exists via `read_artifact(target_id)` and is **not** in a `terminal`-roled stage.
+Ask the user for the target ticket ID. Verify it exists via `read_artifact(target_id)` and is **not** in a `terminal`-roled stage. Also check the target's `depends_on` chain (followed transitively) does not include the source — the engine blocks such folds (ticket-engine § depends_on integrity), since closing the source would orphan a dependency the target still needs. If the chain includes the source, report the chain and ask as a numbered list whether to drop that dependency first (`update_frontmatter` on the chain ticket) and continue, or cancel the fold.
 
 Then ask (numbered list; user replies with the number):
 
@@ -100,7 +100,7 @@ Invoke `close_artifact(id, closed_as: "wontfix", reasoning: <user-provided>)`. T
 
 - Never refine without an explicit outcome decision (no silent fallthrough).
 - Never wontfix without recorded reasoning.
-- Never fold without confirming the target exists and is not in a terminal stage.
+- Never fold without confirming the target exists, is not in a terminal stage, and does not depend (directly or transitively) on the source.
 - Never promote a ticket to the pickable stage with `type: unknown` or any unfilled required field.
 - Never reassign an ID — the inbox `id` stays with the ticket through every transition.
 - The engine, not the command, performs the per-backend mechanics. The command never calls `git mv` or `gh issue close` directly.

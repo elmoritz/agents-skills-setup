@@ -185,7 +185,7 @@ Determine and confirm:
 - `priority`: `P0` | `P1` | `P2` | `P3`. Recommend based on type and impact; `P0` requires explicit user confirmation.
 - `effort`: must be in `effort.pickable_allowed`. The engine enforces this on `create_artifact`; if you arrive here with a value outside the set, tell the user the effort cap was exceeded, return to step 3 to re-split, and re-run the affected gates (slate gate, or steps 5–6) so the restructured work is re-approved. Never silently restructure content the user already signed off on.
 - `risk`: `low` | `med` | `high`.
-- `depends_on`: surface plausibly-related tickets via `list_artifacts` across all stages and ask.
+- `depends_on`: surface plausibly-related tickets via `list_artifacts` across all stages and ask. Validate every chosen ID via `read_artifact` **before** the Commit gate; if one doesn't resolve, say which and re-ask. The engine independently refuses unknown IDs and dependency cycles at `create_artifact` (§ depends_on integrity) — the command-side check exists so the failure surfaces at the gate, not after approval.
 - `related`: same approach.
 
 Set `claimed_by: null`, `closed_as: null`, `adrs: []` (reserved field, kept empty).
@@ -213,7 +213,7 @@ Do not run the `verification.pre_close_command` here — that's a closure-time c
 Reached only when step 3 resolves as a split. The slate has already been drafted by Claude (titles, types, effort estimates, dependency order, IDs reserved). The user has not yet seen it — they approve at the single gate at the end of this path. **Grilling (step 2.5) has already run** before the split decision, so the slate is drafted from reconciled understanding; carry the relevant decisions/assumptions into each sub-ticket's `## Decisions & assumptions` section.
 
 1. **Draft all sub-tickets in one pass.** For each ticket on the slate, run steps 4 (research), 5 (body), 6 (frontmatter) silently — no per-step prompts. Apply the existing rules (license filters, required body sections, full frontmatter fields). When a piece of research or analysis applies to multiple tickets, cite it once and cross-reference (`see <id> Research`) rather than duplicating prose.
-2. **Wire the dependency chain.** Each ticket's `depends_on` lists the prior ticket(s) it actually needs done first; `related` lists the rest of the slate.
+2. **Wire the dependency chain.** Each ticket's `depends_on` lists the prior ticket(s) it actually needs done first; `related` lists the rest of the slate. Slate-reserved sibling IDs are exempt from existence validation (they're created in this same pass, in dependency order); any `depends_on` pointing outside the slate must resolve via `read_artifact` before the slate gate.
 3. **Show the assembled slate** as one block: each ticket's frontmatter + body in order. Keep it scannable.
 4. **Single approval gate**, asked via `AskUserQuestion`:
 
@@ -253,6 +253,6 @@ In the compact split path, **Save all to inbox** calls `save_as_inbox` once per 
 - The split decision at step 3 is Claude's, not the user's — there is no `AskUserQuestion` gate at step 3.
 - Every sub-ticket in a slate must individually satisfy `effort.pickable_allowed`.
 - Never propose a slate of 4+ tickets. Surface as a roadmap concern instead.
-- Never set a ticket's `depends_on` to a sibling outside the current slate without confirming that sibling exists.
+- Never set a ticket's `depends_on` to a sibling outside the current slate without confirming that sibling exists. The engine enforces this and also rejects dependency cycles (ticket-engine § depends_on integrity).
 - Never amend an existing commit; always create a new one. In a slate, commit each ticket separately.
 - The engine, not the command, decides where files go and what commits look like. The command never invokes `git mv` or `gh issue create` directly.
