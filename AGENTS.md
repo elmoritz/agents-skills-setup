@@ -55,7 +55,9 @@ Only these differences are intentional; everything else must stay identical:
   `.github/skills/ticket-*/SKILL.md`).
 
 This is enforced by `scripts/check-bundle-sync.sh`: it fails when a file in a
-mirrored pair changes without its mirror. CI runs it on every PR and push to
+mirrored pair changes without its mirror, and when a tracked file under either
+bundle is in neither its PAIRS nor its IGNORE list (so a file added to one
+bundle without a mirror is caught too). CI runs it on every PR and push to
 main (`.github/workflows/bundle-sync.yml`); enable the local pre-commit hook
 once per clone with `git config core.hooksPath .githooks`. To eyeball whether
 two mirrors still say the same thing, run

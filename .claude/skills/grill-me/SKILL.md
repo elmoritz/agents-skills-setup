@@ -19,3 +19,6 @@ between decisions one by one.
 - Ask each question via the `AskUserQuestion` tool: 2–4 concrete, mutually-exclusive
   options, with your recommended answer as the first option suffixed `(Recommended)`.
   Genuine free-form follow-ups stay as inline asks.
+- Before declaring shared understanding and stopping, confirm every branch of the
+  tree ends in either a decision the user made or an assumption you stated out
+  loud — an unvisited branch is not a resolved one.
