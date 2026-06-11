@@ -12,8 +12,7 @@ Everything here is prompt-and-config only: no runtime, no dependencies, no build
 ├── skills/               auto-triggered skills + the workflow engine
 │   ├── ticket-engine/    project-agnostic execution layer (reads/writes/transitions)
 │   ├── milestone-sync/   milestone-vs-tickets drift detection & repair
-│   ├── grill-me/         relentless decision-tree interview to reach shared understanding
-│   └── writing-for-interfaces/   UX/interface copy review & authoring
+│   └── grill-me/         relentless decision-tree interview to reach shared understanding
 ├── references/           static reference material, loaded on demand
 └── settings.json         project-scoped settings overrides
 ```
@@ -46,7 +45,6 @@ Skills trigger automatically when their description matches what you're doing �
 - **`ticket-engine`** — the shared execution layer behind every `/ticket:*` command. Loads and validates `config.yaml`, assigns IDs, runs backend-specific transitions (filesystem commits or GitHub label flips), formats commit/comment messages, and reports precise half-state on partial failure.
 - **`milestone-sync`** — detects and fixes drift between a milestone's declared state and the tickets that reference it. Read-only until you approve a fix; each fix lands as its own atomic event. Runs as a preflight in `/ticket:pick`, a postflight in `/ticket:close`, or standalone.
 - **`grill-me`** — interviews you relentlessly about a plan or design, resolving each branch of the decision tree one dependency at a time, with a recommended answer for every question. Use it to stress-test a design before you build.
-- **`writing-for-interfaces`** — reviews and writes the words shown inside software: button labels, error messages, empty states, CLI output, onboarding copy, confirmation dialogs.
 
 ## Getting started
 

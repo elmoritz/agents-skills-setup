@@ -72,7 +72,9 @@ End with the gate, asked (numbered list; user replies with the number):
 - **header:** "Analysis"
 - **options** (omit **Save as inbox** if no inbox role exists):
   - **Continue** — proceed to alignment grilling.
+  - **Edit** — revise; ask what the analysis got wrong (free-text follow-up), re-analyze, and re-gate.
   - **Save as inbox** — invoke `save_as_inbox` and stop.
+  - **Abort** — discard. Nothing is committed.
 
 ### Step 2.5 — alignment grilling
 
@@ -156,7 +158,9 @@ End with the gate, asked (numbered list; user replies with the number):
 - **header:** "Research"
 - **options** (omit **Save as inbox** if no inbox role exists):
   - **Continue** — proceed to body sections.
+  - **Edit** — redirect the research; ask what to look at instead (free-text follow-up), redo, and re-gate.
   - **Save as inbox** — invoke `save_as_inbox` (research notes included) and stop.
+  - **Abort** — discard. Nothing is committed.
 
 ### Step 5 — body sections
 
@@ -182,7 +186,7 @@ End with the gate, asked (numbered list; user replies with the number):
 Determine and confirm:
 
 - `priority`: `P0` | `P1` | `P2` | `P3`. Recommend based on type and impact; `P0` requires explicit user confirmation.
-- `effort`: must be in `effort.pickable_allowed`. The engine enforces this on `create_artifact`; if you arrive here with a value outside the set, return to step 3 and re-split silently.
+- `effort`: must be in `effort.pickable_allowed`. The engine enforces this on `create_artifact`; if you arrive here with a value outside the set, tell the user the effort cap was exceeded, return to step 3 to re-split, and re-run the affected gates (slate gate, or steps 5–6) so the restructured work is re-approved. Never silently restructure content the user already signed off on.
 - `risk`: `low` | `med` | `high`.
 - `depends_on`: surface plausibly-related tickets via `list_artifacts` across all stages and ask.
 - `related`: same approach.

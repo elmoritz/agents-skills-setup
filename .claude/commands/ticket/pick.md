@@ -28,7 +28,7 @@ If the engine reports `"No .claude/config.yaml found"`, stop and tell the user `
 
 ### Preflight — milestone sync
 
-Invoke the `milestone-sync` skill (via the Skill tool, no args). The skill dispatches on `milestones.strategy` and is a no-op when strategy is `none` or `labels`. On `trackers` (filesystem default) and `native` (github default), drift is surfaced with a structured `Apply all` / `Pick one` / `Skip` gate, and each fix lands as its own atomic commit (FS) or milestone state change (GH).
+Invoke the `milestone-sync` skill (via the Skill tool, no args). The skill dispatches on `milestones.strategy`: it stops early on `none`, and is report-only on `labels` (scans label distribution for visibility; nothing to fix). On `trackers` (filesystem default) and `native` (github default), drift is surfaced with a structured `Apply all` / `Pick one` / `Skip` gate, and each fix lands as its own atomic commit (FS) or milestone state change (GH).
 
 The candidate ranking in step 0 prefers tickets whose `milestone:` matches the current focus from `references.roadmap` (if defined); a drifted state would bias that selection, so fixing first is worthwhile. If the user picks `Skip`, proceed to step 0 anyway.
 

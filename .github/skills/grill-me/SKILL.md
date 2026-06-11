@@ -17,4 +17,6 @@ by one.
 - If it is something new, do some research first so you have the best possible
   recommendation.
 - Ask one question at a time and resolve each branch before moving on.
-- For each question, provide your recommended answer.
+- Ask each question as a numbered list (the user replies with the number): 2–4
+  concrete, mutually-exclusive options, with your recommended answer as the first
+  option suffixed `(Recommended)`. Genuine free-form follow-ups stay plain.

@@ -60,6 +60,18 @@ The choice fills `backend.filesystem.root` in the generated config.
 
 The result fills `backend.github.repo`.
 
+### Step 2.5 — ticket ID prefix
+
+Derive a recommended prefix from the project name (the repo folder name, or the repo half of `backend.github.repo`): take the initials of the hyphen/underscore-separated words, uppercased (e.g. `bee-hive-sim` → `BHS`); for a single-word name, take the first 2–3 letters uppercased (e.g. `honeycomb` → `HON`). Then ask (numbered list; user replies with the number):
+
+- **question:** "Ticket ID prefix? IDs will look like `<PREFIX>-001`."
+- **header:** "Prefix"
+- **options:**
+  - **Use `<derived>`** — derived from the project name (Recommended).
+  - **Specify another** — free-text follow-up; 1–5 letters, stored uppercase.
+
+The choice fills `ticket_id.prefix`. Never default to a prefix carried over from another project.
+
 ### Step 3 — inbox stage gate
 
 Ask (numbered list; user replies with the number):
@@ -118,7 +130,7 @@ version: 1
 
 # --- Identity ----------------------------------------------------------
 ticket_id:
-  prefix: IV       # change to your project's prefix
+  prefix: <from Step 2.5>   # ticket IDs look like <PREFIX>-001
   padding: 3
   start: 1
 
@@ -183,10 +195,18 @@ effort:
   pickable_allowed: [S, M]
 
 # --- Milestones -------------------------------------------------------
+# Include exactly one strategy-specific block, matching the Step 4 answer:
+#   Auto on filesystem (resolves to trackers) -> trackers:
+#   Auto on github (resolves to native)       -> no extra keys (GH milestones are used directly)
+#   Labels                                    -> labels:
+#   None                                      -> no extra keys
 milestones:
-  enabled: <true if Step 4 != None>
   strategy: <auto | labels | none>
-  <strategy-specific block; see ../ticket-engine/SKILL.md for each>
+  trackers:                            # filesystem Auto only
+    planned_active_folder: milestone   # planned + active trackers live in <root>/milestone/
+    shipped_folder: done               # shipped trackers live in <root>/done/
+  labels:                              # Labels strategy only
+    prefix: "milestone:"               # milestone labels look like milestone:v1.2
 
 # --- GitHub Project (v2) linkage (github backend only; optional) ------
 # Ignored on the filesystem backend — leave enabled: false there.
@@ -248,7 +268,7 @@ Show the assembled YAML to the user. Gate (numbered list; user replies with the 
 
 2. **Backend side effects.**
 
-   - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If milestones strategy is `trackers`, also create `<root>/milestone/` and ensure `<root>/done/` exists (the milestone tracker may end up here).
+   - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here).
    - **GitHub**: follow `../ticket-engine/SKILL.md` (read that file and run its matching operation inline) — e.g. its Auto-label creation rules — for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
    - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. No items are added at init — issues join the project as they're created (see `../ticket-engine/SKILL.md` `create_artifact`).
 

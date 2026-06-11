@@ -21,6 +21,7 @@ The engine handles **tickets** today. The `artifact_type` parameter (default `ti
 - **No user gates inside the engine.** Any options the caller surfaces are rendered as a numbered list for the user to reply to with the number, and those prompts live in the calling command. The engine performs operations the caller has already decided on.
 - **Config reload per invocation.** The engine re-reads `.github/config.yaml` every time it's invoked. Config files are tiny; the cost is negligible; staleness is impossible.
 - **artifact_type parameter.** Default `ticket`. Reserved values: `ticket` (live), `adr` (reserved, not implemented). Every primitive in Part 1 accepts `artifact_type` implicitly — the value affects ID prefix, commit verb namespace, and the lookup key inside `.github/config.yaml`. Today only `ticket` is wired.
+- **Ticket ID formats per backend.** Filesystem: `{prefix}-{NNN}` (e.g. `IV-042`). GitHub: the native issue number (`#42`, with or without the `#`). Commands accept the active backend's form in the user's input; the engine resolves it to the artifact (on GH via the issue URL).
 
 ## Hard rules
 
@@ -288,7 +289,7 @@ If a field is null or absent, the engine omits the corresponding step or section
 
 ### `trackers` (filesystem)
 
-Tracker files live in `milestones.trackers.planned_active_folder` (planned + active) and `milestones.trackers.shipped_folder` (shipped). Tracker frontmatter carries `type: milestone`, `version`, `status`.
+Tracker files live in `milestones.trackers.planned_active_folder` (planned + active; default `milestone`) and `milestones.trackers.shipped_folder` (shipped; default `done`), both relative to `backend.filesystem.root`. The defaults apply when the keys are absent from config. Tracker frontmatter carries `type: milestone`, `version`, `status`.
 
 The engine exposes two operations to `milestone-sync`:
 - `scan_milestone_state()` — returns each version's tracker status + folder, plus the count of tickets per stage carrying `milestone: <version>`.

@@ -26,7 +26,11 @@ If the engine reports `"No .claude/config.yaml found"`, stop and tell the user `
 
 If $ARGUMENTS contains a ticket ID, invoke `read_artifact(id)`. Verify it lives in the inbox-roled stage. If it doesn't exist or sits elsewhere, report so and stop.
 
-If $ARGUMENTS is empty, invoke `list_artifacts(role: "inbox")` and show each entry with `id`, `title`, `type`, `created`. Ask the user which to refine.
+If $ARGUMENTS is empty, invoke `list_artifacts(role: "inbox")`. If exactly one entry exists, use it directly (the outcome gate in step 1 is confirmation enough). If 2+ entries exist, surface them via `AskUserQuestion`:
+
+- **question:** "Which inbox entry should I refine?"
+- **header:** "Refine"
+- **options:** one per entry, label `<id> — <short title>`, description `<type> — created <created>`. Order by `created` ascending (oldest first); mark the oldest "(Recommended)" since it's been waiting longest.
 
 If the list is empty, report `"Nothing in inbox. /ticket:refine has nothing to do."` and stop.
 
@@ -60,7 +64,13 @@ If the user picks "save as inbox" at any sub-gate during refinement, the engine'
 
 Ask the user for the target ticket ID. Verify it exists via `read_artifact(target_id)` and is **not** in a `terminal`-roled stage.
 
-Then ask the user whether the target's `effort` should bump to reflect the added scope. If yes, gather the new value (must satisfy `effort.pickable_allowed` if the target sits in a pickable-roled stage).
+Then ask via `AskUserQuestion`:
+
+- **question:** "Should the target's `effort` bump to reflect the added scope?"
+- **header:** "Effort"
+- **options:**
+  - **Keep as-is** — the folded notes don't change the size of the work.
+  - **Bump** — gather the new value (free-text follow-up; must satisfy `effort.pickable_allowed` if the target sits in a pickable-roled stage).
 
 Invoke `fold_artifact(source_id, target_id)`:
 

@@ -27,8 +27,7 @@ are Markdown instructions Claude loads on demand and runs with its own tools.
 ├── skills/                       auto-triggered skills + the workflow engine
 │   ├── ticket-engine/            execution layer behind every /ticket:* command
 │   ├── milestone-sync/           milestone-vs-tickets drift detection & repair
-│   ├── grill-me/                 relentless decision-tree interview
-│   └── writing-for-interfaces/   UX/interface copy review & authoring (vendored)
+│   └── grill-me/                 relentless decision-tree interview
 └── references/                   empty placeholder for project reference docs
 ```
 
@@ -74,10 +73,6 @@ you don't invoke them by hand.
 - **`grill-me`** — interviews you relentlessly about a plan or design, resolving
   each branch of the decision tree one dependency at a time, with a recommended
   answer for every question. Use it to stress-test a design before you build.
-- **`writing-for-interfaces`** — reviews and writes the words shown inside
-  software: button labels, error messages, empty states, CLI output, onboarding
-  copy, confirmation dialogs. (Vendored third-party skill; see its `LICENSE` and
-  `ATTRIBUTION.md`.)
 
 ## Getting started
 

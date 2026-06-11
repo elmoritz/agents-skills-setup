@@ -78,8 +78,8 @@ The skill dispatches on `milestones.strategy`:
 
 - **trackers** (filesystem default): scans tracker files; if the milestone should flip to `shipped`, surfaces the drift and prompts to apply (one extra commit per flip).
 - **native** (github default): scans GH milestones; if the milestone has at least one issue and every issue is closed, prompts to close the GH milestone (one `gh milestone close` call).
-- **labels**: no-op (no tracker artifact to flip).
-- **none**: no-op (milestones disabled).
+- **labels**: report-only — scans label distribution for visibility; no tracker artifact to flip.
+- **none**: stops early (milestones disabled).
 
 Skip this step entirely when the closed ticket carried `milestone: unscoped` or referenced a version with no tracker / no GH milestone — there is nothing to sync.
 

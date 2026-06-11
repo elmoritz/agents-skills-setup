@@ -69,7 +69,7 @@ Output exactly this shape, no extra preamble:
 
 ## Verification checklist (golden path)
 <copy `### Golden path` numbered steps verbatim>
-<if no Evidence section: write "No golden path documented. Read the ticket body's intent + the diff since the claim commit (`git log --oneline -- <ticket path>`) and confirm the implementation matches the ticket's intent.">
+<if no Evidence section: write "No golden path documented. Read the ticket body's intent + the change history (filesystem backend: `git log --oneline -- <ticket path>`; github backend: `gh issue view <id> --comments`) and confirm the implementation matches the ticket's intent.">
 
 ## Edge cases to spot-check
 <copy `### Edge cases` bullets verbatim, or omit the section if absent>
