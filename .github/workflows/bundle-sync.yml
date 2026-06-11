@@ -1,0 +1,27 @@
+name: bundle-sync
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pairing check (.claude vs .github bundles)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+          else
+            BASE="${{ github.event.before }}"
+            # New branch or force-push: fall back to the parent commit.
+            if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+              BASE="HEAD~1"
+            fi
+          fi
+          scripts/check-bundle-sync.sh --base "$BASE...HEAD"

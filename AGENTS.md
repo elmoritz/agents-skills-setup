@@ -34,6 +34,34 @@ assignment, backend transitions, commit/comment formatting, half-state reporting
   `../ticket-engine/SKILL.md`" reads that file and runs the matching operation
   inline. No user gates live in the engine — the calling skill owns them.
 
+## Keeping the bundles in sync
+
+`.github/skills/` mirrors `.claude/` (commands + skills). The workflow logic is
+duplicated by design — each bundle must stay self-contained — so **any logic
+change must land in both bundles in the same commit**: a step, gate option, hard
+rule, config key, or engine operation edited on one side is edited on the other
+side too.
+
+Only these differences are intentional; everything else must stay identical:
+
+- **Gate mechanism** — Claude uses the `AskUserQuestion` tool; Copilot prints a
+  numbered list and the user replies with the number.
+- **Command naming** — `/ticket:new` (Claude) vs `/ticket-new` (Copilot).
+- **Config path** — `.claude/config.yaml` vs `.github/config.yaml`.
+- **Invocation style** — Claude invokes skills via the Skill tool; Copilot follows
+  `../<skill>/SKILL.md` by reference.
+- **Frontmatter** — Copilot skills carry `name:` and (for internal skills)
+  `user-invocable: false`; file layout differs (`.claude/commands/ticket/*.md` vs
+  `.github/skills/ticket-*/SKILL.md`).
+
+This is enforced by `scripts/check-bundle-sync.sh`: it fails when a file in a
+mirrored pair changes without its mirror. CI runs it on every PR and push to
+main (`.github/workflows/bundle-sync.yml`); enable the local pre-commit hook
+once per clone with `git config core.hooksPath .githooks`. To eyeball whether
+two mirrors still say the same thing, run
+`scripts/check-bundle-sync.sh --diff <pair>` (e.g. `--diff new`) — it
+normalizes the intentional differences above so what remains is reviewable.
+
 ## Hard rules (every ticket transition)
 
 - **Never amend** an existing commit; every event is a new commit (filesystem) or API call (GitHub).

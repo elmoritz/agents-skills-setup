@@ -1,0 +1,4 @@
+#!/bin/sh
+# Block commits that change one agent bundle without its mirror.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec scripts/check-bundle-sync.sh --staged
