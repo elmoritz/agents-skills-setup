@@ -43,6 +43,15 @@ If the user provided a ticket ID, invoke `read_artifact(id)` to verify it sits i
 
 Otherwise, invoke `list_artifacts(role: "pickable", filters: { depends_satisfied: true })`. The engine returns only tickets whose `depends_on` chain is fully resolved to terminal.
 
+**Stale-claim check.** Also invoke `list_artifacts(role: "in_progress")`. If any ticket carries a non-null `claimed_by`, it may be live in another session — or orphaned by one that died after claiming. Surface them before the pick gate as a numbered list the user picks by number:
+
+- **question:** "Found claimed ticket(s) in <in_progress label>: <one line per ticket: id — title, claimed by X>. Possibly active elsewhere, possibly orphaned — what should I do?"
+- **header:** "Claims"
+- **options:**
+  - **Proceed to pick (Recommended)** — leave them; they may be active in another session.
+  - **Release a stale claim** — ask which ID (free-text follow-up), then invoke `transition_artifact(id, target_role: "pickable", fields: { claimed_by: null }, event: "abandon")` with an `## Abandoned notes` payload: `"Stale claim released — was claimed by <claimed_by>, released <ISO date> without reaching review."` The released ticket then competes among the candidates below.
+  - **Resume one** — ask which ID (free-text follow-up). It is already in the in_progress stage, so skip the step 1 claim; if its `claimed_by` names a different agent, update it via `update_frontmatter`; jump to step 2.
+
 Determine the current focus milestone:
 
 - If `references.roadmap` is defined and exists, parse the latest unfinished version from its "What's next" section (or equivalent project-defined heading).
@@ -71,6 +80,8 @@ Invoke `claim_atomic(id)`. The engine:
 - **GitHub**: optimistic check-write-verify per § Transition primitives (read state, atomic edit with assignee + label swap, verify by re-reading; reverse on lost race).
 
 If the engine returns `{ ok: false, reason: "race lost ..." }`, abort cleanly, tell the user, and offer to pick a different ticket from the pickable stage.
+
+**The claim creates an obligation.** From here until the step 6 handoff, the ticket must never be left claimed and idle: if the user calls the work off at any later step, or the session is wrapping up without the ticket reaching review, run the Abandon path (step 3) before stopping.
 
 ### Step 2 — read current state
 
@@ -106,6 +117,8 @@ If **Abandon**:
 2. The engine:
    - **Filesystem**: `git mv` back to the pickable stage folder; clears `claimed_by` in frontmatter; appends `## Abandoned notes` to the body; commits with `commits.abandon`.
    - **GitHub**: swap labels back; unassign; append abandon notes to body; post a comment (per § Message formatting, `abandon` is content-bearing).
+
+The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5). The `## Abandoned notes` payload records why, whatever the step.
 
 ### Step 4 — implement
 
@@ -182,6 +195,7 @@ Do **not** run `verification.pre_close_command` here — that's the engine's job
 ## Hard rules
 
 - The atomic claim (step 1) happens **before** any research, planning, or code reading. No exceptions.
+- A claimed ticket is never left dangling: any post-claim abort runs the step 3 Abandon transition (back to pickable, `claimed_by: null`, notes appended) as its final act.
 - Plans are presented before implementation. No silent implementation.
 - Every behavioral change leaves a verification (test or manual evidence).
 - Invariants in `references.architecture` are not optional **when the reference is defined**. If the ticket appears to require violating one, surface that to the user and stop.
