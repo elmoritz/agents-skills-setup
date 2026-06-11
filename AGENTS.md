@@ -17,6 +17,7 @@ A backend-agnostic, in-repo issue tracker. Configuration lives in
 | `ticket-refine` | `/ticket-refine` | Promote an inbox entry to backlog (or fold/wontfix). |
 | `ticket-pick` | `/ticket-pick` | Implement the next ticket through to review. |
 | `ticket-review` | `/ticket-review` | Print a read-only verification guide. |
+| `ticket-reject` | `/ticket-reject` | Send a ticket that failed verification back to in-progress, reason recorded. |
 | `ticket-close` | `/ticket-close` | Close a ticket as shipped. |
 | `grill-me` | `/grill-me` | Stress-test a plan/design down each decision branch. |
 

@@ -233,6 +233,7 @@ commits:
   abandon:        "ticket: abandon {id} {title}"
   update:         "ticket: update {id} {title}"
   review:         "ticket: review {id} {title}"
+  reject:         "ticket: reject {id} {title}"
   done:           "ticket: done {id} {title}"
   fold:           "ticket: fold {id} into {target_id}"
   wontfix:        "ticket: wontfix {id} {title}"

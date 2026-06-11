@@ -114,4 +114,4 @@ That's the whole report. No congratulations, no next-ticket suggestion (that's `
 - Never skip git hooks (no `--no-verify`); never bypass signing.
 - Trust the user's verification. This command does not run `verification.test_commands` — that's `/ticket:review`'s territory and the user's verification responsibility. If the build is broken, that's a regression that should be caught before closure.
 - If the engine reports half-state, surface it and stop. Do not push through.
-- `closed_as: shipped` is what this command writes. Wontfix / duplicate closures of in-progress or in-review work are a different decision and currently a manual edit; the inbox path covers wontfix/duplicate via `/ticket:refine`.
+- `closed_as: shipped` is what this command writes. Wontfix / duplicate closures of in-progress or in-review work are a different decision and currently a manual edit; the inbox path covers wontfix/duplicate via `/ticket:refine`. Failed verification is not a closure at all — that's `/ticket:reject`'s territory (back to in_progress with the reason recorded).

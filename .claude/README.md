@@ -23,6 +23,7 @@ are Markdown instructions Claude loads on demand and runs with its own tools.
 │       ├── refine.md             /ticket:refine — promote an inbox entry
 │       ├── pick.md               /ticket:pick   — implement next ticket
 │       ├── review.md             /ticket:review — print a verification guide
+│       ├── reject.md             /ticket:reject — send failed review back
 │       └── close.md              /ticket:close  — close as shipped
 ├── skills/                       auto-triggered skills + the workflow engine
 │   ├── ticket-engine/            execution layer behind every /ticket:* command
@@ -37,7 +38,7 @@ by `/ticket:init` (see ["What gets created"](#what-gets-created-on-first-use) be
 
 ## The ticket workflow
 
-A small, opinionated issue tracker that lives in your repo and runs through six
+A small, opinionated issue tracker that lives in your repo and runs through seven
 slash commands. The same commands work whether tickets are **Markdown files
 committed to the repo** (filesystem backend) or **GitHub issues** (github
 backend) — the choice lives in `.claude/config.yaml`, and every command delegates
@@ -50,6 +51,7 @@ the actual reads, writes, and stage transitions to the **`ticket-engine`** skill
 | `/ticket:refine` | Resume a captured inbox entry and promote it to the backlog (or close it as fold/wontfix). Only available if an inbox stage is configured. |
 | `/ticket:pick` | Pull the next ticket off the backlog and implement it through to review. |
 | `/ticket:review` | Print a read-only verification guide for a ticket in review. |
+| `/ticket:reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
 | `/ticket:close` | Close a ticket as shipped, trusting you've verified the work. |
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress →

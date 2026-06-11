@@ -80,7 +80,11 @@ If verification passes, close it:
 
     /ticket:close <id>
 
-If you find a problem, leave the ticket in <review-stage label> and either fix it directly (new commit on the working branch) or open a follow-up ticket via /ticket:new. /ticket:close is one-way — only call it when you're done verifying.
+If you find a problem, send it back with the reason recorded:
+
+    /ticket:reject <id>
+
+It returns to <in_progress-stage label> with a `## Review rejection` section; fix forward from there. For a problem that's really new scope, open a follow-up ticket via /ticket:new instead. /ticket:close is one-way — only call it when you're done verifying.
 ```
 
 That's the entire output. Do not add commentary, do not summarise the iteration history, do not propose changes. The point of this command is to put the user in front of the verification steps without distraction.

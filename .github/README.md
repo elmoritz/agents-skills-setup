@@ -30,6 +30,7 @@ across **VS Code agent mode, the Copilot CLI, and the Copilot cloud agent**.
     ├── ticket-refine/            /ticket-refine — promote an inbox entry
     ├── ticket-pick/              /ticket-pick   — implement next ticket
     ├── ticket-review/            /ticket-review — print a verification guide
+    ├── ticket-reject/            /ticket-reject — send failed review back
     ├── ticket-close/             /ticket-close  — close as shipped
     ├── grill-me/                 /grill-me      — stress-test a plan/design
     ├── ticket-engine/            execution layer (user-invocable: false)
@@ -55,6 +56,7 @@ and every skill delegates the actual reads, writes, and stage transitions to the
 | `ticket-refine` | `/ticket-refine` | Resume a captured inbox entry and promote it to the backlog (or close it as fold/wontfix). Only if an inbox stage is configured. |
 | `ticket-pick` | `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review. |
 | `ticket-review` | `/ticket-review` | Print a read-only verification guide for a ticket in review. |
+| `ticket-reject` | `/ticket-reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
 | `ticket-close` | `/ticket-close` | Close a ticket as shipped, trusting you've verified the work. |
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress →

@@ -9,7 +9,7 @@ The engine handles **tickets** today. The `artifact_type` parameter (default `ti
 
 ## Calling contract
 
-- **Who invokes**: `/ticket:new`, `/ticket:refine`, `/ticket:pick`, `/ticket:review`, `/ticket:close`, `/ticket:init`, and the `milestone-sync` skill.
+- **Who invokes**: `/ticket:new`, `/ticket:refine`, `/ticket:pick`, `/ticket:review`, `/ticket:reject`, `/ticket:close`, `/ticket:init`, and the `milestone-sync` skill.
 - **How**: via the Skill tool, no args. The caller's prompt names which engine operation it needs (e.g. "use the engine to claim IV-042"). Claude follows the matching § Operations entry.
 - **Returns**: every operation returns a **structured result** the caller paraphrases to the user — never raw tool output. On success: `{ ok: true, artifact: {...}, steps_taken: [...] }`. On failure: `{ ok: false, where: "<step>", completed: [...], failed: "<reason>", recovery: "<manual fix>" }`. The shapes are illustrative — Claude composes them in prose.
 - **No user gates inside the engine.** All `AskUserQuestion` prompts live in the calling command. The engine performs operations the caller has already decided on.
@@ -182,7 +182,7 @@ Every workflow event has a template in `commits:`. The engine resolves the event
 
 **Filesystem**: the rendered subject is the entire commit message. Pass through a HEREDOC so special characters survive.
 
-**GitHub**: status-ping events (new, capture, claim, refine, review, done) are **silent** — no comment is posted. The native activity log is the record. Content-bearing events (capture_update, abandon, update, fold, wontfix) post a comment. The comment's first line is the rendered subject; a blank line; then the engine-assembled body block carrying the contextual payload (the abandon notes, the wontfix reasoning, the folded body, etc.). The body block is **not config-templated** — it is rendered from the operation's runtime payload.
+**GitHub**: status-ping events (new, capture, claim, refine, review, done) are **silent** — no comment is posted. The native activity log is the record. Content-bearing events (capture_update, abandon, update, reject, fold, wontfix) post a comment. The comment's first line is the rendered subject; a blank line; then the engine-assembled body block carrying the contextual payload (the abandon notes, the wontfix reasoning, the folded body, etc.). The body block is **not config-templated** — it is rendered from the operation's runtime payload.
 
 | Event | FS | GH |
 |---|---|---|
@@ -194,6 +194,7 @@ Every workflow event has a template in `commits:`. The engine resolves the event
 | `abandon` | commit | comment (carries abandon notes) |
 | `update` | commit | comment (carries body change rationale) |
 | `review` | commit | silent (label flip) |
+| `reject` | commit | comment (carries the rejection reason) |
 | `done` | commit | silent (issue close with native reason) |
 | `fold` | commit | comment on **both** source and target (carries source body and target reference) |
 | `wontfix` | commit | comment (carries reasoning) |
@@ -374,7 +375,7 @@ Every operation below calls this first. Cache for the duration of the engine inv
   4. § Message formatting + commit (FS) or conditional comment (GH).
 - **Returns**: updated artifact summary; or half-state report on partial failure.
 
-Used by the move-only transitions: `claim` (pickable → in_progress), `review` (in_progress → review), `abandon` (in_progress → pickable), `refine` (inbox → pickable, via promote path).
+Used by the move-only transitions: `claim` (pickable → in_progress), `review` (in_progress → review), `reject` (review → in_progress), `abandon` (in_progress → pickable), `refine` (inbox → pickable, via promote path).
 
 ### `claim_atomic(id)`
 
