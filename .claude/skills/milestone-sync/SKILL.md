@@ -66,32 +66,11 @@ Always "in sync" — nothing tracked.
 
 ### Step 0 — scan
 
-Invoke the engine's `scan_milestone_state(version)` operation. The engine handles the per-strategy mechanics:
-
-- **trackers**: parses tracker files from both folders, counts tickets per version per stage, returns per-version state including tracker folder, frontmatter status, and ticket distribution.
-- **native**: calls `gh api repos/{owner}/{repo}/milestones?state=all`, fetches each milestone's open/closed issue counts, returns per-milestone state.
-- **labels**: rolls up label distribution; no flip-state computed.
-- **none**: returns empty.
-
-For trackers and native, the engine also returns orphan references (tickets carrying a milestone with no tracker / no GH milestone) and empty trackers (tracker / GH milestone with no tickets).
+Invoke the engine's `scan_milestone_state(version)` operation. It handles the per-strategy mechanics (tracker files + per-stage ticket counts on `trackers`, `gh api .../milestones?state=all` on `native`, label roll-up on `labels`, empty on `none`) and, on trackers and native, also returns orphan references (tickets carrying a milestone with no tracker / no GH milestone) and empty trackers (tracker / GH milestone with no tickets).
 
 ### Step 1 — analyze
 
-For each version returned by the scan, derive the **expected status** from the ticket distribution. For `trackers`:
-
-- Zero tickets carry the version, OR every ticket is in the `pickable`-roled stage → expected `planned`.
-- At least one ticket exists AND every ticket is in a `terminal`-roled stage → expected `shipped`.
-- Anything else → expected `active`.
-
-For `native`, the equivalent collapses to:
-
-- All issues closed → expected closed (= shipped).
-- Otherwise → expected open.
-
-Derive the **expected folder** (trackers only) from the expected status:
-
-- `planned` or `active` → `milestones.trackers.planned_active_folder`.
-- `shipped` → `milestones.trackers.shipped_folder`.
+For each version returned by the scan, derive the **expected status** — and, on `trackers`, the **expected folder** — from the ticket distribution per § What "in sync" means (trackers: `planned` / `active` / `shipped` from the stage distribution; native: open unless every issue is closed).
 
 Flag drift wherever `actual_status != expected_status` (status drift) OR, on `trackers`, `tracker_folder != expected_folder` (location drift). The two often co-occur but can occur independently:
 
@@ -132,23 +111,7 @@ Milestone sync report  (strategy: native, github)
   v0.6    open     ✓ 3 open                                     in sync
 ```
 
-For `labels`:
-
-```
-Milestone label distribution  (strategy: labels)
-
-  milestone:v0.3    8 issues
-  milestone:v0.5    7 issues
-  milestone:v0.6    3 issues
-
-(No tracker artifact; nothing to flip.)
-```
-
-For `none`:
-
-```
-Milestones disabled in this project.
-```
+For `labels`, print a `Milestone label distribution` list (one `milestone:<version>  N issues` line each), ending with `(No tracker artifact; nothing to flip.)`. For `none`, print `Milestones disabled in this project.`
 
 Numbers come from the actual scan. The reason column should be specific enough that the user can spot-check without opening files.
 
@@ -211,10 +174,8 @@ The calling command continues from here.
 - **Tickets are the source of truth.** If a tracker / GH milestone disagrees with ticket distribution, the tracker / GH milestone is wrong — never the other way around. Never edit ticket frontmatter or move tickets to make a milestone happy.
 - **One drift, one event.** Each flip is its own atomic commit (FS) or API call (GH) so the change shows up cleanly in `git log` or the GH activity log and is trivial to revert.
 - **Skip is always offered.** A `planned` tracker may legitimately stay `planned` even after a ticket is claimed (exploratory spike that doesn't formally open the milestone). User's call, every time.
-- **Orphan references are not fix candidates.** A ticket with `milestone: v0.4` and no `v0.4` tracker / GH milestone is information for the human — creating a tracker / GH milestone is a deliberate roadmap action.
-- **Empty trackers / milestones are not fix candidates either.** A tracker / milestone for a future version with no tickets yet is normal during early refinement.
-- **A tracker in the shipped folder with non-`shipped` frontmatter is not auto-fixable.** Surface to the user; this state should not occur in normal use.
-- **A closed GH milestone with open issues is not auto-fixed either.** Reopening is a deliberate user decision.
+- **Orphans and empty trackers / milestones are not fix candidates.** Creating a tracker / GH milestone for an orphan reference is a deliberate roadmap action, and an empty tracker for a future version is normal during refinement — list both, act on neither.
+- **Wrong-way drift is never auto-fixed.** A tracker in the shipped folder with non-`shipped` frontmatter, or a closed GH milestone with open issues, is surfaced for the user to investigate — fixing it (or reopening) is a deliberate user decision.
 - **Never amend.** Never `--no-verify`. Never bypass signing.
 
 ## Calling contract

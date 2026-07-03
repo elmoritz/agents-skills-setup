@@ -39,11 +39,15 @@ engine:.claude/skills/ticket-engine/SKILL.md:.github/skills/ticket-engine/SKILL.
 milestone-sync:.claude/skills/milestone-sync/SKILL.md:.github/skills/milestone-sync/SKILL.md
 grill-me:.claude/skills/grill-me/SKILL.md:.github/skills/grill-me/SKILL.md
 readme:.claude/README.md:.github/README.md
+challenger:.claude/agents/challenger.md:.github/agents/challenger.agent.md
+code-reviewer:.claude/agents/code-reviewer.md:.github/agents/code-reviewer.agent.md
+code-simplifier:.claude/agents/code-simplifier.md:.github/agents/code-simplifier.agent.md
+test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.github/agents/test-adequacy-reviewer.agent.md
 "
 
 # Files that legitimately exist on one side only. Exact paths, or prefixes
-# ending in '/'. Any tracked file under .claude/ or .github/skills/ that is
-# neither here nor in PAIRS fails the coverage check.
+# ending in '/'. Any tracked file under .claude/, .github/skills/, or
+# .github/agents/ that is neither here nor in PAIRS fails the coverage check.
 IGNORE="
 .claude/settings.json
 .claude/references/
@@ -58,6 +62,7 @@ normalize() {
       -e 's/AskUserQuestion/«GATE»/g' \
       -e 's/numbered list/«GATE»/g' \
       -e 's/NUMBERED LIST/«GATE»/g' \
+      -e 's/^tools:.*/«TOOLS»/' \
       "$1"
 }
 
@@ -99,7 +104,7 @@ check_coverage() {
     [ "$ignored" -eq 1 ] && continue
     echo "FAIL [coverage]: $f is in neither PAIRS nor IGNORE (scripts/check-bundle-sync.sh) — add a mirror + PAIRS entry, or list it in IGNORE."
     fail=1
-  done < <(git ls-files -- .claude .github/skills)
+  done < <(git ls-files -- .claude .github/skills .github/agents)
   return "$fail"
 }
 

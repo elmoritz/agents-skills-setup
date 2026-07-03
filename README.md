@@ -13,6 +13,7 @@ Everything here is prompt-and-config only: no runtime, no dependencies, no build
 │   ├── ticket-engine/    project-agnostic execution layer (reads/writes/transitions)
 │   ├── milestone-sync/   milestone-vs-tickets drift detection & repair
 │   └── grill-me/         relentless decision-tree interview to reach shared understanding
+├── agents/               read-only review subagents wired into /ticket:pick (challenger, reviewer, simplifier, test-adequacy)
 ├── references/           static reference material, loaded on demand
 └── settings.json         project-scoped settings overrides
 ```
@@ -26,7 +27,7 @@ A small, opinionated issue tracker that lives in your repo and runs through six 
 | `/ticket:init` | Bootstrap a project: write `.claude/config.yaml`, create the stage folders or labels, lay down a starter ticket template. |
 | `/ticket:new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the agent's understanding before anything is committed. |
 | `/ticket:refine` | Resume a captured inbox entry and promote it to the backlog (or close it as a fold/wontfix). |
-| `/ticket:pick` | Pull the next ticket off the backlog and implement it through to review. |
+| `/ticket:pick` | Pull the next ticket off the backlog and implement it through to review — the plan is stress-tested by the `challenger` agent, and the diff passes a code-review, test-adequacy, and simplification pass before sign-off. |
 | `/ticket:review` | Print a read-only verification guide for a ticket in review. |
 | `/ticket:close` | Close a ticket as shipped, trusting you've verified the work. |
 

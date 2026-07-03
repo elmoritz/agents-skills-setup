@@ -8,9 +8,9 @@ argument-hint: [optional starting description; otherwise the user is prompted]
 
 If the user typed a starting description after the command, use it as the seed; otherwise prompt for one.
 
-Run the ticket creation workflow per `.github/config.yaml`. There is a single entry point for new tickets: this command. A request may resolve to **one ticket** or **a small slate of dependent tickets** (typically 2–3). The decision is made silently at step 3 — the user is **not** gated on the split decision. The default is one ticket; split whenever keeping it as one would push effort past the project's `effort.pickable_allowed`. Backlog hygiene is a hard constraint: every ticket landing in a `pickable`-roled stage must satisfy `effort.pickable_allowed` — no exceptions.
+Run the ticket creation workflow per `.github/config.yaml`. This command is the single entry point for new tickets. A request may resolve to **one ticket** (the default) or **a slate of dependent tickets** — the decomposition rules live in step 3, where the split is drafted and gated before any body is written. Backlog hygiene is a hard constraint: every ticket landing in a `pickable`-roled stage must satisfy `effort.pickable_allowed` — no exceptions.
 
-**Alignment is a first-class goal.** A ticket is only as good as the shared understanding behind it. Before any ticket is committed, an interview pass (step 2.5) walks the decision tree and resolves every material ambiguity — so what lands on the backlog reflects what the user actually wants, not the AI's best guess. The two understanding gates (steps 1 and 2.5) are where the user's view and the agent's understanding are reconciled.
+**Alignment is a first-class goal.** Before any ticket is committed, an interview pass (step 2.5) walks the decision tree and resolves every material ambiguity, so what lands on the backlog reflects what the user actually wants — steps 1 and 2.5 reconcile the understanding, step 3 reconciles how it's sliced into tickets, all before scope is locked.
 
 The user's starting input: the starting description the user provided (if any).
 
@@ -58,7 +58,7 @@ End with the gate, asked (numbered list; user replies with the number):
 
 ### Step 2 — current implementation analysis
 
-Identify and read the files relevant to this ticket. For features, the existing primitives the new work builds on. For bugs, the suspected root-cause file plus surrounding context. For tech, the smell or capability area.
+Identify and read the files relevant to the described work (the whole scenario — it may split into several tickets at step 3). For features, the existing primitives the new work builds on. For bugs, the suspected root-cause file plus surrounding context. For tech, the smell or capability area.
 
 Output a 5–10 line summary:
 
@@ -80,7 +80,7 @@ End with the gate, asked (numbered list; user replies with the number):
 
 **Purpose:** reconcile the user's intent with the agent's understanding *before* scope is locked. The freshly-read code (step 2) means most open questions can now be answered from the source rather than asked. This step is where the ticket stops being a guess.
 
-**Method — interview the user about this ticket until you reach a shared understanding.** Walk down each branch of the decision tree, resolving dependencies between decisions one at a time. The grilling is scoped to *this ticket*, bounded by the constraints below — not an open-ended interrogation of the whole design.
+**Method — interview the user about this scenario until you reach a shared understanding.** Walk down each branch of the decision tree, resolving dependencies between decisions one at a time. The grilling is scoped to *the work the user described* — enough to bound every ticket it will split into at step 3 — bounded by the constraints below, not an open-ended interrogation of the whole product.
 
 1. **Build the decision tree.** From the user's request + the step 2 analysis, enumerate the open questions whose answers would change *what gets built, how it's typed, what "done" means, or how big it is* — i.e. anything that moves `type`, scope, acceptance criteria / regression test, `effort`, `priority`, `risk`, or the split decision. Order them so a question never depends on one asked later (resolve parents before children).
 
@@ -92,43 +92,63 @@ End with the gate, asked (numbered list; user replies with the number):
    - Use a short `header` naming the decision (e.g. "Scope", "Trigger", "Edge case").
    - Never ask the user to free-type an option label; structured choices only. Genuine free-form follow-ups (e.g. "what's the exact threshold?") stay as inline asks.
 
-4. **Bound the interview.** Keep walking the tree until no *material* ambiguity remains — then stop. Do **not** manufacture questions: anything cosmetic or low-stakes, take your recommended default **silently** and record it as an assumption rather than gating on it. Ticket creation should feel like alignment, not interrogation.
+4. **Loop until the tree is exhausted, not until you tire of asking.** Each answer can open new branches or close several at once — after every answer, re-derive the open-question set and keep going while a *material* ambiguity remains. Stop **only** when every branch ends in either a decision the user made or an assumption you stated out loud and recorded — an unvisited or hand-waved branch is **not** resolved. Do **not** manufacture questions to pad the interview: anything cosmetic or low-stakes, take your recommended default **silently** and record it as an assumption. Ticket creation should feel like alignment, not interrogation.
 
 5. **Fold every resolution forward.** Update your restated understanding with the answers, and carry them into the acceptance criteria / regression test (step 5) and the frontmatter fields (step 6). Maintain a running **"Decisions & assumptions"** list (each grilled answer + each silent default) to embed in the ticket body — this is the durable record of the shared understanding.
 
 There is **no separate continue/abort gate** for this step: each numbered question *is* the alignment, and the final body/commit gates (steps 5–6, or the slate gate) are where the user signs off on the assembled result. If the user picks an "Other"/abort-style answer indicating they want to stop, treat it like **Save as inbox** (capture what's gathered, including the decisions list) when an inbox role exists, or surface the choice to abort.
 
-### Step 3 — split assessment (silent decision)
+### Step 3 — decomposition plan (visible gate)
 
-Decide whether this is **one ticket** or a **small slate** (2–3 tickets with `depends_on` chained). **This is your call — do not ask the user.** No gate.
+Decide how the scenario decomposes: **one ticket** or a **slate** of dependency-ordered tickets. Then **show the plan to the user and gate on it** before any body is drafted. The default is one ticket. The command proposes the split; the user approves or edits it.
 
-**The size rule is binding:** every ticket committed to a `pickable`-roled stage must satisfy `effort.pickable_allowed`. There is no escape hatch. If keeping the work as a single ticket would land at an effort outside the allowed set, you **must** split. Each sub-ticket must individually be inside the allowed set; if a candidate sub-ticket isn't, split it further or rescope.
+**The size rule is binding:** every ticket committed to a `pickable`-roled stage must satisfy `effort.pickable_allowed`. There is no escape hatch. If keeping the work as a single ticket would land at an effort outside the allowed set, you **must** split. Each ticket on the slate must individually be inside the allowed set; if a candidate isn't, split it further or rescope.
 
 **Stay one ticket when:**
 
 - The work fits within `effort.pickable_allowed` as one ticket, **and**
-- One of: the pieces share a single verification scenario; any candidate sub-piece is internal scaffolding with no standalone value (fold it in); or acceptance criteria are facets of one user-facing change.
+- One of: the pieces share a single verification scenario; any candidate sub-piece is internal scaffolding with no standalone value (fold it in); or the acceptance criteria are facets of one user-facing change.
 
 **Split when:**
 
 - A single ticket would exceed `effort.pickable_allowed` (mandatory split), **or**
 - The work has **natural seams** (distinct surfaces, distinct primitives, prerequisite + payoff) **and** at least one piece has **standalone value** (ships alone, unblocks other work, or carries a different milestone/priority).
 
-**Don't over-split.** Target 2–3 tickets, each within the allowed effort range. If you find yourself sketching 4+ sub-tickets, the request is bigger than a ticket cluster — surface this back to the user as a scoping question. Two paths from there: (a) capture the umbrella as a roadmap line and only ticket the next 1–2 concrete pieces now, or (b) ask the user how to scope down. Don't flood the backlog.
+**Decompose as far as the scenario honestly needs — and no further.** A large scenario may legitimately split into many small/medium tickets; there is **no fixed cap**. But every ticket on the slate must earn its place against all three of these:
 
-If splitting, draft the slate. One line per sub-ticket:
+- It is individually within `effort.pickable_allowed`.
+- It can be **verified on its own** (its own acceptance criteria or regression test), or it is the explicit payoff of a prerequisite it `depends_on`.
+- It is **not a fragment** that exists only because you cut a coherent change in half. If two candidate tickets share one verification scenario and neither ships without the other, they are one ticket.
+
+Split until each piece passes all three, then **stop** — don't fragment further. Scaffolding with no standalone value folds into the ticket it serves.
+
+**When the slate is large (roughly 4+ tickets)** it is an umbrella of work, not a single change. Give every ticket on the slate a shared `milestone` (from `references.roadmap` if one fits, else propose one) so the decomposition has a home and `milestone-sync` can track it as a unit. If even a shared milestone can't make the slate cohere — the pieces don't belong to one initiative — that's a signal the user described several scenarios at once; surface that and ask which to ticket now rather than committing an incoherent slate.
+
+**If decomposing surfaces fresh ambiguity** — a sub-ticket whose scope or "done" you can't yet state concretely — return to step 2.5 and resolve that branch before drafting the plan. Splitting is itself a node in the decision tree, not a one-way door past it; the questions about scope and gaps may resume here.
+
+**Draft the plan.** One line per ticket, in dependency order (dependencies precede dependents):
 
 ```
 <id> — <title> — <type>, <effort>, depends_on: [<ids or none>]
-       <one-sentence scope>
+       <one-sentence scope> · verifies: <how this ticket is checked done>
 ```
 
-Reserve consecutive IDs via `assign_next_id(slate_size)`. Order the slate so dependencies precede dependents.
+For a single ticket the plan is one row — still shown. If the plan is a slate (2+ tickets), reserve consecutive IDs via `assign_next_id(slate_size=N)`; for a single ticket the step-0 ID stands.
 
-**Routing (no user gate):**
+**Decomposition gate**, asked (numbered list; user replies with the number):
+
+- **question:** "Decomposition: <N> ticket(s). Proceed to draft them?"
+- **header:** "Decomposition"
+- **options** (omit **Save as inbox** if no inbox role exists):
+  - **Continue** — accept the plan; draft the ticket(s).
+  - **Edit the split** — change the slate: merge, split further, re-scope, re-order, or drop a piece; ask what to change (free-text follow-up), redraft the plan, and re-gate.
+  - **Save as inbox** — invoke `save_as_inbox` with what's gathered (including the plan) and stop.
+  - **Abort** — discard. Nothing is committed.
+
+**Routing (after Continue):**
 
 - One ticket → continue to step 4.
-- Split → jump to the **Compact split path** below. Steps 4–7 of the single-ticket path are skipped.
+- Slate → jump to the **Compact split path** below. Steps 4–7 of the single-ticket path run silently per ticket there.
 
 ### Step 4 — research (features only; skip for bugs/tech unless externally driven)
 
@@ -213,7 +233,7 @@ Do not run the `verification.pre_close_command` here — that's a closure-time c
 
 ## Compact split path
 
-Reached only when step 3 resolves as a split. The slate has already been drafted (titles, types, effort estimates, dependency order, IDs reserved). The user has not yet seen it — they approve at the single gate at the end of this path. **Grilling (step 2.5) has already run** before the split decision, so the slate is drafted from reconciled understanding; carry the relevant decisions/assumptions into each sub-ticket's `## Decisions & assumptions` section.
+Reached when the step 3 decomposition gate resolves as a slate (2+ tickets) and the user picked **Continue**. The slate's *shape* — titles, types, effort estimates, dependency order — was already approved at that gate, and the IDs are reserved. This path drafts the full content of each ticket; the user signs off on the assembled result at the slate gate at the end. **Grilling (step 2.5) has already run**, so each ticket is drafted from reconciled understanding; carry the relevant decisions/assumptions into each sub-ticket's `## Decisions & assumptions` section.
 
 1. **Draft all sub-tickets in one pass.** For each ticket on the slate, run steps 4 (research), 5 (body), 6 (frontmatter) silently — no per-step prompts. Apply the existing rules (license filters, required body sections, full frontmatter fields). When a piece of research or analysis applies to multiple tickets, cite it once and cross-reference (`see <id> Research`) rather than duplicating prose.
 2. **Wire the dependency chain.** Each ticket's `depends_on` lists the prior ticket(s) it actually needs done first; `related` lists the rest of the slate. Slate-reserved sibling IDs are exempt from existence validation (they're created in this same pass, in dependency order); any `depends_on` pointing outside the slate must resolve via `read_artifact` before the slate gate.
@@ -253,9 +273,9 @@ In the compact split path, **Save all to inbox** calls `save_as_inbox` once per 
 - Never commit an effort value outside `effort.pickable_allowed`. The engine refuses such writes; the command must re-split at step 3 before retrying.
 - Never accept a research candidate with an incompatible license.
 - Never write a file before assigning the ID; never reuse an existing ID. Reserved IDs in a dropped/aborted slate are not reclaimed (gaps are fine).
-- The split decision at step 3 is the command's, not the user's — there is no gate at step 3.
+- The decomposition plan at step 3 is **always shown and gated**, whether it resolves to one ticket or a slate.
 - Every sub-ticket in a slate must individually satisfy `effort.pickable_allowed`.
-- Never propose a slate of 4+ tickets. Surface as a roadmap concern instead.
+- Every slate ticket must pass step 3's earn-its-place tests; a large slate (roughly 4+) shares a `milestone`, and an incoherent slate means several scenarios were described — surface that instead of committing.
 - Never set a ticket's `depends_on` to a sibling outside the current slate without confirming that sibling exists. The engine enforces this and also rejects dependency cycles (ticket-engine § depends_on integrity).
 - Never amend an existing commit; always create a new one. In a slate, commit each ticket separately.
 - The engine, not the command, decides where files go and what commits look like. The command never invokes `git mv` or `gh issue create` directly.

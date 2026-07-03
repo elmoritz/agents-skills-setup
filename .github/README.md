@@ -24,17 +24,22 @@ across **VS Code agent mode, the Copilot CLI, and the Copilot cloud agent**.
 ```
 .github/
 ├── README.md                     this file
-└── skills/                       Agent Skills (SKILL.md per directory)
-    ├── ticket-init/              /ticket-init   — one-time bootstrap
-    ├── ticket-new/               /ticket-new    — create ticket(s)
-    ├── ticket-refine/            /ticket-refine — promote an inbox entry
-    ├── ticket-pick/              /ticket-pick   — implement next ticket
-    ├── ticket-review/            /ticket-review — print a verification guide
-    ├── ticket-reject/            /ticket-reject — send failed review back
-    ├── ticket-close/             /ticket-close  — close as shipped
-    ├── grill-me/                 /grill-me      — stress-test a plan/design
-    ├── ticket-engine/            execution layer (user-invocable: false)
-    └── milestone-sync/           milestone drift sync (user-invocable: false)
+├── skills/                       Agent Skills (SKILL.md per directory)
+│   ├── ticket-init/              /ticket-init   — one-time bootstrap
+│   ├── ticket-new/               /ticket-new    — create ticket(s)
+│   ├── ticket-refine/            /ticket-refine — promote an inbox entry
+│   ├── ticket-pick/              /ticket-pick   — implement next ticket
+│   ├── ticket-review/            /ticket-review — print a verification guide
+│   ├── ticket-reject/            /ticket-reject — send failed review back
+│   ├── ticket-close/             /ticket-close  — close as shipped
+│   ├── grill-me/                 /grill-me      — stress-test a plan/design
+│   ├── ticket-engine/            execution layer (user-invocable: false)
+│   └── milestone-sync/           milestone drift sync (user-invocable: false)
+└── agents/                       custom review agents (*.agent.md) wired into /ticket-pick
+    ├── challenger.agent.md              devil's advocate against a drafted plan
+    ├── code-reviewer.agent.md           diff review vs plan, invariants, conventions
+    ├── code-simplifier.agent.md         proposes behavior-preserving simplifications
+    └── test-adequacy-reviewer.agent.md  judges whether new tests can actually fail
 ```
 
 Base instructions for all Copilot surfaces live in the repo-root
@@ -77,6 +82,28 @@ milestones"):
 - **`milestone-sync`** — detects and fixes drift between a milestone's declared
   state and the tickets that reference it. Read-only until you approve a fix. Read
   as a preflight in `ticket-pick` and a postflight in `ticket-close`.
+
+## The agents
+
+`agents/` holds read-only **custom agents** (`<name>.agent.md`) — focused reviewers
+Copilot picks from the agents dropdown / `/agents`, or auto-selects when a task
+matches their `description`. Each judges only what's on disk and changes nothing;
+the main session owns any resulting edits.
+
+- **`challenger`** — devil's advocate against a freshly drafted plan: concrete
+  failure scenarios and cheaper alternatives, grounded in the code, never vague doubt.
+- **`code-reviewer`** — reviews an implementation diff against the approved plan,
+  architecture invariants, and conventions; verdict + file:line findings.
+- **`code-simplifier`** — proposes behavior-preserving simplifications of a diff as
+  ready-to-apply patches, gated through the main session.
+- **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
+  if the change were reverted, catching assertion-free and mock-only tests.
+
+All four are **wired into `/ticket-pick`**: `challenger` runs in step 3, so the
+user judges plan and challenge together at the Plan gate; `code-reviewer` and
+`test-adequacy-reviewer` run in the step 5.5 review pass after tests go green;
+`code-simplifier` runs once that review is clean, its proposals gated before
+apply. Each also works standalone on any plan or diff.
 
 ## How Copilot loads these
 

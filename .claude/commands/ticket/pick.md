@@ -30,9 +30,7 @@ If the engine reports `"No .claude/config.yaml found"`, stop and tell the user `
 
 Invoke the `milestone-sync` skill (via the Skill tool, no args). The skill dispatches on `milestones.strategy`: it stops early on `none`, and is report-only on `labels` (scans label distribution for visibility; nothing to fix). On `trackers` (filesystem default) and `native` (github default), drift is surfaced with a structured `Apply all` / `Pick one` / `Skip` gate, and each fix lands as its own atomic commit (FS) or milestone state change (GH).
 
-The candidate ranking in step 0 prefers tickets whose `milestone:` matches the current focus from `references.roadmap` (if defined); a drifted state would bias that selection, so fixing first is worthwhile. If the user picks `Skip`, proceed to step 0 anyway.
-
-If `references.roadmap` is null, focus-milestone preference is skipped — candidates are ranked by priority and effort alone.
+Step 0's ranking prefers tickets whose `milestone:` matches the current focus from `references.roadmap` (when null, ranking is by priority and effort alone); a drifted state would bias that selection, so fixing first is worthwhile. If the user picks `Skip`, proceed to step 0 anyway.
 
 ### Step 0 — surface candidates
 
@@ -97,7 +95,9 @@ Produce **two summaries** so the user can judge both the idea and the execution:
    - Honors invariants from `references.architecture` (cite if reference is defined and present; skip the line otherwise).
    - Honors `references.conventions` if defined and present (skip line otherwise).
 
-Present both to the user. The two summaries share one gate: approving means approving both.
+**Challenge pass.** Dispatch the read-only `challenger` agent (`.claude/agents/challenger.md`) as a subagent, passing the ticket ID and full body (including `## Decisions & assumptions`), both summaries, and the diff base. If its report breaks an assumption or offers a rival route you agree with, revise the plan first and note that you did.
+
+Present the two summaries and the challenge report together. They share one gate: approving means approving both.
 
 End with the gate, asked via `AskUserQuestion`:
 
@@ -115,7 +115,7 @@ If **Abandon**:
    - **Filesystem**: `git mv` back to the pickable stage folder; clears `claimed_by` in frontmatter; appends `## Abandoned notes` to the body; commits with `commits.abandon`.
    - **GitHub**: swap labels back; unassign; append abandon notes to body; post a comment (per § Message formatting, `abandon` is content-bearing).
 
-The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5). The `## Abandoned notes` payload records why, whatever the step.
+The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5.5). The `## Abandoned notes` payload records why, whatever the step.
 
 ### Step 4 — implement
 
@@ -140,6 +140,31 @@ For visual changes: produce an **Evidence report** as a `## Evidence` section ap
 
 This report is what the user follows when verifying before closure.
 
+### Step 5.5 — agent review pass
+
+Three read-only agents from `.claude/agents/` audit the work before it leaves the session. Pass each the ticket ID and body (plan + acceptance criteria) and the diff base (the claim commit, or `git merge-base HEAD <default branch>`).
+
+1. **Review** — dispatch `code-reviewer` and `test-adequacy-reviewer` as subagents (in parallel; the latter also gets `verification.test_commands`). If the reviewer returns `BLOCKED` or the adequacy verdict is `INEFFECTIVE`, gate via `AskUserQuestion`:
+   - **question:** "Review found blocking issues: <one line per finding>. How should I proceed?"
+   - **header:** "Findings"
+   - **options:**
+     - **Fix now (Recommended)** — return to step 4 for the findings (step 3 if the plan itself is wrong), re-run step 5, then re-dispatch both agents.
+     - **Waive & proceed** — continue to step 6; record the waived findings in the sign-off report.
+     - **Abandon** — run the step 3 Abandon path.
+
+   Non-blocking output (`PASS WITH SUGGESTIONS`, `GAPS`) needs no gate: fix what is cheap now, carry the rest into the sign-off report.
+
+2. **Simplify** — once the review is clean, dispatch `code-simplifier`. If it returns proposals (not `Clean`), gate via `AskUserQuestion`:
+   - **question:** "Simplifier: <N> proposals, safe set <IDs>. Apply?"
+   - **header:** "Simplify"
+   - **options:**
+     - **Apply safe set (Recommended)** — apply the zero-risk subset.
+     - **Apply all** — apply every proposal.
+     - **Pick** — ask which proposal IDs (free-text follow-up).
+     - **Skip** — proceed unchanged.
+
+   Apply accepted diffs in the main session (the agents never edit), then re-run the step 5 test commands before moving on.
+
 ### Step 6 — move to review (only if a review stage exists)
 
 **If `review` role resolves to a stage:**
@@ -159,6 +184,8 @@ Then post a sign-off report to the user. The full Evidence section already lives
 - … (one bullet per touched file or logical change)
 
 **Tests:** <verification.test_commands joined or "no automated check — visual/docs"> — N / N passing (M new + K existing).
+
+**Agent review:** <code-reviewer verdict> · <test-adequacy verdict> · simplifier <N applied | clean><; waived: <finding> — only if any>.
 
 **Verification checklist:**
 1. Imperative step the user runs, with the expected observation.
@@ -194,6 +221,7 @@ Do **not** run `verification.pre_close_command` here — that's the engine's job
 - The atomic claim (step 1) happens **before** any research, planning, or code reading. No exceptions.
 - A claimed ticket is never left dangling: any post-claim abort runs the step 3 Abandon transition (back to pickable, `claimed_by: null`, notes appended) as its final act.
 - Plans are presented before implementation. No silent implementation.
+- The step 3 challenge and step 5.5 reviews are read-only subagent passes. The main session applies any accepted simplifier diff and re-verifies; blocking findings (`BLOCKED` / `INEFFECTIVE`) reach step 6 only via an explicit user waiver.
 - Every behavioral change leaves a verification (test or manual evidence).
 - Invariants in `references.architecture` are not optional **when the reference is defined**. If the ticket appears to require violating one, surface that to the user and stop.
 - The engine, not the command, performs `git mv` / `gh issue edit` / commits. The command runs tests, drives gates, and assembles report text.

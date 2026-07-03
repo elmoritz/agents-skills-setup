@@ -26,6 +26,13 @@ user): **`ticket-engine`** — the execution layer (config load/validate, ID
 assignment, backend transitions, commit/comment formatting, half-state reporting);
 **`milestone-sync`** — milestone-vs-tickets drift detection and repair.
 
+Four read-only review agents under `.github/agents/` are wired into
+`/ticket-pick`: **`challenger`** (step 3 — attacks the drafted plan before the
+Plan gate), **`code-reviewer`** and **`test-adequacy-reviewer`** (step 5.5 —
+audit the diff and whether its tests can fail, after verification), and
+**`code-simplifier`** (step 5.5 — behavior-preserving trims once review is
+clean, gated before apply). Each also runs standalone.
+
 ## Conventions
 
 - **Gates are numbered lists.** When a skill needs a discrete choice, it prints
@@ -37,10 +44,11 @@ assignment, backend transitions, commit/comment formatting, half-state reporting
 
 ## Keeping the bundles in sync
 
-`.github/skills/` mirrors `.claude/` (commands + skills). The workflow logic is
-duplicated by design — each bundle must stay self-contained — so **any logic
-change must land in both bundles in the same commit**: a step, gate option, hard
-rule, config key, or engine operation edited on one side is edited on the other
+`.github/` mirrors `.claude/` — commands + skills (under `.github/skills/`) and
+review agents (under `.github/agents/`). The workflow logic is duplicated by
+design — each bundle must stay self-contained — so **any logic change must land in
+both bundles in the same commit**: a step, gate option, hard rule, config key,
+engine operation, or agent instruction edited on one side is edited on the other
 side too.
 
 Only these differences are intentional; everything else must stay identical:
@@ -54,6 +62,10 @@ Only these differences are intentional; everything else must stay identical:
 - **Frontmatter** — Copilot skills carry `name:` and (for internal skills)
   `user-invocable: false`; file layout differs (`.claude/commands/ticket/*.md` vs
   `.github/skills/ticket-*/SKILL.md`).
+- **Agent files** — `.claude/agents/<name>.md` vs `.github/agents/<name>.agent.md`,
+  and the `tools:` frontmatter uses Claude tool names (`Read, Grep, Glob, Bash`) vs
+  Copilot aliases (`["read", "search", "execute"]`). The agent bodies are otherwise
+  identical up to the config-path and `/ticket-*` command transforms.
 
 This is enforced by `scripts/check-bundle-sync.sh`: it fails when a file in a
 mirrored pair changes without its mirror, and when a tracked file under either

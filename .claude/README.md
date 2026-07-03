@@ -29,6 +29,11 @@ are Markdown instructions Claude loads on demand and runs with its own tools.
 │   ├── ticket-engine/            execution layer behind every /ticket:* command
 │   ├── milestone-sync/           milestone-vs-tickets drift detection & repair
 │   └── grill-me/                 relentless decision-tree interview
+├── agents/                       read-only review subagents wired into /ticket:pick
+│   ├── challenger.md             devil's advocate against a drafted plan
+│   ├── code-reviewer.md          diff review vs plan, invariants, conventions
+│   ├── code-simplifier.md        proposes behavior-preserving simplifications
+│   └── test-adequacy-reviewer.md judges whether new tests can actually fail
 └── references/                   empty placeholder for project reference docs
 ```
 
@@ -75,6 +80,28 @@ you don't invoke them by hand.
 - **`grill-me`** — interviews you relentlessly about a plan or design, resolving
   each branch of the decision tree one dependency at a time, with a recommended
   answer for every question. Use it to stress-test a design before you build.
+
+## The agents
+
+`agents/` holds read-only review **subagents** — focused, single-purpose reviewers
+Claude can dispatch (via the Task/subagent mechanism) or you can invoke by name.
+Each judges only what's on disk and changes nothing; the main session owns any
+resulting edits.
+
+- **`challenger`** — devil's advocate against a freshly drafted plan: concrete
+  failure scenarios and cheaper alternatives, grounded in the code, never vague doubt.
+- **`code-reviewer`** — reviews an implementation diff against the approved plan,
+  architecture invariants, and conventions; verdict + file:line findings.
+- **`code-simplifier`** — proposes behavior-preserving simplifications of a diff as
+  ready-to-apply patches, gated through the main session.
+- **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
+  if the change were reverted, catching assertion-free and mock-only tests.
+
+All four are **wired into `/ticket:pick`**: `challenger` runs in step 3, so the
+user judges plan and challenge together at the Plan gate; `code-reviewer` and
+`test-adequacy-reviewer` run in the step 5.5 review pass after tests go green;
+`code-simplifier` runs once that review is clean, its proposals gated before
+apply. Each also works standalone on any plan or diff.
 
 ## Getting started
 
