@@ -28,10 +28,11 @@ assignment, backend transitions, commit/comment formatting, half-state reporting
 
 Four read-only review agents under `.github/agents/` are wired into
 `/ticket-pick`: **`challenger`** (step 3 — attacks the drafted plan before the
-Plan gate), **`code-reviewer`** and **`test-adequacy-reviewer`** (step 5.5 —
-audit the diff and whether its tests can fail, after verification), and
-**`code-simplifier`** (step 5.5 — behavior-preserving trims once review is
-clean, gated before apply). Each also runs standalone.
+Plan gate), **`code-reviewer`** and **`test-adequacy-reviewer`** (step 5.5 — a
+bounded review loop: blocking findings are auto-fixed within plan scope for up
+to two rounds, then escalated to the user), and **`code-simplifier`** (after
+the loop is clean — behavior-preserving trims, gated before apply). Each also
+runs standalone.
 
 ## Conventions
 

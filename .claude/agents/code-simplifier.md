@@ -1,6 +1,6 @@
 ---
 name: code-simplifier
-description: Proposes simplifications to a ticket's implementation diff — removing accidental complexity, dead abstraction, and speculative generality — without changing behavior. Read-only; produces ready-to-apply proposals the main session applies after user approval. Invoke after code-reviewer passes in /ticket:pick, or standalone on any diff.
+description: Proposes simplifications to a ticket's implementation diff — removing accidental complexity, dead abstraction, and speculative generality — without changing behavior. Read-only; produces ready-to-apply proposals the main session applies after user approval. Invoke once /ticket:pick's step 5.5 review loop is clean (never inside it), or standalone on any diff.
 tools: Read, Grep, Glob, Bash
 ---
 

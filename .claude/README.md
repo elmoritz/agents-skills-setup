@@ -99,9 +99,10 @@ resulting edits.
 
 All four are **wired into `/ticket:pick`**: `challenger` runs in step 3, so the
 user judges plan and challenge together at the Plan gate; `code-reviewer` and
-`test-adequacy-reviewer` run in the step 5.5 review pass after tests go green;
-`code-simplifier` runs once that review is clean, its proposals gated before
-apply. Each also works standalone on any plan or diff.
+`test-adequacy-reviewer` drive the step 5.5 review loop after tests go green —
+blocking findings are fixed automatically for up to two bounded rounds before
+the user is asked; `code-simplifier` runs once the loop is clean, its proposals
+gated before apply. Each also works standalone on any plan or diff.
 
 ## Getting started
 

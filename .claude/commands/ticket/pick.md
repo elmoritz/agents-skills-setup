@@ -140,21 +140,35 @@ For visual changes: produce an **Evidence report** as a `## Evidence` section ap
 
 This report is what the user follows when verifying before closure.
 
-### Step 5.5 — agent review pass
+### Step 5.5 — review loop
 
 Three read-only agents from `.claude/agents/` audit the work before it leaves the session. Pass each the ticket ID and body (plan + acceptance criteria) and the diff base (the claim commit, or `git merge-base HEAD <default branch>`).
 
-1. **Review** — dispatch `code-reviewer` and `test-adequacy-reviewer` as subagents (in parallel; the latter also gets `verification.test_commands`). If the reviewer returns `BLOCKED` or the adequacy verdict is `INEFFECTIVE`, gate via `AskUserQuestion`:
-   - **question:** "Review found blocking issues: <one line per finding>. How should I proceed?"
+1. **Review loop** — dispatch `code-reviewer` and `test-adequacy-reviewer` as subagents (in parallel; the latter also gets `verification.test_commands`). The loop condition is categorical, not a score: the diff is **clean** when the reviewer verdict is not `BLOCKED` and the adequacy verdict is not `INEFFECTIVE`.
+
+   While not clean, iterate — **at most 2 automatic fix rounds**:
+
+   1. Fix the blocking findings, staying strictly inside the approved plan's scope. The loop fixes findings; it never expands scope.
+   2. Re-run the step 5 verification (tests must be green again).
+   3. Re-dispatch both agents, passing the prior findings plus a summary of what changed, so they verify the fixes instead of re-reviewing from scratch.
+
+   **Escalate to the gate below instead of iterating** when any of these hits:
+
+   - the 2-round cap is reached and the diff still isn't clean;
+   - a finding **stalls** — the same finding survives two consecutive rounds;
+   - a finding implies the plan itself is wrong — that is a step 3 re-plan, never an auto-fix.
+
+   Escalation gate, via `AskUserQuestion`:
+   - **question:** "Review still blocking after <N> fix round(s): <one line per finding>. How should I proceed?"
    - **header:** "Findings"
    - **options:**
-     - **Fix now (Recommended)** — return to step 4 for the findings (step 3 if the plan itself is wrong), re-run step 5, then re-dispatch both agents.
+     - **Fix now (Recommended)** — one more round under user direction: return to step 4 (step 3 if the plan is wrong), re-run step 5, re-dispatch both agents.
      - **Waive & proceed** — continue to step 6; record the waived findings in the sign-off report.
      - **Abandon** — run the step 3 Abandon path.
 
-   Non-blocking output (`PASS WITH SUGGESTIONS`, `GAPS`) needs no gate: fix what is cheap now, carry the rest into the sign-off report.
+   Non-blocking output (`PASS WITH SUGGESTIONS`, `GAPS`) never drives the loop: fix what is cheap in the current round, carry the rest into the sign-off report.
 
-2. **Simplify** — once the review is clean, dispatch `code-simplifier`. If it returns proposals (not `Clean`), gate via `AskUserQuestion`:
+2. **Simplify** — once the loop converges (never inside it), dispatch `code-simplifier`. If it returns proposals (not `Clean`), gate via `AskUserQuestion`:
    - **question:** "Simplifier: <N> proposals, safe set <IDs>. Apply?"
    - **header:** "Simplify"
    - **options:**
@@ -185,7 +199,7 @@ Then post a sign-off report to the user. The full Evidence section already lives
 
 **Tests:** <verification.test_commands joined or "no automated check — visual/docs"> — N / N passing (M new + K existing).
 
-**Agent review:** <code-reviewer verdict> · <test-adequacy verdict> · simplifier <N applied | clean><; waived: <finding> — only if any>.
+**Agent review:** <code-reviewer verdict> · <test-adequacy verdict> · <K> fix round(s) · simplifier <N applied | clean><; waived: <finding> — only if any>.
 
 **Verification checklist:**
 1. Imperative step the user runs, with the expected observation.
@@ -221,7 +235,7 @@ Do **not** run `verification.pre_close_command` here — that's the engine's job
 - The atomic claim (step 1) happens **before** any research, planning, or code reading. No exceptions.
 - A claimed ticket is never left dangling: any post-claim abort runs the step 3 Abandon transition (back to pickable, `claimed_by: null`, notes appended) as its final act.
 - Plans are presented before implementation. No silent implementation.
-- The step 3 challenge and step 5.5 reviews are read-only subagent passes. The main session applies any accepted simplifier diff and re-verifies; blocking findings (`BLOCKED` / `INEFFECTIVE`) reach step 6 only via an explicit user waiver.
+- The step 3 challenge and step 5.5 reviews are read-only subagent passes; the main session makes every edit. The step 5.5 loop is bounded — max 2 automatic fix rounds, findings-only fixes that never expand scope beyond the approved plan — and blocking findings (`BLOCKED` / `INEFFECTIVE`) reach step 6 only fixed or explicitly waived by the user.
 - Every behavioral change leaves a verification (test or manual evidence).
 - Invariants in `references.architecture` are not optional **when the reference is defined**. If the ticket appears to require violating one, surface that to the user and stop.
 - The engine, not the command, performs `git mv` / `gh issue edit` / commits. The command runs tests, drives gates, and assembles report text.

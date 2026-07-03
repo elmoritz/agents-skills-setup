@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Read-only review of a ticket's implementation diff before it transitions to review. Checks the diff against the approved plan, architecture invariants, and project conventions. Invoke after verification passes in /ticket:pick (step 5), before the review transition (step 6). Also usable standalone on any uncommitted or branch diff.
+description: Read-only review of a ticket's implementation diff before it transitions to review. Checks the diff against the approved plan, architecture invariants, and project conventions. Invoke in /ticket:pick's step 5.5 review loop — after verification passes, and again on each fix round — before the review transition (step 6). Also usable standalone on any uncommitted or branch diff.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -12,6 +12,7 @@ The invoking command passes you:
 
 - The ticket ID and full ticket body (including the approved **Plan** and any **Decisions & assumptions** section).
 - The diff base (a ref or commit SHA). If none is given, derive it: `git merge-base HEAD <default branch>`, falling back to the claim commit for this ticket if identifiable in `git log`.
+- On a fix round (re-review): the prior findings plus a summary of what changed. Open the report by marking each prior finding resolved or unresolved (it keeps its original ID), fully review only new/changed code, and never re-file a prior finding under new wording.
 
 Start by running `git diff <base>...HEAD --stat`, then read the full diff hunk by hunk. Read surrounding file context (not just hunks) wherever a change's correctness depends on it.
 

@@ -1,6 +1,6 @@
 ---
 name: test-adequacy-reviewer
-description: Judges whether the tests accompanying a ticket's diff would actually fail if the behavioral change were reverted or broken. Catches assertion-free tests, tests that only exercise mocks, and untested branches. Invoke after tests pass in /ticket-pick (step 5) — a green run says nothing about whether the tests can go red.
+description: Judges whether the tests accompanying a ticket's diff would actually fail if the behavioral change were reverted or broken. Catches assertion-free tests, tests that only exercise mocks, and untested branches. Invoke in /ticket-pick's step 5.5 review loop after tests pass, and again on each fix round — a green run says nothing about whether the tests can go red.
 tools: ["read", "search", "execute"]
 ---
 
@@ -13,6 +13,7 @@ The invoking command passes you:
 - The ticket ID and body (plan + acceptance criteria).
 - The diff base ref.
 - `verification.test_commands` from `.github/config.yaml` (may be empty).
+- On a fix round (re-review): the prior findings plus a summary of what changed — verify each prior finding rather than rediscovering it; unresolved findings keep their original IDs.
 
 Split the diff into **production changes** and **test changes**:
 `git diff <base>...HEAD --stat`, then read both sides in full.
