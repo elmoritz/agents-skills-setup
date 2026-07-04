@@ -60,7 +60,7 @@ Invoke `close_artifact(id, closed_as: "shipped")`. The engine:
 
 - **Filesystem**:
   1. `git mv` from the close-source stage's folder to the terminal stage's folder.
-  2. Edit frontmatter: set `closed_as: shipped`. Leave every other field untouched (priority, effort, milestone, claimed_by, created, related, depends_on stay as-is — they are the historical record).
+  2. Edit frontmatter: set `closed_as: shipped`. Leave every other field untouched (priority, effort, milestone, claimed_by, claimed_at, created, related, depends_on stay as-is — they are the historical record).
   3. Run `verification.pre_close_command` if defined; stage any files it touches.
   4. Stage the moved ticket plus any files from step 3.
   5. Commit with `commits.done`.

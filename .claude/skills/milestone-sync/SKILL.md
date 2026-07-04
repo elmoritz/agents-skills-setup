@@ -107,7 +107,7 @@ Milestone sync report  (strategy: native, github)
 
   v0.3    closed   ✓ 8 closed                                   in sync
   v0.5    open     ✗ all 7 issues closed                        → close milestone
-  v0.5.5  open     ✗ 1 closed, 11 open                          in sync (active)
+  v0.5.5  open     ✓ 1 closed, 11 open                          in sync (active)
   v0.6    open     ✓ 3 open                                     in sync
 ```
 

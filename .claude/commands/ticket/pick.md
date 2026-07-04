@@ -38,14 +38,18 @@ If $ARGUMENTS contains a ticket ID, invoke `read_artifact(id)` to verify it sits
 
 Otherwise, invoke `list_artifacts(role: "pickable", filters: { depends_satisfied: true })`. The engine returns only tickets whose `depends_on` chain is fully resolved to terminal.
 
-**Stale-claim check.** Also invoke `list_artifacts(role: "in_progress")`. If any ticket carries a non-null `claimed_by`, it may be live in another session — or orphaned by one that died after claiming. Surface them before the pick gate via `AskUserQuestion`:
+**Stale-claim check.** Also invoke `list_artifacts(role: "in_progress")` — the summaries carry `claimed_by` and `claimed_at`. Split the in-progress tickets by claim age against the engine's resolved `claim.stale_after` threshold (default `24h`; see ticket-engine § Claim identity & staleness):
 
-- **question:** "Found claimed ticket(s) in <in_progress label>: <one line per ticket: id — title, claimed by X>. Possibly active elsewhere, possibly orphaned — what should I do?"
-- **header:** "Claims"
-- **options:**
-  - **Proceed to pick (Recommended)** — leave them; they may be active in another session.
-  - **Release a stale claim** — ask which ID (free-text follow-up), then invoke `transition_artifact(id, target_role: "pickable", fields: { claimed_by: null }, event: "abandon")` with an `## Abandoned notes` payload: `"Stale claim released — was claimed by <claimed_by>, released <ISO date> without reaching review."` The released ticket then competes among the candidates below.
-  - **Resume one** — ask which ID (free-text follow-up). It is already in the in_progress stage, so skip the step 1 claim; if its `claimed_by` names a different agent, update it via `update_frontmatter`; jump to step 2.
+- **Fresh claims** (`now − claimed_at ≤ stale_after`): assume active. Do **not** gate — print one FYI line (`N ticket(s) in progress, recently claimed — assuming active`) and move on. Resuming your own recent work is normal, and the atomic claim already prevents a real double-pick.
+- **Stale claims** (`now − claimed_at > stale_after`, or `claimed_at` is null — treat unknown age as stale): likely orphaned by a session that died after claiming. Surface **only these** via `AskUserQuestion`:
+  - **question:** "Found stale claim(s) in <in_progress label> — no activity in over <stale_after>: <one line per ticket: id — title, claimed by X, <age> ago>. Likely orphaned — what should I do?"
+  - **header:** "Claims"
+  - **options:**
+    - **Proceed to pick (Recommended)** — leave them; a genuinely long task can outlive the threshold.
+    - **Release a stale claim** — ask which ID (free-text follow-up), then invoke `transition_artifact(id, target_role: "pickable", fields: { claimed_by: null, claimed_at: null }, event: "abandon")` with an `## Abandoned notes` payload: `"Stale claim released — was claimed by <claimed_by> at <claimed_at>, released <ISO date> without reaching review."` The released ticket then competes among the candidates below.
+    - **Resume one** — ask which ID (free-text follow-up). It is already in the in_progress stage, so skip the step 1 claim; re-stamp ownership via `update_frontmatter(id, { claimed_by: <active identity>, claimed_at: <now> })`; jump to step 2.
+
+If nothing in the in_progress stage is stale, skip this gate entirely.
 
 Determine the current focus milestone:
 
@@ -71,8 +75,8 @@ The user can pick any of the four directly, or type "show more" / "different mil
 
 Invoke `claim_atomic(id)`. The engine:
 
-- **Filesystem**: `git mv` to the in_progress stage's folder; updates frontmatter (`claimed_by: <agent identifier>`); commits with `commits.claim`.
-- **GitHub**: optimistic check-write-verify per § Transition primitives (read state, atomic edit with assignee + label swap, verify by re-reading; reverse on lost race).
+- **Filesystem**: `git mv` to the in_progress stage's folder; stamps frontmatter (`claimed_by` = `git config user.name`, `claimed_at` = now in ISO-8601 — see § Claim identity & staleness); commits with `commits.claim`.
+- **GitHub**: optimistic check-write-verify per § Transition primitives (read state, atomic edit with assignee + label swap + `claimed_at` in the body frontmatter, verify by re-reading; reverse on lost race). `claimed_by` is the assignee (`@me`).
 
 If the engine returns `{ ok: false, reason: "race lost ..." }`, abort cleanly, tell the user, and offer to pick a different ticket from the pickable stage.
 

@@ -36,7 +36,7 @@ If the engine reports `"No .github/config.yaml found"`, stop and tell the user `
 
 Call the engine's `assign_next_id()` to get the next ID. If the work splits at step 3, call `assign_next_id(slate_size=N)` later to reserve consecutive IDs at that point. Slug generation (filesystem only) is the engine's concern; the command never invents filenames.
 
-On GitHub backend: IDs are assigned by GH at issue-create time, not here. The engine `create_artifact` operation handles this; this step is a no-op.
+On GitHub backend: single-ticket IDs are assigned by GH at issue-create time, so this step is a no-op there. For a **slate** (step 3), `assign_next_id(slate_size=N)` still runs on GitHub — it returns provisional handles (`NEW-1 … NEW-N`) used to wire intra-slate `depends_on` before the real issue numbers exist; the engine resolves them at creation (see ticket-engine § Slate creation & handle resolution).
 
 ### Step 1 — understanding gate
 
@@ -133,7 +133,7 @@ Split until each piece passes all three, then **stop** — don't fragment furthe
        <one-sentence scope> · verifies: <how this ticket is checked done>
 ```
 
-For a single ticket the plan is one row — still shown. If the plan is a slate (2+ tickets), reserve consecutive IDs via `assign_next_id(slate_size=N)`; for a single ticket the step-0 ID stands.
+For a single ticket the plan is one row — still shown. If the plan is a slate (2+ tickets), reserve the slate via `assign_next_id(slate_size=N)` — real consecutive IDs on filesystem, provisional handles (`NEW-1 … NEW-N`) on GitHub. The plan rows and intra-slate `depends_on` use these identifiers; on GitHub they resolve to real issue numbers at creation. For a single ticket the step-0 ID stands.
 
 **Decomposition gate**, asked (numbered list; user replies with the number):
 
@@ -211,7 +211,7 @@ Determine and confirm:
 - `depends_on`: surface plausibly-related tickets via `list_artifacts` across all stages and ask. Validate every chosen ID via `read_artifact` **before** the Commit gate; if one doesn't resolve, say which and re-ask. The engine independently refuses unknown IDs and dependency cycles at `create_artifact` (§ depends_on integrity) — the command-side check exists so the failure surfaces at the gate, not after approval.
 - `related`: same approach.
 
-Set `claimed_by: null`, `closed_as: null`, `adrs: []` (reserved field, kept empty).
+Set `claimed_by: null`, `claimed_at: null`, `closed_as: null`, `adrs: []` (reserved field, kept empty).
 
 End with the gate, asked (numbered list; user replies with the number):
 
@@ -236,7 +236,7 @@ Do not run the `verification.pre_close_command` here — that's a closure-time c
 Reached when the step 3 decomposition gate resolves as a slate (2+ tickets) and the user picked **Continue**. The slate's *shape* — titles, types, effort estimates, dependency order — was already approved at that gate, and the IDs are reserved. This path drafts the full content of each ticket; the user signs off on the assembled result at the slate gate at the end. **Grilling (step 2.5) has already run**, so each ticket is drafted from reconciled understanding; carry the relevant decisions/assumptions into each sub-ticket's `## Decisions & assumptions` section.
 
 1. **Draft all sub-tickets in one pass.** For each ticket on the slate, run steps 4 (research), 5 (body), 6 (frontmatter) silently — no per-step prompts. Apply the existing rules (license filters, required body sections, full frontmatter fields). When a piece of research or analysis applies to multiple tickets, cite it once and cross-reference (`see <id> Research`) rather than duplicating prose.
-2. **Wire the dependency chain.** Each ticket's `depends_on` lists the prior ticket(s) it actually needs done first; `related` lists the rest of the slate. Slate-reserved sibling IDs are exempt from existence validation (they're created in this same pass, in dependency order); any `depends_on` pointing outside the slate must resolve via `read_artifact` before the slate gate.
+2. **Wire the dependency chain.** Each ticket's `depends_on` lists the prior sibling(s) it needs done first, referenced by their slate identifier — the real reserved ID on filesystem, the provisional `NEW-k` handle on GitHub; `related` lists the rest of the slate. Slate siblings are exempt from existence validation (they're created in this same pass, in dependency order, with GitHub handles resolved at creation per step 5); any `depends_on` pointing outside the slate must resolve via `read_artifact` before the slate gate.
 3. **Show the assembled slate** as one block: each ticket's frontmatter + body in order. Keep it scannable.
 4. **Single approval gate**, asked (numbered list; user replies with the number):
 
@@ -252,7 +252,7 @@ Reached when the step 3 decomposition gate resolves as a slate (2+ tickets) and 
    - **edit** → re-open that ticket through gates 5–6, then return to this gate.
    - **drop** → remove the ticket from the slate; renumber `depends_on` references. Dropped IDs stay reserved as a gap.
 
-5. The engine commits each ticket as its own commit (FS) or creates each issue (GH) in dependency order. Report all IDs and paths/URLs back to the user, in order.
+5. **Create in dependency order, resolving handles as you go.** For each ticket in order: first rewrite its intra-slate `depends_on` handles to the real IDs of siblings already created — thread a `handle → real ID` map (on filesystem the map is the identity and already complete; on GitHub it fills in as each `gh issue create` returns a number, and every referenced handle is present because deps precede dependents) — then call `create_artifact`. The engine commits each ticket as its own commit (FS) or creates each issue (GH) with the resolved `depends_on` written at birth. Report all real IDs and paths/URLs back to the user, in order; on GitHub, show each `NEW-k → #N` mapping so the user can find the issues.
 
 ## Save-as-inbox semantics (only when inbox role exists)
 

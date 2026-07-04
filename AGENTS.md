@@ -78,6 +78,18 @@ two mirrors still say the same thing, run
 `scripts/check-bundle-sync.sh --diff <pair>` (e.g. `--diff new`) — it
 normalizes the intentional differences above so what remains is reviewable.
 
+Beyond the pairing check, the script **hard-gates equivalence** on the
+logic-dense pairs — the `ticket-engine` and the four review agents (`EQUIV_CHECK`
+in the script). For those it strips YAML frontmatter and any
+`<!-- sync:divergent -->` … `<!-- sync:end -->` fenced regions, normalizes the
+intentional differences above, and requires the two mirrors to be byte-identical;
+any residual is real content drift and fails the gate. Wrap a genuinely
+platform-specific block (e.g. the engine's invocation preamble) in a
+`sync:divergent` fence on **both** sides to except it. The commands and other
+skills rephrase gate mechanics per platform throughout, so they stay on the
+pairing check plus the advisory `scripts/check-bundle-sync.sh --equiv <pair>`
+for manual review.
+
 ## Hard rules (every ticket transition)
 
 - **Never amend** an existing commit; every event is a new commit (filesystem) or API call (GitHub).

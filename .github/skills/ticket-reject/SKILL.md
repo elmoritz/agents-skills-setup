@@ -57,11 +57,11 @@ Ask as a numbered list:
 
 ### Step 3 — reject via the engine
 
-Invoke `transition_artifact(id, target_role: "in_progress", fields: { claimed_by: <agent identifier> }, event: "reject")` with a `## Review rejection` payload carrying: the rejection reason, the ISO date, and the implementer of record (the previous `claimed_by`, preserved in the section before the field is overwritten). Setting `claimed_by` to the current agent identifier makes the rejecting session own the follow-up fix.
+Invoke `transition_artifact(id, target_role: "in_progress", fields: { claimed_by: <active identity>, claimed_at: <now, ISO-8601> }, event: "reject")` with a `## Review rejection` payload carrying: the rejection reason, the ISO date, and the implementer of record (the previous `claimed_by`, preserved in the section before the field is overwritten). Re-stamping `claimed_by`/`claimed_at` to the rejecting account (per the engine's § Claim identity & staleness) makes it the new owner of the follow-up fix and resets the staleness clock.
 
 The engine:
 
-- **Filesystem**: `git mv` from the review stage folder back to the in_progress stage folder; set `claimed_by`; append `## Review rejection` to the body; commit with `commits.reject`.
+- **Filesystem**: `git mv` from the review stage folder back to the in_progress stage folder; set `claimed_by` + `claimed_at`; append `## Review rejection` to the body; commit with `commits.reject`.
 - **GitHub**: label swap (review → in_progress); set assignee; append the section to the issue body; post a comment carrying the reason (per § Message formatting, `reject` is content-bearing — a verification failure must be visible in the issue timeline).
 
 If the engine reports half-state, surface it and stop.

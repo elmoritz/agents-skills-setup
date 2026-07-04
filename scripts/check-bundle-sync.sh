@@ -2,26 +2,35 @@
 # Guard against drift between the .claude and .github agent bundles.
 #
 # The two bundles mirror each other; any logic change must land in both in the
-# same commit (see AGENTS.md § Keeping the bundles in sync). Two modes:
+# same commit (see AGENTS.md § Keeping the bundles in sync). The default gate
+# (also --staged / --base) runs three checks:
 #
-#   Pairing check (default) — if a file in a mirrored pair changed but its
-#   mirror did not change in the same range, fail. Also fails if any tracked
-#   file under the bundles is neither in PAIRS nor in IGNORE (coverage check —
-#   closes drift-by-addition). This is the hard gate used by the pre-commit
-#   hook and CI.
+#   Pairing check — if a file in a mirrored pair changed but its mirror did not
+#   change in the same range, fail. Catches "edited one, forgot the other".
 #
-#   --diff [name] — print a normalized unified diff for one pair (or all).
-#   The normalization maps the documented intentional differences (config
-#   path, command naming, gate mechanism) onto common tokens; whatever remains
-#   is either more intentional platform phrasing or real drift — review it.
-#   The diff covers the whole file including frontmatter; it is advisory and
-#   is the manual tool for reviewing content drift the pairing check can't see.
+#   Coverage check — every tracked file under the bundles must be in PAIRS or
+#   IGNORE. Catches drift-by-addition (a new file with no mirror).
+#
+#   Equivalence check — for the logic-dense pairs (the engine + the review
+#   agents; see EQUIV_CHECK), strip YAML frontmatter and any
+#   <!-- sync:divergent --> … <!-- sync:end --> regions, normalize the
+#   documented intentional differences to common tokens, and require the two
+#   mirrors to be byte-identical. Residual difference is real content drift
+#   ("edited both, but differently") and fails the gate — the check the pairing
+#   check structurally cannot make. Commands/skills rephrase gate mechanics per
+#   platform throughout their bodies, so they stay on pairing + advisory --equiv.
+#
+# Intentional, irregular per-platform prose (invocation style, frontmatter,
+# gate-mechanism wording) is excluded two ways: frontmatter is stripped
+# automatically, and anything wrapped in a <!-- sync:divergent --> fence on
+# both sides is skipped. Everything else must agree.
 #
 # Usage:
-#   scripts/check-bundle-sync.sh                 # pairing check, worktree vs HEAD
-#   scripts/check-bundle-sync.sh --staged        # pairing check, staged changes only (pre-commit)
-#   scripts/check-bundle-sync.sh --base RANGE    # pairing check, e.g. origin/main...HEAD
-#   scripts/check-bundle-sync.sh --diff [name]   # normalized diff (all pairs or one)
+#   scripts/check-bundle-sync.sh                 # full gate, worktree vs HEAD
+#   scripts/check-bundle-sync.sh --staged        # full gate, staged changes (pre-commit)
+#   scripts/check-bundle-sync.sh --base RANGE    # full gate, e.g. origin/main...HEAD
+#   scripts/check-bundle-sync.sh --diff  [name]  # advisory: raw normalized diff (whole file)
+#   scripts/check-bundle-sync.sh --equiv [name]  # show the equivalence residual to fence or fix
 
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -55,15 +64,49 @@ IGNORE="
 .github/config.yaml
 "
 
+# Pairs whose two mirrors must be logic-identical (after frontmatter + fence
+# stripping and normalization). The engine and the review agents carry the
+# densest shared logic and diverge only mechanically between bundles, so they
+# get the hard equivalence gate. Everything else (commands, skills, the
+# human-facing READMEs) legitimately rephrases invocation/gate mechanics per
+# platform and relies on the pairing check + the advisory `--equiv` instead.
+EQUIV_CHECK="engine challenger code-reviewer code-simplifier test-adequacy-reviewer"
+
+# Canonicalize the documented intentional differences to common tokens so
+# whatever remains is real drift. Reads stdin, writes stdout.
 normalize() {
-  sed -e 's|\.claude/|.github/|g' \
+  sed -e 's|\.claude|.github|g' \
       -e 's|/ticket:|/ticket-|g' \
+      -e 's/\$ARGUMENTS/«ARGS»/g' \
+      -e 's/Copilot/«ASSISTANT»/g' \
+      -e 's/Claude/«ASSISTANT»/g' \
       -e 's/`AskUserQuestion`/«GATE»/g' \
       -e 's/AskUserQuestion/«GATE»/g' \
       -e 's/numbered list/«GATE»/g' \
       -e 's/NUMBERED LIST/«GATE»/g' \
-      -e 's/^tools:.*/«TOOLS»/' \
-      "$1"
+      -e 's/^tools:.*/«TOOLS»/'
+}
+
+# Strip leading YAML frontmatter and <!-- sync:divergent --> … <!-- sync:end -->
+# regions, normalize, then drop blank lines and trailing whitespace so that
+# blank-line-only layout differences between mirrors don't count as drift (the
+# output is only ever compared, never written back). Argument: a file path.
+canon() {
+  awk '
+    NR == 1 && $0 == "---" { infm = 1; next }
+    infm && $0 == "---"    { infm = 0; next }
+    infm                   { next }
+    /<!-- sync:divergent -->/ { skip = 1; next }
+    /<!-- sync:end -->/       { skip = 0; next }
+    skip { next }
+    { print }
+  ' "$1" | normalize | sed 's/[[:space:]]*$//' | awk 'NF'
+}
+
+is_equiv_checked() {
+  local n="$1" s
+  for s in $EQUIV_CHECK; do [ "$n" = "$s" ] && return 0; done
+  return 1
 }
 
 mode_diff() {
@@ -74,7 +117,29 @@ mode_diff() {
     found=1
     echo "=== $name: $c <-> $g ==="
     diff -u --label "$c (normalized)" --label "$g (normalized)" \
-      <(normalize "$c") <(normalize "$g") || true
+      <(normalize < "$c") <(normalize < "$g") || true
+    echo
+  done
+  if [ -n "$want" ] && [ "$found" -eq 0 ]; then
+    echo "Unknown pair '$want'. Known pairs:" >&2
+    for entry in $PAIRS; do echo "  ${entry%%:*}" >&2; done
+    exit 2
+  fi
+}
+
+mode_equiv() {
+  local want="${1:-}" found=0
+  for entry in $PAIRS; do
+    IFS=: read -r name c g <<<"$entry"
+    [ -n "$want" ] && [ "$want" != "$name" ] && continue
+    found=1
+    if is_equiv_checked "$name"; then
+      echo "=== equiv $name [GATED]: $c <-> $g  (frontmatter + sync-divergent fences stripped, normalized) ==="
+    else
+      echo "=== equiv $name [advisory — not gated]: $c <-> $g ==="
+    fi
+    diff -u --label "$c (canon)" --label "$g (canon)" \
+      <(canon "$c") <(canon "$g") || true
     echo
   done
   if [ -n "$want" ] && [ "$found" -eq 0 ]; then
@@ -108,9 +173,26 @@ check_coverage() {
   return "$fail"
 }
 
+check_equiv() {
+  # After stripping frontmatter + fenced-divergent regions and normalizing the
+  # documented intentional differences, each pair's two mirrors must match. Any
+  # residual is content drift the pairing check cannot see.
+  local fail=0 entry name c g
+  for entry in $PAIRS; do
+    IFS=: read -r name c g <<<"$entry"
+    is_equiv_checked "$name" || continue
+    if ! diff -q <(canon "$c") <(canon "$g") >/dev/null 2>&1; then
+      echo "FAIL [equiv:$name]: mirrors differ after normalization — unfenced content drift between $c and $g."
+      fail=1
+    fi
+  done
+  return "$fail"
+}
+
 mode_check() {
   local source="${1:-}" changed fail=0
   check_coverage || fail=1
+  check_equiv || fail=1
   case "$source" in
     --staged) changed=$(git diff --name-only --cached) ;;
     "")       changed=$(git diff --name-only HEAD) ;;
@@ -133,20 +215,27 @@ mode_check() {
   if [ "$fail" -ne 0 ]; then
     cat >&2 <<'EOF'
 
-Bundle drift: apply the same logic change to the mirror file (see AGENTS.md
-"Keeping the bundles in sync"). To compare a pair:
+Bundle drift (see AGENTS.md "Keeping the bundles in sync"):
+  - FAIL [<pair>]        one side changed without its mirror — edit both.
+  - FAIL [equiv:<pair>]  the mirrors say different things — reconcile them, or
+                         wrap the intentional difference in a
+                         <!-- sync:divergent --> … <!-- sync:end --> fence.
+  - FAIL [coverage]      a bundle file has no mirror + PAIRS entry.
 
-  scripts/check-bundle-sync.sh --diff <name>
+Inspect a pair:
+  scripts/check-bundle-sync.sh --equiv <name>   # the equivalence residual
+  scripts/check-bundle-sync.sh --diff  <name>   # the full normalized diff
 EOF
     exit 1
   fi
-  echo "bundle-sync: ok (all mirrored pairs changed together or not at all)"
+  echo "bundle-sync: ok (pairs changed together, coverage complete, mirrors equivalent)"
 }
 
 case "${1:-}" in
   --diff)   mode_diff "${2:-}" ;;
+  --equiv)  mode_equiv "${2:-}" ;;
   --base)   mode_check "${2:?--base needs a git range, e.g. origin/main...HEAD}" ;;
   --staged) mode_check --staged ;;
   "")       mode_check "" ;;
-  *)        echo "Usage: $0 [--staged | --base RANGE | --diff [pair-name]]" >&2; exit 2 ;;
+  *)        echo "Usage: $0 [--staged | --base RANGE | --diff [pair] | --equiv [pair]]" >&2; exit 2 ;;
 esac

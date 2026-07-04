@@ -194,6 +194,12 @@ effort:
   allowed:         [S, M, L, XL]
   pickable_allowed: [S, M]
 
+# --- Claim / staleness ------------------------------------------------
+claim:
+  stale_after: 24h   # an in-progress ticket claimed longer ago than this is
+                     # surfaced as possibly-orphaned in /ticket-pick step 0.
+                     # Format: <int>h or <int>d. Absent -> 24h.
+
 # --- Milestones -------------------------------------------------------
 # Include exactly one strategy-specific block, matching the Step 4 answer:
 #   Auto on filesystem (resolves to trackers) -> trackers:
@@ -267,6 +273,8 @@ Show the assembled YAML to the user. Gate (numbered list; user replies with the 
 
 1. **Write `.github/config.yaml`** with the assembled content.
 
+   Then follow `../ticket-engine/SKILL.md` and run its `load_and_validate()` operation against the written file to confirm it parses and passes schema validation. If it fails, surface the exact error and **stop before any side effects or commit** — init assembled the YAML, so a failure here is an init bug worth showing, not user error. The invalid file is left uncommitted for the user to inspect or remove.
+
 2. **Backend side effects.**
 
    - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here).
@@ -314,7 +322,7 @@ Next steps:
 - **Never overwrite an existing `.github/config.yaml`.** Step 0 is non-negotiable. The remove-then-re-run path is the only way to regenerate.
 - **Never overwrite an existing `TICKET_TEMPLATE.md`.** Step 7.3 skips if the file is already there.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there. Step 5 is skipped entirely on filesystem.
-- **Never proceed past validation.** If the assembled YAML fails the engine's own validation in dry-run, surface the error to the user and stop — this should not happen if init's gate options are honored, but guard against it.
+- **Never leave an invalid config.** Step 7 runs the engine's `load_and_validate()` on the file right after writing it; if validation fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
 - **Single commit per init.** Folders + config + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.github/config.yaml` alone.
 - **Never amend.** Never `--no-verify`. Never bypass signing.
 - **No user gates inside the engine.** Init does its own gates; it does not delegate to the engine for those.

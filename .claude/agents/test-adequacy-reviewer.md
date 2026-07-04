@@ -33,12 +33,15 @@ For each behavioral change in the production diff, find the test intended to cov
 If `verification.test_commands` is non-empty and the environment permits, verify empirically **without touching the working tree**, using a throwaway worktree:
 
 ```
-git worktree add /tmp/adequacy-check <base>
+wt="$(mktemp -d)/adequacy-check"   # unique per run — never a fixed path
+git worktree add "$wt" <base>
 ```
+
+Use a **unique** temp directory (via `mktemp -d`), never a fixed path — a fixed path collides with a concurrent run and stays wedged if a prior run crashed before cleanup.
 
 Copy only the **new/changed test files** from HEAD into the worktree, install nothing new, and run the relevant test command there. **Expected result: failures.** Every new test that *passes against the base code* is flagged INEFFECTIVE with certainty (not just static suspicion).
 
-Always clean up: `git worktree remove --force /tmp/adequacy-check`. If the worktree setup fails for any reason (missing deps, build steps), skip the dynamic check and say so — the static audit stands alone.
+Always clean up: `git worktree remove --force "$wt"`. If the worktree setup fails for any reason (missing deps, build steps), skip the dynamic check and say so — the static audit stands alone.
 
 Never run mutation tools, never edit production or test files, never commit.
 

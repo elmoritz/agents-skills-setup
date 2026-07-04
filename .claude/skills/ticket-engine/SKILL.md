@@ -3,12 +3,15 @@ name: ticket-engine
 description: Project-agnostic execution layer for the /ticket:* commands. Loads .claude/config.yaml, validates the schema, resolves roles to stages, assigns IDs, runs stage transitions on the configured backend (filesystem or GitHub), formats commit/comment messages, and reports half-state on partial failure. Invoked by every /ticket:* command and by milestone-sync. Does not gate the user directly — its caller does.
 ---
 
+<!-- sync:divergent -->
 The ticket-engine is the shared procedure that the `/ticket:*` commands and the `milestone-sync` skill follow when they need to read or mutate project artifacts. It is a **prompt-fragment skill**: when invoked via the Skill tool, Claude loads this file as guidance and executes the procedures inline using its own tools (Read, Edit, Write, Bash). There is no runtime binary.
+<!-- sync:end -->
 
 The engine handles **tickets** today. The `artifact_type` parameter (default `ticket`) is the seam for a future ADR artifact type — every primitive in Part 1 is artifact-agnostic; Part 2 is ticket-specific.
 
 ## Calling contract
 
+<!-- sync:divergent -->
 - **Who invokes**: `/ticket:new`, `/ticket:refine`, `/ticket:pick`, `/ticket:review`, `/ticket:reject`, `/ticket:close`, `/ticket:init`, and the `milestone-sync` skill.
 - **How**: via the Skill tool, no args. The caller's prompt names which engine operation it needs (e.g. "use the engine to claim IV-042"). Claude follows the matching § Operations entry.
 - **Returns**: every operation returns a **structured result** the caller paraphrases to the user — never raw tool output. On success: `{ ok: true, artifact: {...}, steps_taken: [...] }`. On failure: `{ ok: false, where: "<step>", completed: [...], failed: "<reason>", recovery: "<manual fix>" }`. The shapes are illustrative — Claude composes them in prose.
@@ -16,6 +19,7 @@ The engine handles **tickets** today. The `artifact_type` parameter (default `ti
 - **Config reload per invocation.** The engine re-reads `.claude/config.yaml` every time it's invoked. Config files are tiny; the cost is negligible; staleness is impossible.
 - **artifact_type parameter.** Default `ticket`. Reserved values: `ticket` (live), `adr` (reserved, not implemented). Every primitive in Part 1 accepts `artifact_type` implicitly — the value affects ID prefix, commit verb namespace, and the lookup key inside `.claude/config.yaml`. Today only `ticket` is wired.
 - **Ticket ID formats per backend.** Filesystem: `{prefix}-{NNN}` (e.g. `IV-042`). GitHub: the native issue number (`#42`, with or without the `#`). Commands accept the active backend's form in `$ARGUMENTS`; the engine resolves it to the artifact (on GH via the issue URL).
+<!-- sync:end -->
 
 ## Hard rules
 
@@ -58,6 +62,7 @@ These primitives operate on any artifact type. Today the only live type is `tick
 11. On `backend.type: github`, validate `milestones.strategy != trackers` (trackers are filesystem-only).
 12. On `backend.type: filesystem`, validate `milestones.strategy != native` (native is GitHub-only).
 13. **Project linkage is github-only.** A missing `projects:` block is treated as `enabled: false`. On `backend.type: filesystem`, if `projects.enabled` is truthy → `"projects linkage is github-only; set projects.enabled: false on the filesystem backend."` On `backend.type: github` with `projects.enabled: true`: `projects.number` (integer) and `projects.owner` (string) are required; `projects.status_field` defaults to `"Status"` if absent; `projects.status_map`, if present, is a map whose keys are a subset of the declared stage roles and whose values are non-empty strings. An unknown role key → `"projects.status_map: unknown role '<x>'."`
+14. **`claim.stale_after` is optional.** If present, it must be a duration `<positive-int>(h|d)` (e.g. `24h`, `3d`). Absent → the engine uses `24h`. Malformed → `"claim.stale_after: expected a duration like 24h or 3d, got '<x>'."`
 
 **Output**: a resolved config value the rest of the engine reads. Includes a derived `roles → stage` map.
 
@@ -99,7 +104,7 @@ Every artifact carries YAML frontmatter. The exact field set is artifact-type-sp
 
 - **Filesystem**: full frontmatter at the top of the `.md` file, structured body below.
 - **GitHub**: hybrid representation per the schema decision. Native fields (title, assignee, labels, milestone, close reason) carry what they can. A small YAML frontmatter block at the top of the issue body carries fields without a native fit (`depends_on`, `related`, and any extension fields like the reserved `adrs:`).
-- **`status:` is not written** by the engine. If a legacy artifact still carries it, the engine reads but ignores it.
+- **Stage is never stored as a field.** An artifact's stage is its location — its folder (filesystem) or its stage label (GitHub) — never a `status:` frontmatter key. The engine neither writes nor reads one.
 
 ## § Transition primitives
 
@@ -238,7 +243,8 @@ Required on every backlog-and-beyond ticket:
 | `created` | ISO date | Set on creation, never modified. |
 | `depends_on` | list of IDs | Other tickets that must reach terminal before this is pickable. |
 | `related` | list of IDs | Informational. |
-| `claimed_by` | string or null | Set on transition to `in_progress`-roled stage. |
+| `claimed_by` | string or null | The **account** holding the claim — `git config user.name` (filesystem) or the authenticated `gh api user -q .login` (GitHub; the identity `@me` resolves to). Set on claim and reject-reclaim; cleared on abandon; preserved on close. Names an account, never a session (see § Claim identity & staleness). |
+| `claimed_at` | ISO date-time or null | When the current owner took the claim. Set on claim and reject-reclaim; cleared on abandon; left as-is on close (historical). Drives stale-claim detection. |
 | `closed_as` | one of `shipped` / `wontfix` / `duplicate` / null | On FS, always set on terminal entry. On GH, the native close reason is canonical; this field is not written. |
 | `adrs` | list of ADR IDs | **Reserved for v2**; engine preserves on writes but does not validate. Empty list by default. |
 
@@ -259,6 +265,22 @@ Enforced whenever a `depends_on` list is written, and before a fold closes a tic
 - **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
 
 Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
+
+## § Claim identity & staleness
+
+`claimed_by` and `claimed_at` record **who** holds an in-progress artifact and **since when**. Both are operational state, not decoration.
+
+- **Identity (`claimed_by`)** resolves to the *account*, never a session — sessions have no stable identity to stamp:
+  - **Filesystem**: `git config user.name` (the same identity that authors the `commits.claim` commit).
+  - **GitHub**: the authenticated login, `gh api user -q .login` — the identity `@me` resolves to in the claim verification read.
+
+  Two concurrent sessions for one account are indistinguishable, and that is fine: the atomic claim (the `git mv` on FS, the assignee swap + verify-read on GH), not the string, is what prevents a double-claim.
+- **Clock (`claimed_at`)** is an ISO-8601 timestamp set the moment the current owner takes the artifact — on claim and on reject-reclaim. Cleared to `null` on abandon. Left untouched on close, where it becomes part of the historical record. On GitHub it lives in the issue-body frontmatter block (no native fit), written as part of the same atomic edit as the label/assignee swap — still no comment, so the claim stays silent.
+- **Staleness.** An in-progress claim is *stale* when `now − claimed_at > claim.stale_after` — a config duration (`<int>h` / `<int>d`), defaulting to `24h` when the key is absent. A **null** `claimed_at` on an in-progress artifact (legacy or half-state) is unknown age → treated as stale and surfaced conservatively. If `claimed_at` is missing but the backend still records the claim, that record is the fallback clock: the `commits.claim` commit's author date (FS) or the issue's assignment event (GH).
+
+The engine only supplies these fields and the resolved threshold; the *decision* on a stale claim (release / resume / leave) is the caller's gate — see `/ticket:pick` step 0.
+
+## § Type-specific gates
 
 Known types have well-defined behavior baked into command logic:
 
@@ -337,8 +359,10 @@ Every operation below calls this first. Cache for the duration of the engine inv
 ### `assign_next_id(slate_size=1)`
 
 - **Input**: optional count for slate reservation (default 1).
-- **Procedure**: § ID assignment.
-- **Returns**: list of new IDs (length = slate_size). FS only; on GH this is a no-op (GH assigns on `gh issue create`).
+- **Procedure**: § ID assignment (filesystem). On GitHub, returns provisional handles instead (see Returns).
+- **Returns**: a list of length `slate_size`.
+  - **Filesystem**: real reserved IDs (`{prefix}-{NNN}`) per § ID assignment; each ID is also its own handle.
+  - **GitHub**: **provisional slate handles** `NEW-1 … NEW-slate_size`, used *only* to express intra-slate `depends_on` while drafting. GitHub mints the real issue number at `gh issue create`, and the handle is resolved to it during slate creation (see § Slate creation & handle resolution). With `slate_size: 1` there are no intra-slate deps, so the lone handle is unused and creation assigns the real number directly.
 
 ### `read_artifact(id)`
 
@@ -350,7 +374,7 @@ Every operation below calls this first. Cache for the duration of the engine inv
 
 - **Input**: role name, optional filters (`priority`, `effort`, `type`, `milestone`, `depends_satisfied: bool`).
 - **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, filter out artifacts whose `depends_on` includes any non-terminal ID.
-- **Returns**: list of artifact summaries (id, title, priority, effort, type, milestone, claimed_by, created).
+- **Returns**: list of artifact summaries (id, title, priority, effort, type, milestone, claimed_by, claimed_at, created).
 
 ### `create_artifact(spec, target_role)`
 
@@ -364,6 +388,13 @@ Every operation below calls this first. Cache for the duration of the engine inv
   5. **Filesystem**: write file at target stage folder; `git add`; commit with `commits.new` (or `commits.capture` if target_role: inbox).
   6. **GitHub**: `gh issue create` with title, body (body frontmatter + structured body), labels (type, priority, effort, target stage), milestone (if strategy: native), assignee (null at creation). Then, if `projects.enabled`: add the new issue to the project and set its `Status` to `status_map[<target_role>]` per § GitHub Projects sync (best-effort; a sync failure does not fail creation).
 - **Returns**: created artifact summary; or validation failure with specific field/section.
+
+**Slate creation & handle resolution.** When a slate (2+ dependency-ordered tickets) is committed, the caller creates them in dependency order and threads a `handle → real ID` map:
+
+- **Filesystem**: the handles are the reserved IDs from `assign_next_id(slate_size=N)`; the map is the identity and is already complete, so each ticket's `depends_on` holds real IDs before the first write.
+- **GitHub**: the handles are provisional (`NEW-k`). Before creating ticket *k*, the caller rewrites its intra-slate `depends_on` handles to the real issue numbers of siblings already created — all present, because creation follows dependency order (deps precede dependents) — so `gh issue create` writes the resolved `depends_on` into the body frontmatter at birth, with no second edit.
+
+External (non-slate) `depends_on` IDs are already real and pass through unchanged. § depends_on integrity's slate exemption covers the not-yet-created siblings during validation.
 
 ### `transition_artifact(id, target_role, fields={}, event)`
 
@@ -380,7 +411,7 @@ Used by the move-only transitions: `claim` (pickable → in_progress), `review` 
 ### `claim_atomic(id)`
 
 - **Input**: artifact ID.
-- **Procedure**: same as `transition_artifact(id, "in_progress", {claimed_by}, event: "claim")` but with the race-safe protocol:
+- **Procedure**: same as `transition_artifact(id, "in_progress", { claimed_by: <resolved identity>, claimed_at: <now, ISO-8601> }, event: "claim")` — identity and clock per § Claim identity & staleness — but with the race-safe protocol:
   - **FS**: `git mv` is the atomic step; if it fails (file moved), return race-lost.
   - **GH**: § Transition primitives' verification-read step catches lost races; reverse and return.
 - **Returns**: claimed artifact; or `{ ok: false, reason: "race lost — claimed by <other>" }`.
