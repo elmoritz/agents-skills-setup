@@ -19,6 +19,8 @@ Invoke the `ticket-engine` skill at the start to load and validate config. Resol
 - `pickable` role → source stage (required).
 - `in_progress` role → claim destination (required).
 - `review` role → optional; determines whether step 6 runs.
+- `review.agents` → the checkers the implementation loop dispatches each round (default `[code-reviewer, test-adequacy-reviewer]` when absent; a listed agent whose file is missing is skipped with a warning).
+- `verification.max_loop_rounds` → the loop bound (default 3).
 
 If the engine reports `"No .claude/config.yaml found"`, stop and tell the user `"Run /ticket:init first."`
 
@@ -47,7 +49,7 @@ Otherwise, invoke `list_artifacts(role: "pickable", filters: { depends_satisfied
   - **options:**
     - **Proceed to pick (Recommended)** — leave them; a genuinely long task can outlive the threshold.
     - **Release a stale claim** — ask which ID (free-text follow-up), then invoke `transition_artifact(id, target_role: "pickable", fields: { claimed_by: null, claimed_at: null }, event: "abandon")` with an `## Abandoned notes` payload: `"Stale claim released — was claimed by <claimed_by> at <claimed_at>, released <ISO date> without reaching review."` The released ticket then competes among the candidates below.
-    - **Resume one** — ask which ID (free-text follow-up). It is already in the in_progress stage, so skip the step 1 claim; re-stamp ownership via `update_frontmatter(id, { claimed_by: <active identity>, claimed_at: <now> })`; jump to step 2.
+    - **Resume one** — ask which ID (free-text follow-up). It is already in the in_progress stage, so skip the step 1 claim; re-stamp ownership via `update_frontmatter(id, { claimed_by: <active identity>, claimed_at: <now> })` (on GitHub the engine re-asserts the assignee, minting a fresh assignment event — the clock is never a written field there); jump to step 2.
 
 If nothing in the in_progress stage is stale, skip this gate entirely.
 
@@ -76,7 +78,7 @@ The user can pick any of the four directly, or type "show more" / "different mil
 Invoke `claim_atomic(id)`. The engine:
 
 - **Filesystem**: `git mv` to the in_progress stage's folder; stamps frontmatter (`claimed_by` = `git config user.name`, `claimed_at` = now in ISO-8601 — see § Claim identity & staleness); commits with `commits.claim`.
-- **GitHub**: optimistic check-write-verify per § Transition primitives (read state, atomic edit with assignee + label swap + `claimed_at` in the body frontmatter, verify by re-reading; reverse on lost race). `claimed_by` is the assignee (`@me`).
+- **GitHub**: optimistic check-write-verify per § Transition primitives (read state, atomic edit with assignee + label swap, verify by re-reading; reverse on lost race). `claimed_by` is the assignee (`@me`); `claimed_at` is the assignment event the swap mints — nothing is written into the body (see ticket-engine § Claim identity & staleness).
 
 If the engine returns `{ ok: false, reason: "race lost ..." }`, abort cleanly, tell the user, and offer to pick a different ticket from the pickable stage.
 
@@ -119,23 +121,27 @@ If **Abandon**:
    - **Filesystem**: `git mv` back to the pickable stage folder; clears `claimed_by` in frontmatter; appends `## Abandoned notes` to the body; commits with `commits.abandon`.
    - **GitHub**: swap labels back; unassign; append abandon notes to body; post a comment (per § Message formatting, `abandon` is content-bearing).
 
-The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5.5). The `## Abandoned notes` payload records why, whatever the step.
+The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5.8). The `## Abandoned notes` payload records why, whatever the step.
 
-### Step 4 — implement
+### Steps 4–5.7 — the implementation loop
 
-For each plan step, in order:
+Implementation runs as a **bounded loop**: each round is *implement → verify → agent checks → evaluate*, and the evaluation decides whether the work is done, needs another round, needs a re-plan, or escalates to the user. The loop is capped at `verification.max_loop_rounds` rounds (default 3). Round 1 implements the approved plan; every later round implements the previous evaluation's work-list with the same discipline. The loop fixes findings; it **never expands scope** beyond the approved plan.
+
+### Step 4 — implement (every round)
+
+**Round 1:** for each plan step, in order. **Round ≥ 2:** for each work-list item from the last evaluation (step 5.7), in order. Either way:
 
 1. Make the file edit(s).
 2. Run the relevant test from `verification.test_commands` if applicable (the engine never runs tests itself; this command runs them). For visual changes, note the manual scenario for the evidence report.
-3. Tick the step off; report progress concisely.
+3. Tick the item off; report progress concisely.
 
-If a step reveals the plan is wrong: **stop**, return to step 3, re-plan with the user. Don't barrel through.
+If an item reveals the plan is wrong: **stop**, return to step 3, re-plan with the user. Don't barrel through — in any round.
 
-### Step 5 — verify
+### Step 5 — verify (every round)
 
-If `verification.test_commands` is non-empty, run each command in sequence. All must pass.
+If `verification.test_commands` is non-empty, run each command in sequence. All must pass — agents never review a red diff.
 
-For visual changes: produce an **Evidence report** as a `## Evidence` section appended to the ticket body via `update_frontmatter`, structured:
+For visual changes: produce an **Evidence report** as a `## Evidence` section appended to the ticket body via `update_frontmatter` (round 1; later rounds update it only if the observable surface changed), structured:
 
 - **Golden path** — the primary user flow to verify. Step-by-step.
 - **Edge cases** — 2–3 secondary scenarios that could regress.
@@ -144,44 +150,43 @@ For visual changes: produce an **Evidence report** as a `## Evidence` section ap
 
 This report is what the user follows when verifying before closure.
 
-### Step 5.5 — review loop
+### Step 5.5 — agent checks (every round)
 
-Three read-only agents from `.claude/agents/` audit the work before it leaves the session. Pass each the ticket ID and body (plan + acceptance criteria) and the diff base (the claim commit, or `git merge-base HEAD <default branch>`).
+Dispatch every agent in `review.agents` (default: `code-reviewer` and `test-adequacy-reviewer`) as read-only subagents, **in parallel**. Pass each: the ticket ID and body (plan + acceptance criteria), the diff base (the claim commit, or `git merge-base HEAD <default branch>`), and `verification.test_commands` where the agent judges tests. On round ≥ 2, also pass the prior findings plus a summary of what changed, so agents verify the fixes instead of re-reviewing from scratch. The agents report; they never edit.
 
-1. **Review loop** — dispatch `code-reviewer` and `test-adequacy-reviewer` as subagents (in parallel; the latter also gets `verification.test_commands`). The loop condition is categorical, not a score: the diff is **clean** when the reviewer verdict is not `BLOCKED` and the adequacy verdict is not `INEFFECTIVE`.
+### Step 5.7 — evaluate & decide (every round)
 
-   While not clean, iterate — **at most 2 automatic fix rounds**:
+Write an explicit **evaluation verdict** — this is a judgment step, not a reflex off the agents' labels. For each blocking finding (`BLOCKED` from a reviewer-type agent, `INEFFECTIVE` from an adequacy-type agent, or the equivalent from a custom checker): is it valid (agents can be wrong — say so with evidence when one is)? is its fix inside the approved plan's scope? is the fix shape clear? Then decide, in this precedence:
 
-   1. Fix the blocking findings, staying strictly inside the approved plan's scope. The loop fixes findings; it never expands scope.
-   2. Re-run the step 5 verification (tests must be green again).
-   3. Re-dispatch both agents, passing the prior findings plus a summary of what changed, so they verify the fixes instead of re-reviewing from scratch.
+- **Re-plan** — a valid finding implies the plan itself is wrong → return to step 3 with the user. Never auto-fix a wrong plan, whatever the round budget.
+- **Escalate** — the round cap is reached with blocking findings open, or a finding **stalls** (the same finding survives two consecutive rounds) → the escalation gate below.
+- **Iterate** — valid, in-scope blocking findings remain and budget allows → compose the next round's **work-list** (one line per finding: what to change, where) and return to step 4.
+- **Done** — no valid blocking findings remain → record the verdict and exit the loop to step 5.8.
 
-   **Escalate to the gate below instead of iterating** when any of these hits:
+Record each round's evaluation in one short paragraph (round number, agent verdicts, decision, one-line reasoning) — the sign-off report carries these. Non-blocking output (`PASS WITH SUGGESTIONS`, `GAPS`) never drives the loop: fold what is cheap into the next round's work-list if one exists, carry the rest into the sign-off report.
 
-   - the 2-round cap is reached and the diff still isn't clean;
-   - a finding **stalls** — the same finding survives two consecutive rounds;
-   - a finding implies the plan itself is wrong — that is a step 3 re-plan, never an auto-fix.
+Escalation gate, via `AskUserQuestion`:
 
-   Escalation gate, via `AskUserQuestion`:
-   - **question:** "Review still blocking after <N> fix round(s): <one line per finding>. How should I proceed?"
-   - **header:** "Findings"
-   - **options:**
-     - **Fix now (Recommended)** — one more round under user direction: return to step 4 (step 3 if the plan is wrong), re-run step 5, re-dispatch both agents.
-     - **Waive & proceed** — continue to step 6; record the waived findings in the sign-off report.
-     - **Abandon** — run the step 3 Abandon path.
+- **question:** "Review still blocking after <N> round(s): <one line per finding>. How should I proceed?"
+- **header:** "Findings"
+- **options:**
+  - **Fix now (Recommended)** — one more round under user direction: return to step 4 (step 3 if the plan is wrong), re-run steps 5–5.7.
+  - **Waive & proceed** — continue to step 5.8; record the waived findings in the sign-off report.
+  - **Abandon** — run the step 3 Abandon path.
 
-   Non-blocking output (`PASS WITH SUGGESTIONS`, `GAPS`) never drives the loop: fix what is cheap in the current round, carry the rest into the sign-off report.
+### Step 5.8 — simplify (after the loop, never inside it)
 
-2. **Simplify** — once the loop converges (never inside it), dispatch `code-simplifier`. If it returns proposals (not `Clean`), gate via `AskUserQuestion`:
-   - **question:** "Simplifier: <N> proposals, safe set <IDs>. Apply?"
-   - **header:** "Simplify"
-   - **options:**
-     - **Apply safe set (Recommended)** — apply the zero-risk subset.
-     - **Apply all** — apply every proposal.
-     - **Pick** — ask which proposal IDs (free-text follow-up).
-     - **Skip** — proceed unchanged.
+Once the evaluation says **Done**, dispatch `code-simplifier`. If it returns proposals (not `Clean`), gate via `AskUserQuestion`:
 
-   Apply accepted diffs in the main session (the agents never edit), then re-run the step 5 test commands before moving on.
+- **question:** "Simplifier: <N> proposals, safe set <IDs>. Apply?"
+- **header:** "Simplify"
+- **options:**
+  - **Apply safe set (Recommended)** — apply the zero-risk subset.
+  - **Apply all** — apply every proposal.
+  - **Pick** — ask which proposal IDs (free-text follow-up).
+  - **Skip** — proceed unchanged.
+
+Apply accepted diffs in the main session (the agents never edit), then re-run the step 5 test commands before moving on.
 
 ### Step 6 — move to review (only if a review stage exists)
 
@@ -203,7 +208,8 @@ Then post a sign-off report to the user. The full Evidence section already lives
 
 **Tests:** <verification.test_commands joined or "no automated check — visual/docs"> — N / N passing (M new + K existing).
 
-**Agent review:** <code-reviewer verdict> · <test-adequacy verdict> · <K> fix round(s) · simplifier <N applied | clean><; waived: <finding> — only if any>.
+**Agent review:** <verdict per review agent, config order> · <K> round(s) · simplifier <N applied | clean><; waived: <finding> — only if any>.
+**Loop log:** <one line per round: `R<k>: <agent verdicts> → <decision> — <one-line reasoning>` — from the step 5.7 evaluations>.
 
 **Verification checklist:**
 1. Imperative step the user runs, with the expected observation.
@@ -239,7 +245,8 @@ Do **not** run `verification.pre_close_command` here — that's the engine's job
 - The atomic claim (step 1) happens **before** any research, planning, or code reading. No exceptions.
 - A claimed ticket is never left dangling: any post-claim abort runs the step 3 Abandon transition (back to pickable, `claimed_by: null`, notes appended) as its final act.
 - Plans are presented before implementation. No silent implementation.
-- The step 3 challenge and step 5.5 reviews are read-only subagent passes; the main session makes every edit. The step 5.5 loop is bounded — max 2 automatic fix rounds, findings-only fixes that never expand scope beyond the approved plan — and blocking findings (`BLOCKED` / `INEFFECTIVE`) reach step 6 only fixed or explicitly waived by the user.
+- The step 3 challenge and step 5.5 agent checks are read-only subagent passes; the main session makes every edit. The implementation loop is bounded — at most `verification.max_loop_rounds` rounds (default 3), each ending in an explicit step 5.7 evaluation; iteration fixes findings and never expands scope beyond the approved plan — and blocking findings (`BLOCKED` / `INEFFECTIVE` / custom-checker equivalents) reach step 6 only fixed or explicitly waived by the user.
+- The step 5.7 evaluation is autonomous within the loop's bounds: the user is interrupted only by the escalation gate (cap, stall) or a re-plan (plan wrong). Every round's evaluation is recorded and lands in the sign-off report's loop log.
 - Every behavioral change leaves a verification (test or manual evidence).
 - Invariants in `references.architecture` are not optional **when the reference is defined**. If the ticket appears to require violating one, surface that to the user and stop.
 - The engine, not the command, performs `git mv` / `gh issue edit` / commits. The command runs tests, drives gates, and assembles report text.

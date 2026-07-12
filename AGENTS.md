@@ -12,7 +12,7 @@ A backend-agnostic, in-repo issue tracker. Configuration lives in
 
 | Skill | Invoke as | What it does |
 | --- | --- | --- |
-| `ticket-init` | `/ticket-init` | Bootstrap: write `.github/config.yaml`, create stage folders or labels, lay down a ticket template. One-time. |
+| `ticket-init` | `/ticket-init` | Bootstrap: write `.github/config.yaml`, create stage folders (with the `.ledger.yaml`) or labels/board fields, guide research-agent setup, lay down a ticket template. One-time. |
 | `ticket-new` | `/ticket-new` | Create a ticket (or a small slate) through a gated, alignment-checked flow. |
 | `ticket-refine` | `/ticket-refine` | Promote an inbox entry to backlog (or fold/wontfix). |
 | `ticket-pick` | `/ticket-pick` | Implement the next ticket through to review. |
@@ -28,11 +28,21 @@ assignment, backend transitions, commit/comment formatting, half-state reporting
 
 Four read-only review agents under `.github/agents/` are wired into
 `/ticket-pick`: **`challenger`** (step 3 — attacks the drafted plan before the
-Plan gate), **`code-reviewer`** and **`test-adequacy-reviewer`** (step 5.5 — a
-bounded review loop: blocking findings are auto-fixed within plan scope for up
-to two rounds, then escalated to the user), and **`code-simplifier`** (after
-the loop is clean — behavior-preserving trims, gated before apply). Each also
+Plan gate); **`code-reviewer`** and **`test-adequacy-reviewer`** — the default
+checkers in the bounded **implementation loop** (each round: implement → verify
+→ dispatch the configured `review.agents` in parallel → an explicit evaluation
+that decides done / iterate / re-plan / escalate; capped by
+`verification.max_loop_rounds`, default 3); and **`code-simplifier`** (after
+the loop is done — behavior-preserving trims, gated before apply). Each also
 runs standalone.
+
+**Research agents** are project-specific: `/ticket-init`'s research-agent step
+instantiates them from `.github/references/research-agents/` templates (catalog:
+`perf-expert` and `language-expert` — recommended for every project — plus
+precedent/docs/api-docs/design-spec/web researchers, and custom sources).
+`/ticket-new` and `/ticket-refine` dispatch the ones registered under
+`research.agents` in `.github/config.yaml`, routed by their `consult` hints;
+each returns distilled findings from its source instead of inline reading.
 
 ## Conventions
 
@@ -98,5 +108,6 @@ for manual review.
 - **One workflow event = one commit** (filesystem) / one issue mutation (GitHub).
 - **Stop and report on partial failure.** Never auto-rollback; surface the half-state precisely.
 - **Never re-issue an ID.** Dropped IDs stay reserved as gaps.
-- **Tickets are the source of truth.** Milestone trackers and summaries reflect tickets, never the reverse.
-- **GitHub Project sync is best-effort** and never authoritative (github backend only).
+- **Tickets are the source of truth.** Milestone trackers and summaries reflect tickets, never the reverse. On the filesystem backend "the ticket" includes its `.ledger.yaml` entry (deps/related/milestone live there, same-commit with each event).
+- **GitHub issues carry no body frontmatter.** Dependencies are native issue dependencies; the claim clock is the assignment event; priority/effort/risk live on the Project board (labels as fallback) or as labels.
+- **GitHub Project sync is best-effort** and never authoritative for stage state (github backend only); the dual-homed fields fall back to labels on a failed board write.

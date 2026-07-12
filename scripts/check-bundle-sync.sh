@@ -52,6 +52,13 @@ challenger:.claude/agents/challenger.md:.github/agents/challenger.agent.md
 code-reviewer:.claude/agents/code-reviewer.md:.github/agents/code-reviewer.agent.md
 code-simplifier:.claude/agents/code-simplifier.md:.github/agents/code-simplifier.agent.md
 test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.github/agents/test-adequacy-reviewer.agent.md
+tpl-perf-expert:.claude/references/research-agents/perf-expert.md:.github/references/research-agents/perf-expert.agent.md
+tpl-language-expert:.claude/references/research-agents/language-expert.md:.github/references/research-agents/language-expert.agent.md
+tpl-precedent-researcher:.claude/references/research-agents/precedent-researcher.md:.github/references/research-agents/precedent-researcher.agent.md
+tpl-docs-researcher:.claude/references/research-agents/docs-researcher.md:.github/references/research-agents/docs-researcher.agent.md
+tpl-api-docs-researcher:.claude/references/research-agents/api-docs-researcher.md:.github/references/research-agents/api-docs-researcher.agent.md
+tpl-design-spec-researcher:.claude/references/research-agents/design-spec-researcher.md:.github/references/research-agents/design-spec-researcher.agent.md
+tpl-web-researcher:.claude/references/research-agents/web-researcher.md:.github/references/research-agents/web-researcher.agent.md
 "
 
 # Files that legitimately exist on one side only. Exact paths, or prefixes
@@ -70,7 +77,7 @@ IGNORE="
 # get the hard equivalence gate. Everything else (commands, skills, the
 # human-facing READMEs) legitimately rephrases invocation/gate mechanics per
 # platform and relies on the pairing check + the advisory `--equiv` instead.
-EQUIV_CHECK="engine challenger code-reviewer code-simplifier test-adequacy-reviewer"
+EQUIV_CHECK="engine challenger code-reviewer code-simplifier test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
 
 # Canonicalize the documented intentional differences to common tokens so
 # whatever remains is real drift. Reads stdin, writes stdout.

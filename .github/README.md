@@ -35,11 +35,20 @@ across **VS Code agent mode, the Copilot CLI, and the Copilot cloud agent**.
 │   ├── grill-me/                 /grill-me      — stress-test a plan/design
 │   ├── ticket-engine/            execution layer (user-invocable: false)
 │   └── milestone-sync/           milestone drift sync (user-invocable: false)
-└── agents/                       custom review agents (*.agent.md) wired into /ticket-pick
-    ├── challenger.agent.md              devil's advocate against a drafted plan
-    ├── code-reviewer.agent.md           diff review vs plan, invariants, conventions
-    ├── code-simplifier.agent.md         proposes behavior-preserving simplifications
-    └── test-adequacy-reviewer.agent.md  judges whether new tests can actually fail
+├── agents/                       custom review agents (*.agent.md) wired into /ticket-pick
+│   ├── challenger.agent.md              devil's advocate against a drafted plan
+│   ├── code-reviewer.agent.md           diff review vs plan, invariants, conventions
+│   ├── code-simplifier.agent.md         proposes behavior-preserving simplifications
+│   └── test-adequacy-reviewer.agent.md  judges whether new tests can actually fail
+└── references/
+    └── research-agents/          templates /ticket-init instantiates into agents/
+        ├── perf-expert.agent.md            tech-stack performance expert (recommended)
+        ├── language-expert.agent.md        language idioms & pitfalls (recommended)
+        ├── precedent-researcher.agent.md   in-repo & past-ticket prior art
+        ├── docs-researcher.agent.md        internal docs / wiki / ADRs
+        ├── api-docs-researcher.agent.md    version-accurate library/API answers
+        ├── design-spec-researcher.agent.md design-tool specs, distilled
+        └── web-researcher.agent.md         external candidates, license rules baked in
 ```
 
 Base instructions for all Copilot surfaces live in the repo-root
@@ -56,7 +65,7 @@ and every skill delegates the actual reads, writes, and stage transitions to the
 
 | Skill | Invoke as | What it does |
 | --- | --- | --- |
-| `ticket-init` | `/ticket-init` | Bootstrap a project: write `.github/config.yaml`, create the stage folders or labels, lay down a starter ticket template. |
+| `ticket-init` | `/ticket-init` | Bootstrap a project: write `.github/config.yaml`, create the stage folders (with the `.ledger.yaml`) or labels/board fields, guide research-agent setup, lay down a starter ticket template. |
 | `ticket-new` | `/ticket-new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the agent's understanding before anything is committed. |
 | `ticket-refine` | `/ticket-refine` | Resume a captured inbox entry and promote it to the backlog (or close it as fold/wontfix). Only if an inbox stage is configured. |
 | `ticket-pick` | `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review. |
@@ -68,6 +77,15 @@ Tickets move through configurable **stages** (inbox → backlog → in-progress 
 review → done), each carrying a **role** the engine resolves against. Effort caps
 keep the backlog honest: every ticket landing in a pickable stage must fit the
 project's allowed size, and `ticket-new` silently splits work that's too big.
+
+**Ticket data lives native, not in frontmatter.** On the GitHub backend, issues
+carry **no YAML frontmatter** — dependencies are native issue dependencies
+(blocked-by), the claim clock is the assignment event, priority/effort/risk live
+as Project board fields (labels as fallback) or labels, and `type` maps to native
+org issue types where available. On the filesystem backend, ticket files keep
+self-describing frontmatter while the graph data — `depends_on`, `related`,
+`milestone` — lives in a machine-owned **ledger** (`.ledger.yaml`) beside the
+stage folders, updated in the same commit as every event.
 
 ## The internal skills
 
@@ -85,10 +103,20 @@ milestones"):
 
 ## The agents
 
-`agents/` holds read-only **custom agents** (`<name>.agent.md`) — focused reviewers
+`agents/` holds read-only **custom agents** (`<name>.agent.md`) — focused workers
 Copilot picks from the agents dropdown / `/agents`, or auto-selects when a task
 matches their `description`. Each judges only what's on disk and changes nothing;
-the main session owns any resulting edits.
+the main session owns any resulting edits. Two kinds ship or get generated here:
+
+**Research agents** (added by `/ticket-init` from the `references/research-agents/`
+templates, plus any custom ones init generates) are dispatched by `/ticket-new`
+and `/ticket-refine` during analysis and research: each reads one source of
+information — docs, prior art, API references, design specs, the web, your
+stack's performance characteristics, your language's idioms — in its own context
+and returns only distilled findings. The registered set lives in `config.yaml`
+under `research.agents`, each with a `consult` hint that routes dispatch.
+
+**Review agents** (shipped) are wired into `/ticket-pick`:
 
 - **`challenger`** — devil's advocate against a freshly drafted plan: concrete
   failure scenarios and cheaper alternatives, grounded in the code, never vague doubt.
@@ -99,12 +127,15 @@ the main session owns any resulting edits.
 - **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
   if the change were reverted, catching assertion-free and mock-only tests.
 
-All four are **wired into `/ticket-pick`**: `challenger` runs in step 3, so the
-user judges plan and challenge together at the Plan gate; `code-reviewer` and
-`test-adequacy-reviewer` drive the step 5.5 review loop after tests go green —
-blocking findings are fixed automatically for up to two bounded rounds before
-the user is asked; `code-simplifier` runs once the loop is clean, its proposals
-gated before apply. Each also works standalone on any plan or diff.
+`challenger` runs in step 3, so the user judges plan and challenge together at
+the Plan gate. `code-reviewer` and `test-adequacy-reviewer` are the default
+checkers in pick's **implementation loop** — each round implements, verifies,
+runs the configured `review.agents`, and ends in an explicit evaluation that
+decides *done / iterate / re-plan / escalate*, bounded by
+`verification.max_loop_rounds` (default 3). Extra checkers register in
+`config.yaml` without touching the command. `code-simplifier` runs once the loop
+is done, its proposals gated before apply. Each also works standalone on any
+plan or diff.
 
 ## How Copilot loads these
 

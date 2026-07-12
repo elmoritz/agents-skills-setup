@@ -1,6 +1,6 @@
 ---
 name: ticket-init
-description: Bootstrap a project for the /ticket-* workflow. Writes .github/config.yaml, creates stage folders or workflow labels, and lays down a starter TICKET_TEMPLATE.md.
+description: Bootstrap a project for the /ticket-* workflow. Writes .github/config.yaml, creates stage folders (with ledger) or workflow labels/fields, guides research-agent setup, and lays down a starter TICKET_TEMPLATE.md.
 argument-hint: (no arguments; interactive)
 ---
 
@@ -60,6 +60,16 @@ The choice fills `backend.filesystem.root` in the generated config.
 
 The result fills `backend.github.repo`.
 
+3. **Native issue types** (org-owned repos only). Detect the owner type with `gh api users/<owner> -q .type`. If `Organization`: list the org's native issue types (`gh api orgs/<owner>/issue-types`), name-match each config type (`feature`, `bug`, `tech`, `spike`) to an org type case-insensitively (e.g. `feature` → "Feature", `bug` → "Bug"), and show the proposed map. Ask (numbered list; user replies with the number):
+   - **question:** "Map ticket types to the org's native issue types? Unmapped types fall back to `type:` labels."
+   - **header:** "Issue types"
+   - **options:**
+     - **Use the proposed map** — accept the name-matched pairs (Recommended).
+     - **Edit the map** — free-text follow-up to adjust pairs; unmapped config types use labels.
+     - **Labels only** — no `type_map`; every type uses a `type:` label.
+
+   The result fills `backend.github.type_map` (omit the key entirely on "Labels only"). Init **never creates org issue types** — that's an org-admin action; unmapped types simply use labels. On a `User`-owned repo, skip silently (native types are org-only; labels carry `type`).
+
 ### Step 2.5 — ticket ID prefix
 
 Derive a recommended prefix from the project name (the repo folder name, or the repo half of `backend.github.repo`): take the initials of the hyphen/underscore-separated words, uppercased (e.g. `bee-hive-sim` → `BHS`); for a single-word name, take the first 2–3 letters uppercased (e.g. `honeycomb` → `HON`). Then ask (numbered list; user replies with the number):
@@ -95,7 +105,7 @@ Ask (numbered list; user replies with the number):
 
 ### Step 5 — GitHub Project linkage (github backend only)
 
-**Skip this step entirely on the filesystem backend** — Projects (v2) hold GitHub issues, and filesystem tickets aren't issues. Leave `projects.enabled: false` in the assembled config and move to Step 6.
+**Skip this step entirely on the filesystem backend** — Projects (v2) hold GitHub issues, and filesystem tickets aren't issues. Leave `projects.enabled: false` in the assembled config and move to Step 5.5.
 
 On the **github** backend, ask (numbered list; user replies with the number):
 
@@ -105,7 +115,7 @@ On the **github** backend, ask (numbered list; user replies with the number):
   - **Yes** — every ticket is added to a Project (v2) on creation, and its `Status` field tracks the workflow stage as tickets move (Recommended).
   - **No** — tickets are plain issues; no Project board. Sets `projects.enabled: false`.
 
-If **No**, set `projects.enabled: false` and skip to Step 6.
+If **No**, set `projects.enabled: false` and skip to Step 5.5.
 
 If **Yes**:
 
@@ -117,8 +127,47 @@ If **Yes**:
    - **options:** one per discovered project (label = `#<number> <title>`), plus **Specify a number** (free-text follow-up to type the project number).
 4. **Read the Status options:** `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` (the default for new Projects). If there is no `Status` field, tell the user the synced field will be `Status` and they'll need to add it (or hand-edit `projects.status_field` later); proceed with defaults.
 5. **Build `projects.status_map`** by matching each configured stage role to the closest-named Status option (case-insensitive contains; e.g. role `pickable` → "Backlog", `in_progress` → "In progress", `terminal` → "Done"). Fill any unmatched role with the stage's own `label`. The map is written into the config for the user to hand-edit; the engine resolves option IDs at runtime and silently skips any option name that doesn't exist on the board — the stage transition still succeeds (see `../ticket-engine/SKILL.md` § GitHub Projects sync).
+6. **Plan the dual-home fields.** With Projects enabled, `priority`, `effort`, and `risk` live as board single-select fields (labels become the fallback home — see `../ticket-engine/SKILL.md` § Field storage contract). From the same `field-list` output, check for single-select fields named `Priority`, `Effort`, `Risk` (case-insensitive). Note which are missing — Step 7 creates them (`gh project field-create`) with options `P0,P1,P2,P3` / the `effort.allowed` set / `low,med,high`. If an existing field's name differs (e.g. `Prio`), record it in `projects.field_map` instead of creating a duplicate.
 
-Record the resolved `number`, `owner`, `owner_type`, `status_field`, and `status_map` for the config skeleton.
+Record the resolved `number`, `owner`, `owner_type`, `status_field`, `status_map`, `field_map`, and the missing-fields list for the config skeleton and Step 7.
+
+### Step 5.5 — research agents (both backends)
+
+Ticket creation (`/ticket-new` steps 2 and 4, and `/ticket-refine` via resume) dispatches **research agents** — read-only subagents, one per source of information, that read their source in an isolated context and return only distilled findings. This step assembles the project's set; the selection lands in the config's `research.agents:` list, and each agent file lands in `.github/agents/` at Step 7.
+
+1. **Detect existing agents.** Scan `.github/agents/` for agent files other than the four shipped review agents (`challenger`, `code-reviewer`, `code-simplifier`, `test-adequacy-reviewer`). If any exist, list them and ask (numbered list; the user may reply with several numbers, comma-separated):
+   - **question:** "Found existing agents. Which should ticket creation dispatch as research agents?"
+   - **header:** "Existing"
+   - **options:** one per detected agent (label = name, description = its frontmatter description, truncated). Selected ones are registered in `research.agents` with a `consult:` hint derived from their description (confirm the hint inline if unclear). Never overwrite these files.
+
+2. **Offer the catalog** (numbered list; the user may reply with several numbers, comma-separated), skipping any entry whose source is already covered by a registered existing agent:
+   - **question:** "Which research agents should I set up? Each becomes a read-only subagent consulted during ticket creation."
+   - **header:** "Catalog"
+   - **options** (label — description):
+     - **perf-expert (Recommended)** — tech-stack performance expert; consulted whenever the work could affect performance. Every project has a stack — this one is always worth having.
+     - **language-expert (Recommended)** — expert in the project's language(s) and their idioms/pitfalls; consulted on language-level design questions. Always worth having.
+     - **precedent-researcher** — sweeps this repo and past tickets for how something was done before.
+     - **docs-researcher** — answers questions against your internal docs/wiki/ADRs/runbooks.
+     - **api-docs-researcher** — version-accurate answers from a specific library/service's docs.
+     - **design-spec-researcher** — pulls the relevant frame/component from your design source.
+     - **web-researcher** — external tutorials/articles/candidate approaches, license rules baked in.
+
+3. **Fill in each selected agent.** The blanks live in the templates under `.github/references/research-agents/`. For each selection, ask the template's fill-ins as inline free-text follow-ups, then instantiate:
+   - `perf-expert` — the tech stack (runtime, framework, datastore, e.g. "React 19 + Node 22 + Postgres").
+   - `language-expert` — the language(s) and version(s) (e.g. "TypeScript 5.6", "Rust 2021").
+   - `docs-researcher` — where the docs live (paths, wiki URL).
+   - `api-docs-researcher` — which libraries/services, and the docs source (URL or docs MCP if one is connected).
+   - `design-spec-researcher` — the design source (e.g. Figma project/file, and whether a Figma MCP is connected).
+   - `precedent-researcher`, `web-researcher` — no fill-ins; instantiate as-is (precedent reads the config's ticket root at runtime).
+
+4. **Custom sources loop.** Ask (numbered list; user replies with the number):
+   - **question:** "Add a custom research agent for another source of information?"
+   - **header:** "Custom"
+   - **options:**
+     - **Done** — proceed with the set assembled so far (Recommended once the catalog covers your sources).
+     - **Add one** — free-text follow-ups: agent name (kebab-case), what the source is, how to access it (path / URL / MCP tool), and when ticket creation should consult it. Generate the agent from the same shape as the catalog templates (read-only tools, input contract, distilled-findings output contract). Re-ask this gate after each addition.
+
+5. **Record the set.** Each agent contributes a `research.agents` entry: `name` plus a one-line `consult` hint (when ticket creation should dispatch it — e.g. `perf-expert: "the work could affect latency, memory, or throughput"`). Selecting nothing is fine: `research.agents` is omitted and ticket creation reads sources inline as before.
 
 ### Step 6 — assemble config
 
@@ -173,10 +222,12 @@ backend:
 
   github:
     repo: <from Step 2B>
-    body_frontmatter: true
     type_label_prefix: "type:"
     priority_label_prefix: "prio:"
     effort_label_prefix: "effort:"
+    risk_label_prefix: "risk:"
+    type_map:                 # config type -> native org issue type (org repos only;
+      <from Step 2B.3>        # omit the whole key on user repos or "Labels only")
 
 # --- Types ------------------------------------------------------------
 types:
@@ -228,6 +279,10 @@ projects:
     in_progress: "<option>"
     review:      "<option>"
     terminal:    "<option>"
+  field_map:                                    # dual-home fields -> board field names
+    priority: "Priority"                        # (labels are the fallback home; see
+    effort:   "Effort"                          #  ticket-engine § Field storage contract)
+    risk:     "Risk"
 
 # --- Commit / activity messages ---------------------------------------
 commits:
@@ -245,6 +300,19 @@ commits:
   wontfix:        "ticket: wontfix {id} {title}"
   milestone_flip: "milestone: {status} {version} — {reason}"
 
+# --- Agents -------------------------------------------------------------
+# research: read-only sources-of-information agents dispatched by /ticket-new
+#   (steps 2 & 4) and /ticket-refine. Omit the section if none were set up.
+# review: the checkers /ticket-pick dispatches each round of its
+#   implement -> check -> evaluate loop.
+research:
+  agents:
+    <one entry per Step 5.5 selection:>
+    - name: <agent-name>
+      consult: "<one line: when ticket creation should dispatch it>"
+review:
+  agents: [code-reviewer, test-adequacy-reviewer]
+
 # --- Project references (all optional; engine silently skips if missing) -----
 references:
   architecture:   null
@@ -258,6 +326,7 @@ verification:
   test_commands: []
   build_command: null
   pre_close_command: null
+  max_loop_rounds: 3   # bound on /ticket-pick's implement -> check -> evaluate loop
 ```
 
 Show the assembled YAML to the user. Gate (numbered list; user replies with the number):
@@ -277,19 +346,20 @@ Show the assembled YAML to the user. Gate (numbered list; user replies with the 
 
 2. **Backend side effects.**
 
-   - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here).
-   - **GitHub**: follow `../ticket-engine/SKILL.md` (read that file and run its matching operation inline) — e.g. its Auto-label creation rules — for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
-   - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. No items are added at init — issues join the project as they're created (see `../ticket-engine/SKILL.md` `create_artifact`).
+   - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here). Write the **ledger stub** at `<root>/.ledger.yaml` — the machine-owned comment header from ticket-engine § Ledger and an empty map (`{}`); it is the authoritative home of `depends_on`/`related`/`milestone` from the first ticket on.
+   - **GitHub**: follow `../ticket-engine/SKILL.md` (read that file and run its matching operation inline) — e.g. its Auto-label creation rules — for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`, plus `risk:low`, `risk:med`, `risk:high`. Create the `prio:`/`effort:`/`risk:` families even when Projects is enabled — there they are the engine's fallback home when a board write fails. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
+   - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. Then create each board field Step 5.6 found missing: `gh project field-create <number> --owner <owner> --name "<Field>" --data-type SINGLE_SELECT --single-select-options "<options>"` (Priority: `P0,P1,P2,P3`; Effort: the `effort.allowed` set; Risk: `low,med,high`). If a field-create fails, warn and continue — the engine's label fallback covers it. No items are added at init — issues join the project as they're created (see `../ticket-engine/SKILL.md` `create_artifact`).
+   - **Research agents** (both backends, only for Step 5.5 selections): for each catalog selection, copy its template from `.github/references/research-agents/` into `.github/agents/<name>.agent.md` with the fill-ins applied; write each custom agent from the interview answers. Never overwrite an existing agent file — skip with a note and keep its `research.agents` entry.
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
-4. **Single commit** (filesystem) covering the new config, the stage folders (with `.gitkeep` placeholders so empty folders survive), and the template if generated:
+4. **Single commit** (filesystem) covering the new config, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research agent files, and the template if generated:
 
    ```
    ticket: init — bootstrap workflow for <backend>
    ```
 
-   On GitHub backend: still commit the `.github/config.yaml` (label creation is GH-side, no local files). One commit:
+   On GitHub backend: commit `.github/config.yaml` plus the research agent files (label/field creation is GH-side, no local files). One commit:
 
    ```
    ticket: init — bootstrap workflow for github (<repo>)
@@ -307,10 +377,15 @@ Config: .github/config.yaml (<N> lines)
 <Filesystem only>
 Stage folders created under <root>:
   inbox/        backlog/      in-progress/  in-review/   done/
+Ledger: <root>/.ledger.yaml (machine-owned; deps/related/milestone live here)
 TICKET_TEMPLATE.md written at <root>/TICKET_TEMPLATE.md
 <GitHub only>
 Workflow labels created in <repo>: <count> labels.
-Project: <linked to #<number> <title>, Status synced | none>
+Issue types: <mapped: feature→Feature, bug→Bug | labels only>
+Project: <linked to #<number> <title>, Status synced; fields created: <list> | none>
+
+Research agents: <N registered — <names> | none (ticket creation reads sources inline)>
+Review agents: code-reviewer, test-adequacy-reviewer (loop cap: <max_loop_rounds> rounds)
 
 Next steps:
 - Fill in `references:` and `verification:` in .github/config.yaml when you have them.
@@ -321,6 +396,8 @@ Next steps:
 
 - **Never overwrite an existing `.github/config.yaml`.** Step 0 is non-negotiable. The remove-then-re-run path is the only way to regenerate.
 - **Never overwrite an existing `TICKET_TEMPLATE.md`.** Step 7.3 skips if the file is already there.
+- **Never overwrite an existing agent file.** Step 5.5 registers existing agents; Step 7 writes only new ones. A name collision between a catalog selection and an existing file skips the write and keeps the existing agent.
+- **Init never creates org issue types.** Unmapped config types fall back to `type:` labels; org taxonomy is the org admin's domain.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there. Step 5 is skipped entirely on filesystem.
 - **Never leave an invalid config.** Step 7 runs the engine's `load_and_validate()` on the file right after writing it; if validation fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
 - **Single commit per init.** Folders + config + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.github/config.yaml` alone.

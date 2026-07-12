@@ -9,7 +9,7 @@ user-invocable: false
 
 This is a shared reference doc, not a user-invoked prompt. Copilot has no automatic skill triggering, so it is run explicitly: as a preflight referenced by `/ticket-pick`, as a postflight referenced by `/ticket-close`, or standalone whenever the user asks to "sync milestones".
 
-Audit the project's milestone state against the work tickets that reference it via the `milestone:` frontmatter field, surface any drift, and apply user-approved fixes as standalone events. Safe to run any time.
+Audit the project's milestone state against the work tickets that reference it via their milestone assignment (the ticket's ledger entry on the filesystem backend; the native milestone or `milestone:` label on GitHub), surface any drift, and apply user-approved fixes as standalone events. Safe to run any time.
 
 The procedure is **strategy-aware** — it dispatches on `milestones.strategy` resolved by the ticket-engine logic in `../ticket-engine/SKILL.md`. The user-visible workflow (scan → report → gate → apply) is identical across strategies; only the storage layer differs.
 

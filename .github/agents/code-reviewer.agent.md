@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Read-only review of a ticket's implementation diff before it transitions to review. Checks the diff against the approved plan, architecture invariants, and project conventions. Invoke in /ticket-pick's step 5.5 review loop — after verification passes, and again on each fix round — before the review transition (step 6). Also usable standalone on any uncommitted or branch diff.
+description: Read-only review of a ticket's implementation diff before it transitions to review. Checks the diff against the approved plan, architecture invariants, and project conventions. Invoke in /ticket-pick's implementation loop (step 5.5 agent checks) — after verification passes, every round — before the review transition (step 6). Also usable standalone on any uncommitted or branch diff.
 tools: ["read", "search", "execute"]
 ---
 

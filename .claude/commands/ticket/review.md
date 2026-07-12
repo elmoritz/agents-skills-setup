@@ -38,7 +38,7 @@ If `$ARGUMENTS` is empty, invoke `list_artifacts(role: "review")`:
 
 Invoke `read_artifact(id)` (already done in step 0). Extract:
 
-- Frontmatter: `id`, `title`, `type`, `milestone`, `effort`.
+- Fields (from the engine's uniform view, wherever each is stored): `id`, `title`, `type`, `milestone`, `effort`.
 - The `## Acceptance criteria` block (for features — checkboxes).
 - The `## Evidence` section if present (`### Golden path`, `### Edge cases`, `### Regression watch`, `### Build command`).
 

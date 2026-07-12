@@ -50,7 +50,7 @@ Branch on the answer.
 
 ### Step 2A — approve path
 
-Resume the `/ticket:new` workflow from step 2 (current implementation analysis) onward, using the inbox body as the input. Run all remaining gates (analysis, research if applicable per the type, body sections, frontmatter). The "Save as inbox" option remains available at each gate since this is an inbox-enabled project; choosing it updates the existing inbox entry in place rather than creating a new one (call `update_frontmatter` with the extended body, committed as `commits.capture_update`).
+Resume the `/ticket:new` workflow from step 2 (current implementation analysis) onward, using the inbox body as the input. Run all remaining gates (analysis, research if applicable per the type, body sections, frontmatter). This inherits `/ticket:new`'s research-agent dispatch: at steps 2 and 4, registered `research.agents` whose `consult` hints match are dispatched in parallel and their distilled findings folded in, instead of reading those sources inline. The "Save as inbox" option remains available at each gate since this is an inbox-enabled project; choosing it updates the existing inbox entry in place rather than creating a new one (call `update_frontmatter` with the extended body, committed as `commits.capture_update`).
 
 When the workflow runs to completion:
 

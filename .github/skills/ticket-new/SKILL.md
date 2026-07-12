@@ -25,6 +25,7 @@ This command delegates every read/write to `../ticket-engine/SKILL.md`. Read tha
 - The active `types` map (and which type-specific gates apply — see § Type-specific gates).
 - The `effort.pickable_allowed` set used as the size cap.
 - References (`references.architecture`, `references.roadmap`, etc.) — silent-skip if null/missing.
+- `research.agents` — the registered research agents (name + `consult` hint). Empty/absent is fine: every dispatch point below degrades to inline reading.
 
 If the engine reports `"No .github/config.yaml found"`, stop and tell the user `"Run /ticket-init first."`
 
@@ -60,6 +61,8 @@ End with the gate, asked (numbered list; user replies with the number):
 
 Identify and read the files relevant to the described work (the whole scenario — it may split into several tickets at step 3). For features, the existing primitives the new work builds on. For bugs, the suspected root-cause file plus surrounding context. For tech, the smell or capability area.
 
+**Dispatch research agents (routed, parallel).** Before reading beyond the directly-affected files, check `research.agents`: dispatch every agent whose `consult` hint matches the described work — for **any** ticket type (a bug consults precedent/docs/language agents as readily as a feature). Dispatch the relevant ones in parallel as read-only subagents, passing the described work, your open questions, and any files already identified. Each reads its source in its own context and returns distilled findings; fold those into the analysis instead of reading those sources inline. The directly-affected code you still read yourself — agents replace *source-of-information* reading (docs, prior art, external references, stack/language expertise), not your own look at the change site. Irrelevant agents stay undispatched — never blanket-dispatch the whole list. If `research.agents` is empty, read inline as before.
+
 Output a 5–10 line summary:
 
 - Files involved.
@@ -84,7 +87,7 @@ End with the gate, asked (numbered list; user replies with the number):
 
 1. **Build the decision tree.** From the user's request + the step 2 analysis, enumerate the open questions whose answers would change *what gets built, how it's typed, what "done" means, or how big it is* — i.e. anything that moves `type`, scope, acceptance criteria / regression test, `effort`, `priority`, `risk`, or the split decision. Order them so a question never depends on one asked later (resolve parents before children).
 
-2. **Answer from the codebase first.** If a question is answerable by exploring the repo, explore and answer it — do **not** ask the user. If it's genuinely new, do quick research first so your recommendation is grounded. Only the residual, genuinely-undecided, material questions reach the user.
+2. **Answer from the codebase first.** If a question is answerable by exploring the repo, explore and answer it — do **not** ask the user. Where a question falls inside a registered research agent's `consult` hint (a docs constraint, a language capability, a performance characteristic…), dispatch that agent — the step 2 findings often already carry the answer. If it's genuinely new, do quick research first so your recommendation is grounded. Only the residual, genuinely-undecided, material questions reach the user.
 
 3. **Ask one branch at a time, each as a numbered list (user replies with the number).** For every question:
    - Give 2–4 concrete, mutually-exclusive options.
@@ -154,7 +157,9 @@ For a single ticket the plan is one row — still shown. If the plan is a slate 
 
 Type-specific. The engine's § Type-specific gates names which types fire research. Today: **`feature` only**. Custom types skip this step.
 
-Surface up to **3 candidate approaches** — stop when 2 solid ones exist. Search project precedent first; then web sources (web search / web fetch).
+Surface up to **3 candidate approaches** — stop when 2 solid ones exist. Search project precedent first; then external sources.
+
+**Dispatch the external research agents** where registered: the candidates come from the relevant `research.agents` entries (typically `web-researcher` for approaches/tutorials, `api-docs-researcher` for library capabilities, `precedent-researcher` for in-repo patterns), dispatched in parallel; each returns pre-filtered candidates in the report shape below. The command still owns the gate: verify every returned code-import candidate against the license rules before presenting it — an agent finding never bypasses the filter. Without registered agents, run the searches inline (web search / web fetch).
 
 **License rules depend on the source category:**
 
@@ -211,7 +216,7 @@ Determine and confirm:
 - `depends_on`: surface plausibly-related tickets via `list_artifacts` across all stages and ask. Validate every chosen ID via `read_artifact` **before** the Commit gate; if one doesn't resolve, say which and re-ask. The engine independently refuses unknown IDs and dependency cycles at `create_artifact` (§ depends_on integrity) — the command-side check exists so the failure surfaces at the gate, not after approval.
 - `related`: same approach.
 
-Set `claimed_by: null`, `claimed_at: null`, `closed_as: null`, `adrs: []` (reserved field, kept empty).
+Set `claimed_by: null`, `claimed_at: null`, `closed_as: null`, `adrs: []` (reserved field, kept empty). These are logical fields — the engine routes each to its per-backend home (ticket-engine § Field storage contract): on filesystem, `depends_on`/`related`/`milestone` land in the ledger, the rest in frontmatter; on GitHub, everything lands in native fields (no body frontmatter is ever written).
 
 End with the gate, asked (numbered list; user replies with the number):
 
@@ -271,7 +276,8 @@ In the compact split path, **Save all to inbox** calls `save_as_inbox` once per 
 - Every committed ticket (single or slate) must carry a `## Decisions & assumptions` section recording the grilled answers and silent defaults.
 - Never commit a ticket to a `pickable`-roled stage with `type: unknown` or any unfilled required field. This applies per-ticket in a slate.
 - Never commit an effort value outside `effort.pickable_allowed`. The engine refuses such writes; the command must re-split at step 3 before retrying.
-- Never accept a research candidate with an incompatible license.
+- Never accept a research candidate with an incompatible license — including candidates returned by a research agent; the command re-checks before presenting.
+- Research agents are **read-only and advisory**: they return distilled findings; the command (never an agent) writes ticket content and drives gates. Dispatch is routed by `consult` hints — never blanket, never a substitute for reading the directly-affected code.
 - Never write a file before assigning the ID; never reuse an existing ID. Reserved IDs in a dropped/aborted slate are not reclaimed (gaps are fine).
 - The decomposition plan at step 3 is **always shown and gated**, whether it resolves to one ticket or a slate.
 - Every sub-ticket in a slate must individually satisfy `effort.pickable_allowed`.

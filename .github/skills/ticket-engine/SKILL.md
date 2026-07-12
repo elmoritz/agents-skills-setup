@@ -38,8 +38,9 @@ These hold for every operation, regardless of backend:
 - **Stop and report on partial failure.** Never auto-rollback; rollback can fail too. Surface the half-state precisely.
 - **Never re-issue an ID.** Dropped or aborted IDs stay reserved as gaps.
 - **Hard-fail on config error** with a line-pointed message. Never proceed past validation with assumed defaults.
-- **Tickets are the source of truth, not derived state.** Milestone trackers, summary docs, etc., reflect tickets — never the other way around.
-- **GitHub Project sync is best-effort and never authoritative.** The issue's labels and state are canonical; the Project board mirrors them. A failed or skipped project update never fails or reverses the underlying transition — it surfaces as a soft warning. (github backend only.)
+- **Tickets are the source of truth, not derived state.** Milestone trackers, summary docs, etc., reflect tickets — never the other way around. On the filesystem backend "the ticket" means the ticket file **plus its ledger entry** (see § Ledger): the ledger is the authoritative home of the fields it carries, not a derived index.
+- **Ledger edits ride the event's commit** (filesystem only). Any operation that changes `depends_on`, `related`, or `milestone` stages the `.ledger.yaml` edit in the **same commit** as the ticket event. Never a separate ledger commit.
+- **Stage/state sync to a GitHub Project is best-effort and never authoritative.** The issue's labels and state are canonical for the workflow stage; the board's `Status` mirrors them, and a failed or skipped Status update never fails or reverses the underlying transition — it surfaces as a soft warning. The **dual-homed fields** (`priority`, `effort`, `risk`, and `type` where a native issue type is mapped) are different: with Projects enabled the board field is the *preferred* home and the label is the *fallback* — a failed board write falls back to writing the label plus a soft warning, so the field always lands somewhere. Reads check the board first, labels second. (github backend only.)
 
 ---
 
@@ -67,8 +68,12 @@ These primitives operate on any artifact type. Today the only live type is `tick
 10. `milestones.strategy` ∈ {`auto`, `trackers`, `native`, `labels`, `none`}.
 11. On `backend.type: github`, validate `milestones.strategy != trackers` (trackers are filesystem-only).
 12. On `backend.type: filesystem`, validate `milestones.strategy != native` (native is GitHub-only).
-13. **Project linkage is github-only.** A missing `projects:` block is treated as `enabled: false`. On `backend.type: filesystem`, if `projects.enabled` is truthy → `"projects linkage is github-only; set projects.enabled: false on the filesystem backend."` On `backend.type: github` with `projects.enabled: true`: `projects.number` (integer) and `projects.owner` (string) are required; `projects.status_field` defaults to `"Status"` if absent; `projects.status_map`, if present, is a map whose keys are a subset of the declared stage roles and whose values are non-empty strings. An unknown role key → `"projects.status_map: unknown role '<x>'."`
+13. **Project linkage is github-only.** A missing `projects:` block is treated as `enabled: false`. On `backend.type: filesystem`, if `projects.enabled` is truthy → `"projects linkage is github-only; set projects.enabled: false on the filesystem backend."` On `backend.type: github` with `projects.enabled: true`: `projects.number` (integer) and `projects.owner` (string) are required; `projects.status_field` defaults to `"Status"` if absent; `projects.status_map`, if present, is a map whose keys are a subset of the declared stage roles and whose values are non-empty strings. An unknown role key → `"projects.status_map: unknown role '<x>'."` `projects.field_map`, if present, is a map whose keys are a subset of `{priority, effort, risk}` and whose values are non-empty board field names; absent keys default to `Priority` / `Effort` / `Risk`.
 14. **`claim.stale_after` is optional.** If present, it must be a duration `<positive-int>(h|d)` (e.g. `24h`, `3d`). Absent → the engine uses `24h`. Malformed → `"claim.stale_after: expected a duration like 24h or 3d, got '<x>'."`
+15. **`backend.github.type_map` is optional** (github only). If present, a map whose keys are a subset of the `types:` keys and whose values are non-empty native issue-type names. On `backend.type: filesystem` a `type_map` → `"backend.github.type_map is github-only."` Config types absent from the map fall back to the `type:` label.
+16. **`research.agents` is optional.** If present, a list of `{ name, consult }` entries: `name` must resolve to an agent definition in the bundle's agents directory (→ `"research.agents: '<name>' does not resolve to an agent file in the agents directory"`), `consult` is a non-empty one-line routing hint. Duplicate names → error.
+17. **`review.agents` is optional.** If present, a non-empty list of agent names, each resolving to an agent definition in the bundle's agents directory. Absent → the engine resolves the default `[code-reviewer, test-adequacy-reviewer]` **without** requiring those files to exist (the caller degrades gracefully if they're missing).
+18. **`verification.max_loop_rounds` is optional.** If present, a positive integer. Absent → `3`. Malformed → `"verification.max_loop_rounds: expected a positive integer, got '<x>'."`
 
 **Output**: a resolved config value the rest of the engine reads. Includes a derived `roles → stage` map.
 
@@ -104,13 +109,45 @@ From a user-provided title or input string, produce a kebab-case slug for filena
 
 Example: `"Add bee hive node for honey production"` → `"add-bee-hive-node-for-honey"` (already ≤6 words, kept).
 
-## § Frontmatter contract
+## § Field storage contract
 
-Every artifact carries YAML frontmatter. The exact field set is artifact-type-specific (see Part 2 for tickets). General rules:
+Ticket fields are **logical**: every operation reads and writes named fields, and the backend decides where each field physically lives. `read_artifact` always returns the full logical field set as one uniform view, whatever the storage — callers never care where a field came from.
 
-- **Filesystem**: full frontmatter at the top of the `.md` file, structured body below.
-- **GitHub**: hybrid representation per the schema decision. Native fields (title, assignee, labels, milestone, close reason) carry what they can. A small YAML frontmatter block at the top of the issue body carries fields without a native fit (`depends_on`, `related`, and any extension fields like the reserved `adrs:`).
+- **Filesystem**: self-describing fields live as YAML frontmatter at the top of the `.md` file; the structured body follows. The **graph and grouping fields** — `depends_on`, `related`, `milestone` — do **not** live in frontmatter: they live in the ledger (see § Ledger), keyed by ticket ID.
+- **GitHub**: issue bodies carry **no frontmatter — ever**. The body is pure prose sections. Every field has a native or derived home:
+  - `title`, `created`, close reason, assignee (`claimed_by`) → native issue fields.
+  - `depends_on` → **native issue dependencies** (blocked-by relationships): `gh issue create/edit --blocked-by <n>` / `--add-blocked-by` / `--remove-blocked-by`; read back via the `blockedBy` JSON field on `gh issue view/list` (gh ≥ 2.94).
+  - `related` → a `Related: #12, #34` line at the top of the issue body. The mention mints GitHub's native cross-reference on both timelines; the engine parses the line back. No native "related" field exists — this line is the storage.
+  - `claimed_at` → **derived, never written**: the timestamp of the issue's most recent `assigned` timeline event (see § Claim identity & staleness).
+  - `milestone` → the native milestone (strategy `native`) or the `milestone:` label (strategy `labels`).
+  - `priority`, `effort`, `risk` → **dual-homed**: with `projects.enabled: true`, the board's single-select fields per `projects.field_map` (labels not written); otherwise the `prio:` / `effort:` / `risk:` label families. Board-write failure → label fallback per Hard rules.
+  - `type` → **dual-homed**: where `backend.github.type_map` maps the config type to a native issue type, the native type is set; unmapped types (and repos without native types) use the `type:` label.
+  - `adrs` → not represented on GitHub (reserved for v2; filesystem-only until then).
 - **Stage is never stored as a field.** An artifact's stage is its location — its folder (filesystem) or its stage label (GitHub) — never a `status:` frontmatter key. The engine neither writes nor reads one.
+
+## § Ledger (filesystem)
+
+`<backend.filesystem.root>/.ledger.yaml` is the machine-owned, authoritative home of every ticket's graph and grouping data on the filesystem backend. It exists so ticket files stay self-describing prose while dependency and milestone queries are a single read — and it mirrors the GitHub backend, where these fields also live outside the body.
+
+**Format** — one YAML map keyed by ticket ID; keys with empty/`null` values may be omitted:
+
+```yaml
+# Machine-owned by the ticket-engine. Do not hand-edit; the engine validates on load.
+IV-001:
+  depends_on: [IV-000]
+  related: [IV-002]
+  milestone: v0.1
+IV-002:
+  milestone: v0.1
+```
+
+**Rules:**
+
+- **Authoritative, not derived.** For `depends_on`, `related`, `milestone`, the ledger *is* the ticket's data. Ticket frontmatter never carries these fields; if a stray copy appears in a ticket file, the ledger wins and the stray is reported as drift.
+- **Same-commit writes.** Any event that changes a ticket's ledger entry stages the `.ledger.yaml` edit in that event's commit (per Hard rules). Transitions that don't touch ledger fields (claim, review, close…) leave the ledger alone — entries are keyed by ID, not path, so `git mv` never requires a ledger edit.
+- **Entries persist through closure.** A terminal ticket keeps its entry — milestone rollups and dependency history read it. Nothing is ever pruned.
+- **Validated on load.** `load_and_validate()` also parses the ledger when the backend is filesystem: unparseable YAML, an entry whose ID resolves to no ticket file, a `depends_on`/`related` ID that resolves to no ticket file and no ledger entry, or a `depends_on` cycle → hard fail with a pointed message (hand-edit damage is the expected cause). A ticket file with no ledger entry is valid — it simply has no deps/related/milestone (equivalent to an all-empty entry).
+- **Missing ledger.** No `.ledger.yaml` at the root → treated as an empty ledger with a soft warning (`/ticket-init` creates the stub; a legacy project may predate it).
 
 ## § Transition primitives
 
@@ -121,7 +158,7 @@ A transition moves an artifact from a source role to a target role. The engine i
 Order matters — invariant. For a transition from stage `<src>` to stage `<dst>` with field updates `<fields>`:
 
 1. `git mv <root>/<src.folder>/<file>.md <root>/<dst.folder>/<file>.md`.
-2. Edit the moved file's frontmatter: apply `<fields>` (typically `claimed_by`, `closed_as`).
+2. Edit the moved file's frontmatter: apply `<fields>` (typically `claimed_by`, `closed_as`). If `<fields>` touches a ledger-resident field (`depends_on`, `related`, `milestone`), edit the ticket's `.ledger.yaml` entry instead of the frontmatter and stage the ledger file too.
 3. Stage the moved file: `git add <root>/<dst.folder>/<file>.md`.
 4. Run `verification.pre_close_command` **if and only if** this transition is closure (target role = `terminal`). Stage any files it touches.
 5. Commit with the message from `commits.<event>` (subject only on FS).
@@ -166,6 +203,7 @@ Active only when `backend.type: github` **and** `projects.enabled: true`. Keeps 
 
 - **Project node ID:** `gh project view <projects.number> --owner <projects.owner> --format json -q .id`.
 - **Status field + options:** `gh project field-list <projects.number> --owner <projects.owner> --format json`. Find the single-select field whose name == `projects.status_field`; cache its field ID and a `{ option name → option ID }` map. If no such field exists, project sync is a no-op for this run (soft warning, see below).
+- **Dual-home fields:** from the same `field-list` output, resolve each of `projects.field_map`'s entries (`priority` → `Priority`, `effort` → `Effort`, `risk` → `Risk` by default) to its single-select field ID and option map. A missing board field drops that field to its label home for this run (soft warning).
 
 **Add an issue to the project (on creation).** `gh project item-add <projects.number> --owner <projects.owner> --url <issue-url> --format json -q .id` → the item ID. Idempotent: re-adding an existing item returns its existing ID. If the JSON doesn't surface an ID, recover it with `gh project item-list <projects.number> --owner <projects.owner> --format json` and match on the issue URL.
 
@@ -178,7 +216,9 @@ gh project item-edit --id <item-id> --project-id <project-node-id> \
 
 - If the role has no `status_map` entry, or the mapped option name has no match on the board, **skip the Status set** (no error) — the item is still in the project; only the column is left untouched.
 
-**Best-effort, never authoritative.** Project sync always runs *after* the issue's labels/state have been mutated (the source of truth). Any failure here — missing `project` scope, deleted project, renamed option, network error — is **non-fatal**: the transition (or creation) still succeeds, and the engine appends a soft warning to `steps_taken` such as `"project sync skipped: <reason>; set Status manually or re-run after fixing the project."` The engine never reverses a transition, never fails a command, and never retries silently because of a project-sync error.
+**Set the dual-home fields (on creation only).** When creating an issue with `projects.enabled: true`, after the item-add: set each of `priority` / `effort` / `risk` on the board via the same `gh project item-edit` shape, resolving the value to an option ID case-insensitively (e.g. effort `M` → option "M"; priority `P1` → option "P1"). These fields are set at creation and by `update_frontmatter` when the caller changes them — stage transitions never touch them. **Fallback:** if a board write fails or the field/option is missing, write the corresponding `prio:` / `effort:` / `risk:` label instead and append a soft warning — the field must land somewhere (per Hard rules). Reads resolve board first, label second.
+
+**Best-effort, never authoritative — for stage state.** Status sync always runs *after* the issue's labels/state have been mutated (the source of truth for the workflow stage). Any failure there — missing `project` scope, deleted project, renamed option, network error — is **non-fatal**: the transition (or creation) still succeeds, and the engine appends a soft warning to `steps_taken` such as `"project sync skipped: <reason>; set Status manually or re-run after fixing the project."` The engine never reverses a transition, never fails a command, and never retries silently because of a project-sync error. The dual-home fields are the one exception to "mirror only": there the board is the *primary* home and the failure path is the label fallback above, not a bare warning.
 
 **Silent.** Project sync edits the board only — it posts no issue comment, on any event.
 
@@ -233,26 +273,26 @@ The engine never retries silently and never rolls back on its own. Half-state is
 
 This part is only relevant when `artifact_type = ticket` (the default).
 
-## § Ticket frontmatter schema
+## § Ticket field schema
 
-Required on every backlog-and-beyond ticket:
+The **logical** field set, required on every backlog-and-beyond ticket. Physical storage follows § Field storage contract: on FS, fields live in ticket frontmatter except the ledger-resident three; on GH, every field has a native/derived home and nothing is written into the body except the `Related:` line and the prose sections.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | string | `{prefix}-{NNN}` on FS; on GH this is the native issue number, not stored in frontmatter (engine resolves to/from the URL). |
-| `type` | one of `types:` keys | Drives type-specific gates in commands. |
-| `title` | string | |
-| `priority` | `P0` / `P1` / `P2` / `P3` | P0 requires explicit user confirmation in `/ticket-new`. |
-| `effort` | `S` / `M` / `L` / `XL` | Validated against `effort.allowed`; `effort.pickable_allowed` enforced on stages with `pickable` role. |
-| `risk` | `low` / `med` / `high` | |
-| `milestone` | string or `unscoped` | Validated against milestone strategy (see § Milestone handling). |
-| `created` | ISO date | Set on creation, never modified. |
-| `depends_on` | list of IDs | Other tickets that must reach terminal before this is pickable. |
-| `related` | list of IDs | Informational. |
-| `claimed_by` | string or null | The **account** holding the claim — `git config user.name` (filesystem) or the authenticated `gh api user -q .login` (GitHub; the identity `@me` resolves to). Set on claim and reject-reclaim; cleared on abandon; preserved on close. Names an account, never a session (see § Claim identity & staleness). |
-| `claimed_at` | ISO date-time or null | When the current owner took the claim. Set on claim and reject-reclaim; cleared on abandon; left as-is on close (historical). Drives stale-claim detection. |
-| `closed_as` | one of `shipped` / `wontfix` / `duplicate` / null | On FS, always set on terminal entry. On GH, the native close reason is canonical; this field is not written. |
-| `adrs` | list of ADR IDs | **Reserved for v2**; engine preserves on writes but does not validate. Empty list by default. |
+| Field | Type | Storage (FS / GH) | Notes |
+|---|---|---|---|
+| `id` | string | filename / issue number | `{prefix}-{NNN}` on FS; on GH the native issue number (engine resolves to/from the URL). |
+| `type` | one of `types:` keys | frontmatter / native issue type via `type_map`, else `type:` label | Drives type-specific gates in commands. |
+| `title` | string | frontmatter / native title | |
+| `priority` | `P0` / `P1` / `P2` / `P3` | frontmatter / board field, else `prio:` label | P0 requires explicit user confirmation in `/ticket-new`. |
+| `effort` | `S` / `M` / `L` / `XL` | frontmatter / board field, else `effort:` label | Validated against `effort.allowed`; `effort.pickable_allowed` enforced on stages with `pickable` role. |
+| `risk` | `low` / `med` / `high` | frontmatter / board field, else `risk:` label | |
+| `milestone` | string or `unscoped` | **ledger** / native milestone or `milestone:` label | Validated against milestone strategy (see § Milestone handling). |
+| `created` | ISO date | frontmatter / native | Set on creation, never modified. |
+| `depends_on` | list of IDs | **ledger** / native issue dependencies (blocked-by) | Other tickets that must reach terminal before this is pickable. |
+| `related` | list of IDs | **ledger** / `Related: #N` body line | Informational. |
+| `claimed_by` | string or null | frontmatter / native assignee | The **account** holding the claim — `git config user.name` (filesystem) or the authenticated `gh api user -q .login` (GitHub; the identity `@me` resolves to). Set on claim and reject-reclaim; cleared on abandon; preserved on close. Names an account, never a session (see § Claim identity & staleness). |
+| `claimed_at` | ISO date-time or null | frontmatter / **derived** from the assignment event | When the current owner took the claim. FS: set on claim and reject-reclaim, cleared on abandon, left as-is on close (historical). GH: never stored — always read from the latest `assigned` timeline event. Drives stale-claim detection. |
+| `closed_as` | one of `shipped` / `wontfix` / `duplicate` / null | frontmatter / native close reason | On FS, always set on terminal entry. On GH, the native close reason is canonical; this field is not written. |
+| `adrs` | list of ADR IDs | frontmatter / — | **Reserved for v2**; engine preserves on FS writes but does not validate. Not represented on GH until v2 designs its home. |
 
 Inbox tickets carry only `id`, `type` (may be `unknown`), `title`, `created`. Other fields are filled when promoting to backlog.
 
@@ -270,7 +310,7 @@ Enforced whenever a `depends_on` list is written, and before a fold closes a tic
 - **No cycles.** Walk the `depends_on` links depth-first starting from the artifact being written, keeping the chain of IDs walked so far (the artifact's own ID first). For each dependency: if its ID is already on the chain, reject and report the chain as the cycle (e.g. `IV-007 → IV-012 → IV-007`); otherwise `read_artifact` it (slate siblings: use the in-memory spec) and walk its `depends_on` in turn. Never follow `related`. Each ticket appears at most once per chain, so the walk always terminates. Failure: `{ ok: false, reason: "depends_on cycle: <chain>", recovery: "break the cycle by dropping one of the links" }`.
 - **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
 
-Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
+Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check). The walk is storage-agnostic: it reads each ticket's `depends_on` through the uniform field view — the ledger on FS, the `blockedBy` JSON field on GH. GitHub may additionally reject some dependency writes natively; the engine's own check still runs first so the failure carries the chain diagnostics.
 
 ## § Claim identity & staleness
 
@@ -281,8 +321,10 @@ Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_fro
   - **GitHub**: the authenticated login, `gh api user -q .login` — the identity `@me` resolves to in the claim verification read.
 
   Two concurrent sessions for one account are indistinguishable, and that is fine: the atomic claim (the `git mv` on FS, the assignee swap + verify-read on GH), not the string, is what prevents a double-claim.
-- **Clock (`claimed_at`)** is an ISO-8601 timestamp set the moment the current owner takes the artifact — on claim and on reject-reclaim. Cleared to `null` on abandon. Left untouched on close, where it becomes part of the historical record. On GitHub it lives in the issue-body frontmatter block (no native fit), written as part of the same atomic edit as the label/assignee swap — still no comment, so the claim stays silent.
-- **Staleness.** An in-progress claim is *stale* when `now − claimed_at > claim.stale_after` — a config duration (`<int>h` / `<int>d`), defaulting to `24h` when the key is absent. A **null** `claimed_at` on an in-progress artifact (legacy or half-state) is unknown age → treated as stale and surfaced conservatively. If `claimed_at` is missing but the backend still records the claim, that record is the fallback clock: the `commits.claim` commit's author date (FS) or the issue's assignment event (GH).
+- **Clock (`claimed_at`)** is an ISO-8601 timestamp marking the moment the current owner took the artifact.
+  - **Filesystem**: a frontmatter field — set on claim and on reject-reclaim, cleared to `null` on abandon, left untouched on close (historical record).
+  - **GitHub**: **derived, never stored** — the clock is the `created_at` of the issue's most recent `assigned` timeline event (`gh api repos/{owner}/{repo}/issues/{n}/timeline`, last event with `event == "assigned"`). The assignee swap that performs the claim *is* the clock write: atomic with the claim, impossible to drift, still silent (no comment). To **re-stamp** the clock without a stage change (resume of a stale claim), the engine re-asserts the assignee — unassign + assign `@me` in one `gh issue edit` sequence — minting a fresh assignment event.
+- **Staleness.** An in-progress claim is *stale* when `now − claimed_at > claim.stale_after` — a config duration (`<int>h` / `<int>d`), defaulting to `24h` when the key is absent. A **null** `claimed_at` on an in-progress artifact (legacy or half-state) is unknown age → treated as stale and surfaced conservatively. If the clock is missing but the backend still records the claim, that record is the fallback: the `commits.claim` commit's author date (FS); on GH the assignment event is already the primary clock, so an assigned issue with no reachable timeline is treated as unknown age.
 
 The engine only supplies these fields and the resolved threshold; the *decision* on a stale claim (release / resume / leave) is the caller's gate — see `/ticket-pick` step 0.
 
@@ -323,7 +365,7 @@ If a field is null or absent, the engine omits the corresponding step or section
 Tracker files live in `milestones.trackers.planned_active_folder` (planned + active; default `milestone`) and `milestones.trackers.shipped_folder` (shipped; default `done`), both relative to `backend.filesystem.root`. The defaults apply when the keys are absent from config. Tracker frontmatter carries `type: milestone`, `version`, `status`.
 
 The engine exposes two operations to `milestone-sync`:
-- `scan_milestone_state()` — returns each version's tracker status + folder, plus the count of tickets per stage carrying `milestone: <version>`.
+- `scan_milestone_state()` — returns each version's tracker status + folder, plus the count of tickets per stage carrying `milestone: <version>` — resolved from the ledger (tickets' milestone assignments live there, not in ticket frontmatter), with each ID's stage read from its file location.
 - `apply_milestone_flip(version, target_status)` — `git mv` (if folder changes), edit frontmatter status, stage, commit with `commits.milestone_flip`.
 
 ### `native` (GitHub)
@@ -352,8 +394,8 @@ The operations compose Part 1 primitives plus Part 2 workflow rules.
 
 - **Input**: none.
 - **Reads**: `.github/config.yaml` via § Config discovery.
-- **Procedure**: discover → parse → validate per § Config.
-- **Returns**: resolved config value, or hard-fail if invalid.
+- **Procedure**: discover → parse → validate per § Config. On the filesystem backend, also load and validate the ledger per § Ledger.
+- **Returns**: resolved config value (plus the parsed ledger on FS), or hard-fail if invalid.
 
 Every operation below calls this first. Cache for the duration of the engine invocation; never longer.
 
@@ -373,13 +415,13 @@ Every operation below calls this first. Cache for the duration of the engine inv
 ### `read_artifact(id)`
 
 - **Input**: ticket ID.
-- **Procedure**: locate the file (FS) or fetch the issue (GH); parse frontmatter + body; return structured.
-- **Returns**: `{ id, stage, type, title, frontmatter, body, ... }` or `{ ok: false, reason: "not found" }`.
+- **Procedure**: locate the file (FS) or fetch the issue (GH); assemble the **uniform field view** per § Field storage contract — FS: parse frontmatter, merge the ticket's ledger entry (`depends_on`, `related`, `milestone`; absent entry → empty); GH: `gh issue view` with `--json title,labels,assignees,state,milestone,createdAt,blockedBy,issueType,stateReason,body,url`, map native fields to logical fields (board fields via § GitHub Projects sync reads where Projects is enabled), parse the `Related:` body line, derive `claimed_at` from the assignment event on demand.
+- **Returns**: `{ id, stage, type, title, fields, body, ... }` or `{ ok: false, reason: "not found" }` — `fields` is the full logical set; callers never see storage.
 
 ### `list_artifacts(role, filters={})`
 
 - **Input**: role name, optional filters (`priority`, `effort`, `type`, `milestone`, `depends_satisfied: bool`).
-- **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, filter out artifacts whose `depends_on` includes any non-terminal ID.
+- **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, filter out artifacts whose `depends_on` includes any non-terminal ID. Dependency data comes from one read: the ledger (FS) or the `blockedBy` field on `gh issue list --json` (GH) — never from opening every candidate's body.
 - **Returns**: list of artifact summaries (id, title, priority, effort, type, milestone, claimed_by, claimed_at, created).
 
 ### `create_artifact(spec, target_role)`
@@ -391,20 +433,20 @@ Every operation below calls this first. Cache for the duration of the engine inv
   2. `assign_next_id()` → assign ID.
   3. § Slug generation (FS).
   4. Resolve target stage from role.
-  5. **Filesystem**: write file at target stage folder; `git add`; commit with `commits.new` (or `commits.capture` if target_role: inbox).
-  6. **GitHub**: `gh issue create` with title, body (body frontmatter + structured body), labels (type, priority, effort, target stage), milestone (if strategy: native), assignee (null at creation). Then, if `projects.enabled`: add the new issue to the project and set its `Status` to `status_map[<target_role>]` per § GitHub Projects sync (best-effort; a sync failure does not fail creation).
+  5. **Filesystem**: write file at target stage folder (frontmatter without the ledger-resident fields); write/extend the ticket's `.ledger.yaml` entry (`depends_on`, `related`, `milestone`) when any is non-empty; `git add` both; one commit with `commits.new` (or `commits.capture` if target_role: inbox).
+  6. **GitHub**: `gh issue create` with title, **frontmatterless body** (the `Related: #N` line when `related` is non-empty, then the structured prose sections), `--blocked-by` for each `depends_on` entry, milestone (if strategy: native), assignee (null at creation), and the field homes per § Field storage contract — native issue type via `type_map` where mapped (else `type:` label), stage label, and either the board fields (Projects enabled; per § GitHub Projects sync, with label fallback) or the `prio:`/`effort:`/`risk:` labels. If `projects.enabled`: add the new issue to the project, set `Status` to `status_map[<target_role>]`, and set the dual-home fields (Status sync best-effort; a Status failure does not fail creation).
 - **Returns**: created artifact summary; or validation failure with specific field/section.
 
 **Slate creation & handle resolution.** When a slate (2+ dependency-ordered tickets) is committed, the caller creates them in dependency order and threads a `handle → real ID` map:
 
 - **Filesystem**: the handles are the reserved IDs from `assign_next_id(slate_size=N)`; the map is the identity and is already complete, so each ticket's `depends_on` holds real IDs before the first write.
-- **GitHub**: the handles are provisional (`NEW-k`). Before creating ticket *k*, the caller rewrites its intra-slate `depends_on` handles to the real issue numbers of siblings already created — all present, because creation follows dependency order (deps precede dependents) — so `gh issue create` writes the resolved `depends_on` into the body frontmatter at birth, with no second edit.
+- **GitHub**: the handles are provisional (`NEW-k`). Before creating ticket *k*, the caller rewrites its intra-slate `depends_on` handles to the real issue numbers of siblings already created — all present, because creation follows dependency order (deps precede dependents) — so `gh issue create` passes the resolved numbers as `--blocked-by` flags at birth, with no second edit.
 
 External (non-slate) `depends_on` IDs are already real and pass through unchanged. § depends_on integrity's slate exemption covers the not-yet-created siblings during validation.
 
 ### `transition_artifact(id, target_role, fields={}, event)`
 
-- **Input**: artifact ID, target role, optional frontmatter updates, event name (for message formatting).
+- **Input**: artifact ID, target role, optional field updates, event name (for message formatting).
 - **Procedure**:
   1. `read_artifact(id)` → get current stage.
   2. Validate the transition is legal for this artifact type (e.g. can't go from terminal back).
@@ -418,16 +460,16 @@ Used by the move-only transitions: `claim` (pickable → in_progress), `review` 
 
 - **Input**: artifact ID.
 - **Procedure**: same as `transition_artifact(id, "in_progress", { claimed_by: <resolved identity>, claimed_at: <now, ISO-8601> }, event: "claim")` — identity and clock per § Claim identity & staleness — but with the race-safe protocol:
-  - **FS**: `git mv` is the atomic step; if it fails (file moved), return race-lost.
-  - **GH**: § Transition primitives' verification-read step catches lost races; reverse and return.
+  - **FS**: `git mv` is the atomic step; if it fails (file moved), return race-lost. `claimed_by`/`claimed_at` are frontmatter edits in the same commit.
+  - **GH**: the assignee swap carries both fields — `claimed_by` is the assignee, `claimed_at` is the assignment event it mints (nothing else written). § Transition primitives' verification-read step catches lost races; reverse and return.
 - **Returns**: claimed artifact; or `{ ok: false, reason: "race lost — claimed by <other>" }`.
 
 ### `update_frontmatter(id, fields)`
 
-- **Input**: artifact ID, field updates.
+- **Input**: artifact ID, field updates. (The name is historical — it updates **logical fields** wherever they live, per § Field storage contract; body updates ride the same operation.)
 - **Procedure**: in-place edit without stage change. If `fields` touches `depends_on`, run § depends_on integrity first; refuse the write on a missing ID or a cycle.
-  - **FS**: edit the file at its current path; `git add`; commit with `commits.update`.
-  - **GH**: `gh issue edit` for any natively-mapped fields; body edit for frontmatter fields; comment per § Message formatting (`update` is content-bearing on GH).
+  - **FS**: edit the file at its current path; ledger-resident fields edit the ticket's `.ledger.yaml` entry instead; `git add` everything touched; one commit with `commits.update`.
+  - **GH**: route each field to its home — `gh issue edit` for native fields (`--add-blocked-by`/`--remove-blocked-by` for `depends_on` deltas, milestone, native type), board field or label for the dual-homed three, body edit for the `Related:` line and prose sections; comment per § Message formatting (`update` is content-bearing on GH).
 - **Returns**: updated artifact.
 
 Used by `/ticket-pick` step 2 (stale-ticket update before claim), and by `/ticket-refine` when an inbox entry gets re-saved as inbox after deeper analysis.
@@ -506,4 +548,4 @@ Commands paraphrase these to the user. Never surface raw tool output unless it c
 ## Reserved for v2
 
 - **`artifact_type: adr`** — ADR support. The primitives in Part 1 are written to be artifact-agnostic; Part 2 will gain a parallel section. The `commits:` map will gain `adr:` namespace entries.
-- **`adrs:` frontmatter field on tickets** — preserved through writes today; v2 wires up cross-link validation and back-references.
+- **`adrs:` frontmatter field on tickets** — preserved through FS writes today (no GH representation); v2 wires up cross-link validation, back-references, and a GitHub-native home.

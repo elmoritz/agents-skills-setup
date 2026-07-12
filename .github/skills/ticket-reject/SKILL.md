@@ -62,7 +62,7 @@ Invoke `transition_artifact(id, target_role: "in_progress", fields: { claimed_by
 The engine:
 
 - **Filesystem**: `git mv` from the review stage folder back to the in_progress stage folder; set `claimed_by` + `claimed_at`; append `## Review rejection` to the body; commit with `commits.reject`.
-- **GitHub**: label swap (review → in_progress); set assignee; append the section to the issue body; post a comment carrying the reason (per § Message formatting, `reject` is content-bearing — a verification failure must be visible in the issue timeline).
+- **GitHub**: label swap (review → in_progress); set assignee (the swap mints the fresh assignment event that *is* the claim clock on GitHub — no `claimed_at` field is written); append the section to the issue body; post a comment carrying the reason (per § Message formatting, `reject` is content-bearing — a verification failure must be visible in the issue timeline).
 
 If the engine reports half-state, surface it and stop.
 

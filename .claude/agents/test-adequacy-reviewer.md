@@ -1,6 +1,6 @@
 ---
 name: test-adequacy-reviewer
-description: Judges whether the tests accompanying a ticket's diff would actually fail if the behavioral change were reverted or broken. Catches assertion-free tests, tests that only exercise mocks, and untested branches. Invoke in /ticket:pick's step 5.5 review loop after tests pass, and again on each fix round — a green run says nothing about whether the tests can go red.
+description: Judges whether the tests accompanying a ticket's diff would actually fail if the behavioral change were reverted or broken. Catches assertion-free tests, tests that only exercise mocks, and untested branches. Invoke in /ticket:pick's implementation loop (step 5.5 agent checks) after tests pass, every round — a green run says nothing about whether the tests can go red.
 tools: Read, Grep, Glob, Bash
 ---
 

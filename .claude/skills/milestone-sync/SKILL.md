@@ -3,7 +3,7 @@ name: milestone-sync
 description: Detect and fix drift between milestone state and the work tickets that reference it. Dispatches on .claude/config.yaml's `milestones.strategy`. Use as a preflight in /ticket:pick and a postflight in /ticket:close, or as a standalone health check. Read-only until the user approves a fix; each fix lands as its own atomic event (commit on filesystem, milestone state change on github).
 ---
 
-Audit the project's milestone state against the work tickets that reference it via the `milestone:` frontmatter field, surface any drift, and apply user-approved fixes as standalone events. Safe to run any time.
+Audit the project's milestone state against the work tickets that reference it via their milestone assignment (the ticket's ledger entry on the filesystem backend; the native milestone or `milestone:` label on GitHub), surface any drift, and apply user-approved fixes as standalone events. Safe to run any time.
 
 The skill is **strategy-aware** — it dispatches on `milestones.strategy` resolved by the `ticket-engine` skill. The user-visible workflow (scan → report → gate → apply) is identical across strategies; only the storage layer differs.
 
