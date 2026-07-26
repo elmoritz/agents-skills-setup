@@ -19,6 +19,9 @@
 # never `.blockedBy` (ranging the object hits totalCount and errors, which aborts
 # the whole template and truncates every later field). `labels`/`assignees` are
 # flat arrays; `milestone`/`issueType` are objects-or-null (guarded with {{if}}).
+# In `gh project item-list --format json`, a single-select field value is a plain
+# STRING (e.g. `"priority":"P0"`) or null — not an object — so emit `{{.}}`, not
+# `{{.name}}` (which errors on a string and truncates the whole item row).
 # Flat key=value view of one issue, then the body after ---BODY---.
 TE_GH_VIEW_TMPL='number={{.number}}
 title={{.title}}
@@ -92,7 +95,7 @@ _gh_project_items() {  # url<TAB>priority<TAB>effort<TAB>risk from the board
   if [ -n "${TE_GH_FIXTURE:-}" ]; then cat "$TE_GH_FIXTURE/project-items.txt" 2>/dev/null; return; fi
   local num owner; num=$(cfg_get projects.number); owner=$(cfg_get projects.owner)
   gh project item-list "$num" --owner "$owner" --limit "$TE_GH_LIMIT" --format json \
-    --template '{{range .items}}{{if .content.url}}{{.content.url}}{{"\x1f"}}{{with .priority}}{{.name}}{{end}}{{"\x1f"}}{{with .effort}}{{.name}}{{end}}{{"\x1f"}}{{with .risk}}{{.name}}{{end}}{{"\n"}}{{end}}{{end}}'
+    --template '{{range .items}}{{if .content.url}}{{.content.url}}{{"\x1f"}}{{with .priority}}{{.}}{{end}}{{"\x1f"}}{{with .effort}}{{.}}{{end}}{{"\x1f"}}{{with .risk}}{{.}}{{end}}{{"\n"}}{{end}}{{end}}'
 }
 _gh_milestones() {  # title<TAB>state<TAB>open<TAB>closed per milestone
   if [ -n "${TE_GH_FIXTURE:-}" ]; then cat "$TE_GH_FIXTURE/milestones.txt" 2>/dev/null; return; fi
