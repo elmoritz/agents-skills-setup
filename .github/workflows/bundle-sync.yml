@@ -41,6 +41,10 @@ jobs:
         run: scripts/test-te.sh
       - name: example flavors — end-to-end smoke
         run: scripts/test-examples.sh
+      - name: per-skill engine operations (all flavors)
+        run: scripts/test-skill-ops.sh
+      - name: full workflow lifecycle (filesystem write path)
+        run: scripts/test-lifecycle.sh
       - name: example flavors — no scaffolder drift
         run: |
           scripts/gen-examples.sh >/dev/null

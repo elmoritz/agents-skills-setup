@@ -104,11 +104,12 @@ DRY RUN — nothing created. With --go this tool would:
   repo:         $REPO   (private, description = the sentinel)
   labels:       status:{backlog,in-progress,in-review,done}, type:*, prio:*, effort:*, risk:*, milestone:v1
   milestone:    v1
-  issues:       #A open (assigned to you, type:feature, prio:P2, milestone v1, body "Related: #B")
-                #B open (blocked-by #A)
-                #C closed as completed (to exercise stage=done)
+  issues:       #A in backlog (type:feature, prio:P2, milestone v1)
+                #B in backlog (blocked-by #A, body "Related: #A")
   projects:     $( [ "$PROJECTS" -eq 1 ] && echo 'a Projects v2 board + Status/Priority/Effort/Risk fields, issues added' || echo 'skipped (pass --projects to include)')
-  then:         run te read/list/deps/milestone$( [ "$PROJECTS" -eq 1 ] && echo '/projects resolve') LIVE against $REPO and print the manual Projects checklist.
+  lifecycle:    drive #A live — claim (label flip + assign @me) -> review -> reject
+                -> close (native completed) — re-reading with te after each step,
+                then list/deps/milestone$( [ "$PROJECTS" -eq 1 ] && echo '/projects resolve'), plus a manual checklist.
   scopes:       repo, delete_repo$( [ "$PROJECTS" -eq 1 ] && echo ', project')  (checked before the first write)
 Re-run with --go to execute, then --cleanup to delete everything this tool made.
 EOF
@@ -138,17 +139,14 @@ mklabel "milestone:v1" 0e8a16
 echo "Creating milestone v1 …"
 gh api "repos/$REPO/milestones" -f title=v1 -f state=open >/dev/null 2>&1 || true
 
-echo "Creating issues …"
+echo "Creating issues (all in backlog; the lifecycle runs below) …"
 A=$(gh issue create --repo "$REPO" --title "Blocker task" \
-      --body "The blocker." --label status:in-progress --label type:feature --label prio:P2 \
-      --assignee @me --milestone v1 | sed 's#.*/##')
+      --body "The blocker." --label status:backlog --label type:feature --label prio:P2 \
+      --milestone v1 | sed 's#.*/##')
 B=$(gh issue create --repo "$REPO" --title "Dependent task" \
       --body "Related: #$A" --label status:backlog --label type:tech --label prio:P1 | sed 's#.*/##')
 gh issue edit "$B" --repo "$REPO" --add-blocked-by "$A" >/dev/null 2>&1 \
   || echo "  (--add-blocked-by needs gh >= 2.94; blockedBy left unset)"
-C=$(gh issue create --repo "$REPO" --title "Shipped task" \
-      --body "Done." --label type:tech | sed 's#.*/##')
-gh issue close "$C" --repo "$REPO" --reason completed >/dev/null
 
 PROJ=""
 if [ "$PROJECTS" -eq 1 ]; then
@@ -164,31 +162,47 @@ if [ "$PROJECTS" -eq 1 ]; then
   echo "  NOTE: set the board Status/Priority/Effort/Risk on #$A/#$B in the UI, then re-run the read below to verify board-first resolution."
 fi
 
-# ---------------- scaffold a config pointing at the real repo, run te LIVE ------
+# ---------------- scaffold a config pointing at the real repo -----------------
 WORK=$(mktemp -d)
 "$SCAFFOLD" --out "$WORK" --backend gh --milestones auto \
   $( [ "$PROJECTS" -eq 1 ] && printf -- '--projects --project-number %s --project-owner %s' "$PROJ" "$OWNER") \
   --repo "$REPO" --no-validate >/dev/null
-echo ""
-echo "===== LIVE te against $REPO ====="
 run() { echo "--- te $* ---"; ( cd "$WORK" && "$TE" "$@" ) || echo "  (te exited nonzero)"; echo; }
-run config validate >/dev/null 2>&1 && echo "config validate: ok" || echo "config validate: FAILED"; echo
-run read "$A"
-run read "$C"                         # expect stage=done, closed_as=shipped
-run list in_progress
-run deps check "$B" --depends-on "$A" # expect ok (acyclic)
+
+# github transition = a single atomic `gh issue edit` flipping the stage label
+# (+ assignee for a claim), per § Transition primitives (github). The claim clock
+# is the assignment event; terminal uses the native close.
+flip() { gh issue edit "$1" --repo "$REPO" --add-label "status:$3" --remove-label "status:$2" >/dev/null; }
+
+echo ""
+echo "===== LIVE github workflow lifecycle against $REPO ====="
+( cd "$WORK" && "$TE" config validate >/dev/null 2>&1 ) && echo "config validate: ok" || echo "config validate: FAILED"; echo
+
+echo "[pick] claim #$A: backlog -> in-progress + assign @me"
+gh issue edit "$A" --repo "$REPO" --add-label status:in-progress --remove-label status:backlog --add-assignee @me >/dev/null
+run read "$A"                             # expect stage=in-progress, claimed_by=you, claimed_at set
+echo "[review] #$A: in-progress -> in-review"; flip "$A" in-progress in-review; run read "$A"
+echo "[reject] #$A: in-review -> in-progress"; flip "$A" in-review in-progress; run read "$A"
+echo "[close]  #$A: -> done (native close, completed)"
+gh issue edit "$A" --repo "$REPO" --remove-label status:in-progress >/dev/null
+gh issue close "$A" --repo "$REPO" --reason completed >/dev/null
+run read "$A"                             # expect stage=done, closed_as=shipped
+echo "[list]   pickable (should exclude the closed #$A; #$B still blocked by it until it's read as terminal)"
+run list pickable
+run deps check "$B" --depends-on "$A"     # acyclic -> ok
 run milestone scan
 [ "$PROJECTS" -eq 1 ] && run projects resolve
 
 cat <<EOF
-===== manual Projects checklist (record the results) =====
-- [ ] te read #$A: stage=in-progress, type=feature, claimed_by=you, claimed_at set, depends_on empty, related=$B
-- [ ] te read #$B: depends_on=$A (from blockedBy), related empty
-- [ ] te read #$C: stage=done, closed_as=shipped (closed-state wins)
-- [ ] te list in_progress: exactly #$A
-- [ ] te deps check #$B --depends-on #$A: ok=true; then try a real cycle to see the chain
-- [ ] te milestone scan: v1 with open/closed counts and drift flag
-$( [ "$PROJECTS" -eq 1 ] && printf -- '- [ ] set board fields on #%s, re-run te read #%s: priority/effort/risk come from the BOARD (board-first)\n- [ ] te projects resolve: resolves the Status field id + option map\n' "$A" "$A")
+===== manual verification checklist (record the results) =====
+- [ ] claim: te read #$A shows stage=in-progress, claimed_by=you, claimed_at set (from the assignment event)
+- [ ] review/reject: stage tracked the status label each flip
+- [ ] close: te read #$A shows stage=done + closed_as=shipped (closed-state wins over any label)
+- [ ] te read #$B: depends_on=$A (from blockedBy), related=$A (from the "Related:" body line)
+- [ ] te list pickable: excludes the closed #$A
+- [ ] te deps check #$B --depends-on #$A: ok=true; add a real cycle to see the chain
+- [ ] te milestone scan: v1 with open/closed counts + drift flag
+$( [ "$PROJECTS" -eq 1 ] && printf -- '- [ ] set board fields on #%s in the UI, re-run (cd %s && te read %s): priority/effort/risk come from the BOARD\n- [ ] te projects resolve: resolves the Status field id + option map (soft-warns if scope/field missing)\n' "$A" "$WORK" "$A")
 When done:  scripts/live-gh-check.sh --cleanup
 EOF
 trap - ERR

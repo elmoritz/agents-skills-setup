@@ -6,7 +6,9 @@
       "Bash(scripts/check-bundle-sync.sh:*)",
       "Bash(scripts/te-scaffold.sh:*)",
       "Bash(scripts/gen-examples.sh:*)",
-      "Bash(scripts/test-examples.sh:*)"
+      "Bash(scripts/test-examples.sh:*)",
+      "Bash(scripts/test-skill-ops.sh:*)",
+      "Bash(scripts/test-lifecycle.sh:*)"
     ]
   }
 }

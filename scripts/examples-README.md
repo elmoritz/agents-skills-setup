@@ -47,5 +47,16 @@ token — not CI-runnable).
 
 ## Automated verification
 
-`scripts/test-examples.sh` validates every flavor and smoke-runs the read path on
-the seeded filesystem flavors (offline, CI-runnable).
+The `te` CLI is the deterministic *read* half of the ticket-engine; the `/ticket:*`
+skills' *write* half (git mv + frontmatter/ledger edits + commits) ships as prose
+(model-executed). The harnesses cover both, at three levels:
+
+| Script | What it proves | Runs |
+| --- | --- | --- |
+| `scripts/test-examples.sh` | every flavor's config is valid; the read path returns the right data on the seeded filesystem flavors | offline / CI |
+| `scripts/test-skill-ops.sh` | for every flavor, the `te` operations each skill invokes (id/slug/validate-body/effort-cap/deps/list/read/milestone) behave | offline / CI |
+| `scripts/test-lifecycle.sh` | a whole ticket driven new→refine→claim→review→reject→abandon→close→fold→milestone-flip on a temp git repo — each transition done per § Transition primitives and re-validated with `te` | offline / CI |
+| `scripts/live-gh-check.sh` | the same lifecycle **live** against a throwaway GitHub repo (label flips + assignee + close), plus the manual Projects checklist | needs `gh`; human-run |
+
+`scripts/te-scaffold.sh` is the headless init underneath the examples; run it
+directly to make a one-off sandbox for any flavor.
