@@ -55,3 +55,69 @@ te_internal() {
     "$1" "${2:-report this as a te bug}" >&2
   exit 2
 }
+
+# resolve_config [path] — discover/parse/validate and print the flat resolved
+# config on stdout (rc 0). On any discovery/parse/validation failure, print the
+# ok=false shape on stdout and return 1. Requires TE_TMPD (set up by main).
+# The bundle name in messages is derived, since te is byte-identical across the
+# .claude and .github copies.
+resolve_config() {
+  local cfg="${1:-}" bundle flat err combined out rc
+  bundle=$(basename "$TE_BUNDLE")
+  if [ -z "$cfg" ]; then
+    if ! cfg=$(te_discover_config); then
+      te_emit_fail "discovery" \
+        "No $bundle/config.yaml found between $PWD and /." \
+        "Run /ticket:init to bootstrap one, or pass the config path explicitly."
+      return 1
+    fi
+  fi
+  if [ ! -f "$cfg" ]; then
+    te_emit_fail "discovery" "config file not found: $cfg" "check the path, or run /ticket:init"
+    return 1
+  fi
+  flat="$TE_TMPD/flat"; err="$TE_TMPD/err"; combined="$TE_TMPD/combined"
+  set +e
+  awk -f "$TE_LIB/config.awk" -v path="$cfg" "$cfg" >"$flat" 2>"$err"; rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "parse" "$(cat "$err")" \
+      "fix the YAML at the pointed line — it drifted outside the supported subset — or re-run /ticket:init"
+    return 1
+  fi
+  cat "$flat" >"$combined"
+  te_agent_records "$(dirname "$cfg")/agents" >>"$combined"
+  set +e
+  out=$(awk -f "$TE_LIB/validate.awk" -v path="$cfg" "$combined"); rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "validation" "$out" \
+      "fix ${cfg} per the message, then re-run — the engine never proceeds past a config error"
+    return 1
+  fi
+  printf '%s\n' "$out"
+}
+
+# cfg_get <key> — print the value of a resolved-config leaf (from
+# $TE_TMPD/resolved); return 1 if the key is absent. Values may contain '='.
+# Pure bash (the "no embedded awk" rule keeps every awk program in an -f file).
+cfg_get() {
+  local k="$1" line
+  while IFS= read -r line; do
+    case "$line" in
+      "$k="*) printf '%s\n' "${line#*=}"; return 0 ;;
+    esac
+  done < "$TE_TMPD/resolved"
+  return 1
+}
+
+# cfg_has <key> — true if the key exists as a leaf or a list/map prefix.
+cfg_has() {
+  local k="$1" line
+  while IFS= read -r line; do
+    case "$line" in
+      "$k="*|"$k".*) return 0 ;;
+    esac
+  done < "$TE_TMPD/resolved"
+  return 1
+}

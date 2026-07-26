@@ -1,0 +1,2 @@
+ticket: claim TE-9 a 'q' "b" $x `c` {id} end
+--- exit: 0

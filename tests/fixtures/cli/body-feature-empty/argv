@@ -1,0 +1,6 @@
+validate-body
+--type
+feature
+--file
+ticket.md
+config.yaml

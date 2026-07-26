@@ -1,0 +1,3 @@
+ok=true
+warning=no .ledger.yaml at proj/.ledger.yaml; treated as empty (run /ticket:init to create the stub)
+--- exit: 0

@@ -1,0 +1,5 @@
+ok=false
+where=ledger
+failed=TE-001: depends_on 'TE-099' resolves to no ticket file and no ledger entry
+recovery=fix the reference or drop it
+--- exit: 1

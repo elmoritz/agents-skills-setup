@@ -75,26 +75,14 @@ Workflow decisions in Part 2 branch on whether these optional roles resolve to a
 
 ## § ID assignment (filesystem)
 
-Used when `backend.type: filesystem`. GitHub backends use native issue numbers and never call this.
+Implemented by **`te id next [--count N]`** — see it (and its goldens) for the authoritative behavior.
 
-1. List every stage folder declared in `lifecycle.stages[].filesystem.folder`, plus the milestone-tracker folders if `milestones.strategy: trackers`.
-2. Collect every filename matching `{prefix}-(\d+)-.*\.md`. Parse the numeric part.
-3. Compute `max + 1`, zero-pad to `ticket_id.padding`, prefix with `ticket_id.prefix`. Result: e.g. `IV-051`.
-4. Reserved-but-unused IDs (gaps from aborted slates) stay gaps. Do not reclaim.
-
-For multi-ID reservations (slate creation), reserve consecutive IDs in one shot and pass them as a list to the caller.
+- **Filesystem**: scans every stage folder (`lifecycle.stages[].filesystem.folder`) plus the milestone-tracker folders when the strategy resolves to `trackers` (`auto` → `trackers` on filesystem), collects filenames matching `{prefix}-{NNN}-*.md`, and returns `max + 1` zero-padded to `ticket_id.padding` and prefixed with `ticket_id.prefix`. Gaps (aborted-slate IDs, and everything below `max`) are never reclaimed — the value is always `max + 1`. `--count N` returns N consecutive IDs for a slate reservation.
+- **GitHub**: never scans; returns provisional handles `NEW-1 … NEW-N` (real issue numbers are minted at `gh issue create`; see § Slate creation & handle resolution).
 
 ## § Slug generation (filesystem)
 
-From a user-provided title or input string, produce a kebab-case slug for filenames. Hardcoded rule:
-
-1. Lowercase.
-2. Strip punctuation (keep `[a-z0-9 ]`).
-3. Collapse whitespace.
-4. Take first 6 words.
-5. Join with `-`.
-
-Example: `"Add bee hive node for honey production"` → `"add-bee-hive-node-for-honey"` (already ≤6 words, kept).
+Implemented by **`te slug "<title>"`**: lowercase, keep `[a-z0-9 ]` (everything else becomes a separator), collapse whitespace, take the first 6 words, join with `-`. Example: `"Add bee hive node for honey production"` → `"add-bee-hive-node-for-honey"`.
 
 ## § Field storage contract
 
@@ -133,8 +121,8 @@ IV-002:
 - **Authoritative, not derived.** For `depends_on`, `related`, `milestone`, the ledger *is* the ticket's data. Ticket frontmatter never carries these fields; if a stray copy appears in a ticket file, the ledger wins and the stray is reported as drift.
 - **Same-commit writes.** Any event that changes a ticket's ledger entry stages the `.ledger.yaml` edit in that event's commit (per Hard rules). Transitions that don't touch ledger fields (claim, review, close…) leave the ledger alone — entries are keyed by ID, not path, so `git mv` never requires a ledger edit.
 - **Entries persist through closure.** A terminal ticket keeps its entry — milestone rollups and dependency history read it. Nothing is ever pruned.
-- **Validated on load.** `load_and_validate()` also parses the ledger when the backend is filesystem: unparseable YAML, an entry whose ID resolves to no ticket file, a `depends_on`/`related` ID that resolves to no ticket file and no ledger entry, or a `depends_on` cycle → hard fail with a pointed message (hand-edit damage is the expected cause). A ticket file with no ledger entry is valid — it simply has no deps/related/milestone (equivalent to an all-empty entry).
-- **Missing ledger.** No `.ledger.yaml` at the root → treated as an empty ledger with a soft warning (`/ticket-init` creates the stub; a legacy project may predate it).
+- **Validated on load** by **`te ledger validate`** (filesystem): unparseable YAML (reusing the config parser's line-pointed error), an entry whose ID resolves to no ticket file, a `depends_on`/`related` ID that resolves to no ticket file and no ledger entry, or a `depends_on` cycle (reported as the full chain, e.g. `IV-007 → IV-012 → IV-007`) → hard fail with a pointed message (hand-edit damage is the expected cause). A ticket file with no ledger entry is valid — it simply has no deps/related/milestone. This is a **standalone** subcommand, not folded into `te config validate`; `load_and_validate()` runs `te config validate` and then, on the filesystem backend, `te ledger validate` — one call from the caller's point of view.
+- **Missing ledger.** No `.ledger.yaml` at the root → `te ledger validate` returns a soft warning and exit 0 (`/ticket-init` creates the stub; a legacy project may predate it).
 
 ## § Transition primitives
 
@@ -211,14 +199,9 @@ gh project item-edit --id <item-id> --project-id <project-node-id> \
 
 ## § Message formatting
 
-Every workflow event has a template in `commits:`. The engine resolves the event name (e.g. `claim`, `done`, `wontfix`) to a template and interpolates:
+Rendering is implemented by **`te msg <event> --id … --title … [--target-id …] [--status …] [--version …] [--reason …]`**: it looks up the `commits.<event>` template and interpolates `{id}`, `{title}`, `{target_id}` (for `fold`), and `{status}`/`{version}`/`{reason}` (for `milestone_flip`) in a **single left-to-right pass** — a value that itself contains a placeholder is never re-substituted, and titles carrying single/double quotes, backticks, `$`, and newlines survive intact (values pass through the environment, not the shell command line). An unknown event (no `commits.<event>`) fails.
 
-- `{id}`: artifact ID (e.g. `IV-042` on FS, `#42` on GH).
-- `{title}`: artifact title.
-- `{target_id}`: for `fold`, the target's ID.
-- `{status}`, `{version}`, `{reason}`: for `milestone_flip`.
-
-**Filesystem**: the rendered subject is the entire commit message. Pass through a HEREDOC so special characters survive.
+**Filesystem**: the rendered subject is the entire commit message; the caller passes `te msg`'s output through a HEREDOC to `git commit`.
 
 **GitHub**: status-ping events (new, capture, claim, refine, review, done) are **silent** — no comment is posted. The native activity log is the record. Content-bearing events (capture_update, abandon, update, reject, fold, wontfix) post a comment. The comment's first line is the rendered subject; a blank line; then the engine-assembled body block carrying the contextual payload (the abandon notes, the wontfix reasoning, the folded body, etc.). The body block is **not config-templated** — it is rendered from the operation's runtime payload.
 
@@ -285,19 +268,17 @@ Inbox tickets carry only `id`, `type` (may be `unknown`), `title`, `created`. Ot
 
 ## § Effort caps
 
-When the engine writes a ticket into any stage carrying the `pickable` role, it validates `effort ∈ effort.pickable_allowed`. Out-of-range effort → return `{ ok: false, reason: "effort <x> not allowed in pickable stage; allowed: <list>", recovery: "split the ticket or rescope" }`. The caller (`/ticket-new`) surfaces this back to step 3 (split assessment).
-
-No effort enforcement on other stages.
+Implemented by **`te effort-cap --effort <e> --role <r>`**: when a ticket is written into a stage carrying the `pickable` role, `effort ∈ effort.pickable_allowed` is required. Out-of-range → `effort <x> not allowed in pickable stage; allowed: <list>` (the caller, `/ticket-new`, surfaces this back to step 3's split assessment). No enforcement on other roles.
 
 ## § depends_on integrity
 
-Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Three checks:
+Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Implemented by **`te deps check <id> --depends-on <ids> [--slate <ids>]`** (filesystem here; the github graph source lands in TE-004, feeding the *same* cycle walk):
 
-- **Existence.** Every ID in the `depends_on` being written must resolve via `read_artifact(id)`. Exemption: IDs reserved for the current slate — in-flight siblings exist as in-memory specs, not artifacts yet; the caller passes the reserved-ID list. Failure: `{ ok: false, reason: "depends_on references <id>, which does not exist", recovery: "fix the ID or drop the dependency" }`.
-- **No cycles.** Walk the `depends_on` links depth-first starting from the artifact being written, keeping the chain of IDs walked so far (the artifact's own ID first). For each dependency: if its ID is already on the chain, reject and report the chain as the cycle (e.g. `IV-007 → IV-012 → IV-007`); otherwise `read_artifact` it (slate siblings: use the in-memory spec) and walk its `depends_on` in turn. Never follow `related`. Each ticket appears at most once per chain, so the walk always terminates. Failure: `{ ok: false, reason: "depends_on cycle: <chain>", recovery: "break the cycle by dropping one of the links" }`.
+- **Existence.** Every proposed dependency must resolve to a ticket file or a ledger entry. Exemption: IDs on the `--slate` list — in-flight siblings not yet written. Failure: `depends_on references <id>, which does not exist`.
+- **No cycles.** A depth-first walk from `<id>` over the ledger's `depends_on` edges plus the proposed edges; a node recurring on the current path is reported as the full chain (e.g. `IV-007 → IV-012 → IV-007`). Never follows `related`. The walk itself lives in `lib/deps.awk` and consumes a flat `id<TAB>dep` edge list, so it is runnable standalone and shared with the github path. Failure: `depends_on cycle: <chain>`.
 - **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
 
-Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check). The walk is storage-agnostic: it reads each ticket's `depends_on` through the uniform field view — the ledger on FS, the `blockedBy` JSON field on GH. GitHub may additionally reject some dependency writes natively; the engine's own check still runs first so the failure carries the chain diagnostics.
+Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
 
 ## § Claim identity & staleness
 
@@ -381,7 +362,7 @@ The operations compose Part 1 primitives plus Part 2 workflow rules.
 
 - **Input**: none.
 - **Reads**: `.github/config.yaml` via § Config discovery.
-- **Procedure**: verify `te` is executable (`[ -x .github/scripts/te ]`; on failure emit the exec-bit message from § Config and hard-fail), then run `te config validate` — discover → parse → validate per § Config. On the filesystem backend, also load and validate the ledger per § Ledger.
+- **Procedure**: verify `te` is executable (`[ -x .github/scripts/te ]`; on failure emit the exec-bit message from § Config and hard-fail), then run `te config validate` — discover → parse → validate per § Config — and, on the filesystem backend, `te ledger validate` per § Ledger. Two subcommands, one logical call.
 - **Returns**: resolved config value (plus the parsed ledger on FS), or hard-fail if invalid.
 
 Every operation below calls this first. Cache for the duration of the engine invocation; never longer.
@@ -495,9 +476,9 @@ Note: closure source stage is `review` if a review stage exists; otherwise `in_p
 
 ### `validate_type_body(type, body)`
 
-- **Input**: type key, body markdown.
-- **Procedure**: locate each of `types[type].required_body_sections` as a `##` heading in the body. For known types, also check non-emptiness rules (acceptance_criteria for feature, regression_test for bug).
-- **Returns**: `ok` or `{ ok: false, missing: [section_keys] }`.
+- **Input**: type key, body markdown file.
+- **Procedure**: implemented by **`te validate-body --type <t> --file <path>`**. Each `types[type].required_body_sections` entry must appear as a level-2-or-deeper heading, matched by its config **key**: the heading text is normalized (lowercased, non-alphanumeric runs → `_`, trimmed) and compared to the key. `/ticket-init`'s generated `TICKET_TEMPLATE.md` titles each section by its key, so a template-conformant body matches; a project that retitles sections must keep the heading's normalized form equal to the key. Known types also require non-empty content: `acceptance_criteria` (feature), `regression_test` (bug).
+- **Returns**: `ok=true`, or `ok=false` with `missing=<comma list>` (exit 1).
 
 ### `scan_milestone_state(version=null)`
 

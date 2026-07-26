@@ -1,0 +1,5 @@
+ok=false
+where=msg
+failed=unknown event 'bogus' (no commits.bogus template)
+recovery=add the event under commits:, or check the name
+--- exit: 1

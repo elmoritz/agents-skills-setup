@@ -1,0 +1,5 @@
+ok=false
+where=deps-check
+failed=depends_on cycle: TE-001 → TE-002 → TE-001
+recovery=break the cycle by dropping one of the links
+--- exit: 1

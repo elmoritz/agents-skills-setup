@@ -37,6 +37,13 @@ if [ ! -r "$TE_LIB/common.sh" ]; then
 fi
 # shellcheck source=lib/common.sh
 . "$TE_LIB/common.sh"
+if [ ! -r "$TE_LIB/helpers.sh" ]; then
+  printf 'ok=false\nwhere=internal\nfailed=cannot read %s\nrecovery=the te bundle is incomplete; re-copy .claude/scripts (or .github/scripts) intact\n' \
+    "$TE_LIB/helpers.sh" >&2
+  exit 2
+fi
+# shellcheck source=lib/helpers.sh
+. "$TE_LIB/helpers.sh"
 
 DRY_RUN=0
 
@@ -45,15 +52,23 @@ usage() {
 te — ticket-engine CLI
 
 Usage:
-  te config validate [path] [--dry-run]   Validate .claude/config.yaml (§ Config,
-                                          18 rules). Prints the resolved config +
-                                          roles->stage map on success. [reads only]
+  te config validate [path] [--dry-run]   Validate config.yaml (§ Config, 18 rules);
+                                          print resolved config + roles->stage map.
+  te ledger validate [config] [--dry-run] Validate .ledger.yaml (filesystem backend).
+  te slug "<title>" [--dry-run]           Kebab-case slug for a filename.
+  te id next [--count N] [config]         Next filesystem ID(s), or NEW-k on github.
+  te deps check <id> --depends-on <ids> [--slate <ids>] [config]
+                                          Cycle + existence check (filesystem).
+  te effort-cap --effort <e> --role <r> [config]   Enforce § Effort caps.
+  te validate-body --type <t> --file <p> [config]  Check required body sections.
+  te msg <event> --id <id> --title <t> [--target-id <id>] [--status <s>]
+         [--version <v>] [--reason <r>] [config]    Render a commit/comment message.
   te --help                               This message.
 
 Working-tree discipline: every subcommand in this build is READ-ONLY — none
 touches the working tree. --dry-run is accepted everywhere and ignored by reads.
 
-Exit codes: 0 ok · 1 validation/parse failure · 2 internal error.
+Exit codes: 0 ok · 1 validation/parse/not-found failure · 2 internal error.
 EOF
 }
 
@@ -69,50 +84,18 @@ strip_flags() {
   done
 }
 
+# Load the resolved config into $TE_TMPD/resolved for a config-reading
+# subcommand. On failure, print the failure shape (captured while resolving) and
+# return 1 so the caller exits 1.
+load_config() {
+  if ! resolve_config "${1:-}" >"$TE_TMPD/resolved"; then
+    cat "$TE_TMPD/resolved"
+    return 1
+  fi
+}
+
 cmd_config_validate() {
-  local cfg="${1:-}"
-  if [ -z "$cfg" ]; then
-    if ! cfg=$(te_discover_config); then
-      te_emit_fail "discovery" \
-        "No .claude/config.yaml found between $PWD and /." \
-        "Run /ticket:init to bootstrap one, or pass the config path explicitly."
-      exit 1
-    fi
-  fi
-  if [ ! -f "$cfg" ]; then
-    te_emit_fail "discovery" "config file not found: $cfg" \
-      "check the path, or run /ticket:init"
-    exit 1
-  fi
-
-  local flat err combined out rc
-  TE_TMPD=$(mktemp -d) || te_internal "mktemp failed"
-  trap 'rm -rf "$TE_TMPD"' EXIT
-  flat="$TE_TMPD/flat"; err="$TE_TMPD/err"; combined="$TE_TMPD/combined"
-
-  set +e
-  awk -f "$TE_LIB/config.awk" -v path="$cfg" "$cfg" >"$flat" 2>"$err"
-  rc=$?
-  set -e
-  if [ "$rc" -ne 0 ]; then
-    te_emit_fail "parse" "$(cat "$err")" \
-      "fix the YAML at the pointed line — it drifted outside the supported subset — or re-run /ticket:init"
-    return 1
-  fi
-
-  cat "$flat" >"$combined"
-  te_agent_records "$(dirname "$cfg")/agents" >>"$combined"
-
-  set +e
-  out=$(awk -f "$TE_LIB/validate.awk" -v path="$cfg" "$combined")
-  rc=$?
-  set -e
-  if [ "$rc" -ne 0 ]; then
-    te_emit_fail "validation" "$out" \
-      "fix ${cfg} per the message, then re-run — the engine never proceeds past a config error"
-    return 1
-  fi
-  printf '%s\n' "$out"
+  resolve_config "${1:-}"   # prints resolved config or the failure shape; sets rc
 }
 
 main() {
@@ -121,18 +104,43 @@ main() {
     -h|--help) usage; exit 0 ;;
   esac
 
+  TE_TMPD=$(mktemp -d) || te_internal "mktemp failed"
+  trap 'rm -rf "$TE_TMPD"' EXIT
+
   local group="$1"; shift
   case "$group" in
     config)
       local sub="${1:-}"; shift || true
       case "$sub" in
-        validate)
-          strip_flags "$@"
-          cmd_config_validate "${ARGS[0]:-}" || exit 1
-          ;;
+        validate) strip_flags "$@"; cmd_config_validate "${ARGS[0]:-}" || exit 1 ;;
         *) printf 'te: unknown config subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;
+    ledger)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        validate) strip_flags "$@"; cmd_ledger_validate "${ARGS[0]:-}" || exit 1 ;;
+        *) printf 'te: unknown ledger subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    slug)        strip_flags "$@"; cmd_slug "${ARGS[0]:-}" || exit 1 ;;
+    id)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        next) cmd_id_next "$@" || exit 1 ;;
+        *) printf 'te: unknown id subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    deps)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        check) cmd_deps_check "$@" || exit 1 ;;
+        *) printf 'te: unknown deps subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    effort-cap)    cmd_effort_cap "$@" || exit 1 ;;
+    validate-body) cmd_validate_body "$@" || exit 1 ;;
+    msg)           cmd_msg "$@" || exit 1 ;;
     *) printf 'te: unknown subcommand: %s\n' "$group" >&2; usage >&2; exit 2 ;;
   esac
 }

@@ -1,0 +1,37 @@
+version: 1
+ticket_id:
+  prefix: TE
+  padding: 3
+  start: 1
+lifecycle:
+  stages:
+    - key: backlog
+      label: "Backlog"
+      roles: [pickable]
+      github:
+        label: "status:backlog"
+    - key: in-progress
+      label: "In progress"
+      roles: [in_progress]
+      github:
+        label: "status:in-progress"
+    - key: done
+      label: "Done"
+      roles: [terminal]
+      github:
+        label: "status:done"
+        close_issue: true
+backend:
+  type: github
+  github:
+    repo: honey/bee
+types:
+  tech:
+    required_body_sections: [goal, approach]
+effort:
+  allowed: [S, M, L, XL]
+  pickable_allowed: [S, M]
+milestones:
+  strategy: none
+commits:
+  claim: "ticket: claim {id} {title}"
