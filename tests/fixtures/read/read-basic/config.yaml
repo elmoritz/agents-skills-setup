@@ -1,0 +1,45 @@
+version: 1
+ticket_id:
+  prefix: TE
+  padding: 3
+  start: 1
+lifecycle:
+  stages:
+    - key: backlog
+      label: "Backlog"
+      roles: [pickable]
+      filesystem:
+        folder: backlog
+    - key: in-progress
+      label: "In progress"
+      roles: [in_progress]
+      filesystem:
+        folder: in-progress
+    - key: in-review
+      label: "In review"
+      roles: [review]
+      filesystem:
+        folder: in-review
+    - key: done
+      label: "Done"
+      roles: [terminal]
+      filesystem:
+        folder: done
+backend:
+  type: filesystem
+  filesystem:
+    root: proj
+    filename: "{id}-{slug}.md"
+types:
+  tech:
+    required_body_sections: [goal, approach]
+effort:
+  allowed: [S, M, L, XL]
+  pickable_allowed: [S, M]
+milestones:
+  strategy: trackers
+  trackers:
+    planned_active_folder: milestone
+    shipped_folder: done
+commits:
+  claim: "ticket: claim {id} {title}"

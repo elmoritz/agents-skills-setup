@@ -111,10 +111,24 @@ _ledger_path() { printf '%s/.ledger.yaml\n' "$(cfg_get backend.filesystem.root)"
 # Flatten the ledger at $1 into $TE_TMPD/ledger (config.awk records). On a parse
 # error, emit the failure shape and return 1. On a missing file, leave an empty
 # records file and return 0.
+# True if the ledger is effectively empty: only comments/blanks and/or the `{}`
+# empty-map stub /ticket:init writes. config.awk rejects flow maps, so this is
+# short-circuited rather than parsed.
+_ledger_is_empty() {
+  local line t
+  while IFS= read -r line; do
+    t=${line#"${line%%[![:space:]]*}"}      # lstrip
+    t=${t%"${t##*[![:space:]]}"}            # rstrip
+    case "$t" in ''|'#'*|'{}') ;; *) return 1 ;; esac
+  done < "$1"
+  return 0
+}
+
 _ledger_flatten() {
   local lp="$1" err rc
   : > "$TE_TMPD/ledger"
   [ -f "$lp" ] || return 0
+  _ledger_is_empty "$lp" && return 0
   err="$TE_TMPD/lerr"
   set +e
   awk -f "$TE_LIB/config.awk" -v path="$lp" "$lp" >"$TE_TMPD/ledger" 2>"$err"; rc=$?

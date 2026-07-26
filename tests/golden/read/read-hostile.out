@@ -1,0 +1,21 @@
+id=TE-001
+stage=backlog
+type=tech
+title=Fix [urgent] crash #17 in "loader"
+priority=P1
+effort=S
+risk=
+milestone=
+created=2026-07-02
+claimed_by=
+claimed_at=
+closed_as=
+depends_on=
+related=
+---BODY---
+## Goal
+A line with a ---BODY--- literal in it.
+yaml-ish: value: here
+
+trailing spaces here   
+no final newline

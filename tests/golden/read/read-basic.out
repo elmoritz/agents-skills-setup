@@ -1,0 +1,20 @@
+id=TE-001
+stage=backlog
+type=tech
+title=Alpha ticket
+priority=P2
+effort=M
+risk=med
+milestone=v1
+created=2026-07-01
+claimed_by=
+claimed_at=
+closed_as=
+depends_on=TE-002
+related=TE-003
+---BODY---
+## Goal
+The goal.
+
+## Approach
+Steps.

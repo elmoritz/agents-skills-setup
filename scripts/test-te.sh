@@ -14,7 +14,11 @@
 #   cli/<name>/     — an `argv` file (one te argument per line) + any project
 #                     tree the command reads; runs `te <argv...>` with cwd set to
 #                     the case dir. Golden: golden/cli/<name>.out.
-# Each golden is captured stdout+stderr followed by a final `--- exit: N` line.
+#   read/<name>/    — like cli/, but the golden is the BYTE-EXACT stdout (no
+#                     `--- exit` line appended, no $() trailing-newline strip),
+#                     so `te read`'s body round-trip (trailing whitespace, final
+#                     newline) is actually asserted. Exit must be 0.
+# cli/config goldens are captured stdout+stderr + a final `--- exit: N` line.
 # A standalone deps.awk check (AC: runnable without going through te) closes out.
 
 set -euo pipefail
@@ -83,6 +87,29 @@ run_cli_case() {
   count=$((count + 1))
 }
 
+# read/ case: byte-exact stdout comparison so the body round-trip AC is real.
+run_read_case() {
+  local dir=$1 name out rc
+  name=$(basename "$dir")
+  local argv=()
+  while IFS= read -r a; do argv+=("$a"); done < "$dir/argv"
+  out=$(mktemp)
+  set +e; ( cd "$dir" && "$TE_ABS" "${argv[@]}" ) > "$out" 2>/dev/null; rc=$?; set -e
+  local golden="tests/golden/read/$name.out"
+  if [ "$UPDATE" -eq 1 ]; then
+    mkdir -p "$(dirname "$golden")"; cp "$out" "$golden"; echo "updated read/$name"; rm -f "$out"; count=$((count + 1)); return
+  fi
+  if [ "$rc" -ne 0 ]; then echo "FAIL [read/$name]: exit $rc (expected 0)"; fail=1; fi
+  if [ ! -f "$golden" ]; then
+    echo "FAIL [read/$name]: no golden ($golden). Run scripts/test-te.sh --update."; fail=1
+  elif ! diff -u "$golden" "$out" >/dev/null; then
+    echo "FAIL [read/$name]: byte-exact stdout differs from golden:"
+    diff -u --label "$golden" --label "read/$name (actual)" "$golden" "$out" || true
+    fail=1
+  fi
+  rm -f "$out"; count=$((count + 1))
+}
+
 # A title carrying a literal newline can't be encoded in the one-arg-per-line
 # argv format, so cover the AC's newline case with a direct invocation.
 run_msg_newline() {
@@ -114,6 +141,10 @@ done
 for dir in tests/fixtures/cli/*/; do
   [ -f "${dir}argv" ] || continue
   run_cli_case "${dir%/}"
+done
+for dir in tests/fixtures/read/*/; do
+  [ -f "${dir}argv" ] || continue
+  run_read_case "${dir%/}"
 done
 run_msg_newline
 run_deps_standalone

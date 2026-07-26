@@ -44,6 +44,13 @@ if [ ! -r "$TE_LIB/helpers.sh" ]; then
 fi
 # shellcheck source=lib/helpers.sh
 . "$TE_LIB/helpers.sh"
+if [ ! -r "$TE_LIB/read-fs.sh" ]; then
+  printf 'ok=false\nwhere=internal\nfailed=cannot read %s\nrecovery=the te bundle is incomplete; re-copy .claude/scripts (or .github/scripts) intact\n' \
+    "$TE_LIB/read-fs.sh" >&2
+  exit 2
+fi
+# shellcheck source=lib/read-fs.sh
+. "$TE_LIB/read-fs.sh"
 
 DRY_RUN=0
 
@@ -63,6 +70,10 @@ Usage:
   te validate-body --type <t> --file <p> [config]  Check required body sections.
   te msg <event> --id <id> --title <t> [--target-id <id>] [--status <s>]
          [--version <v>] [--reason <r>] [config]    Render a commit/comment message.
+  te read <id> [config]                   Uniform field view + body (filesystem).
+  te list <role> [--priority P] [--effort E] [--type T] [--milestone M]
+          [--depends-satisfied] [config]  List ticket summaries at a role's stage.
+  te milestone scan [--version V] [config] Milestone state (filesystem side).
   te --help                               This message.
 
 Working-tree discipline: every subcommand in this build is READ-ONLY — none
@@ -141,6 +152,15 @@ main() {
     effort-cap)    cmd_effort_cap "$@" || exit 1 ;;
     validate-body) cmd_validate_body "$@" || exit 1 ;;
     msg)           cmd_msg "$@" || exit 1 ;;
+    read)          cmd_read "$@" || exit 1 ;;
+    list)          cmd_list "$@" || exit 1 ;;
+    milestone)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        scan) cmd_milestone_scan "$@" || exit 1 ;;
+        *) printf 'te: unknown milestone subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
     *) printf 'te: unknown subcommand: %s\n' "$group" >&2; usage >&2; exit 2 ;;
   esac
 }

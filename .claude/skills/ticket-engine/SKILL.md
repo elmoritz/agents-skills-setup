@@ -80,7 +80,7 @@ Implemented by **`te slug "<title>"`**: lowercase, keep `[a-z0-9 ]` (everything 
 
 ## § Field storage contract
 
-Ticket fields are **logical**: every operation reads and writes named fields, and the backend decides where each field physically lives. `read_artifact` always returns the full logical field set as one uniform view, whatever the storage — callers never care where a field came from.
+Ticket fields are **logical**: every operation reads and writes named fields, and the backend decides where each field physically lives. `read_artifact` always returns the full logical field set as one uniform view — the **frozen field-view schema** defined under `read_artifact` in Part 3 — whatever the storage; callers never care where a field came from. This section describes only the physical *homes* each backend writes to; the read view is assembled by `te read` (filesystem) and, conforming to the same schema, the github path (TE-004).
 
 - **Filesystem**: self-describing fields live as YAML frontmatter at the top of the `.md` file; the structured body follows. The **graph and grouping fields** — `depends_on`, `related`, `milestone` — do **not** live in frontmatter: they live in the ledger (see § Ledger), keyed by ticket ID.
 - **GitHub**: issue bodies carry **no frontmatter — ever**. The body is pure prose sections. Every field has a native or derived home:
@@ -376,15 +376,30 @@ Every operation below calls this first. Cache for the duration of the engine inv
 
 ### `read_artifact(id)`
 
+Implemented by **`te read <id>`** on the filesystem backend (github lands in TE-004, conforming to the identical schema below).
+
 - **Input**: ticket ID.
-- **Procedure**: locate the file (FS) or fetch the issue (GH); assemble the **uniform field view** per § Field storage contract — FS: parse frontmatter, merge the ticket's ledger entry (`depends_on`, `related`, `milestone`; absent entry → empty); GH: `gh issue view` with `--json title,labels,assignees,state,milestone,createdAt,blockedBy,issueType,stateReason,body,url`, map native fields to logical fields (board fields via § GitHub Projects sync reads where Projects is enabled), parse the `Related:` body line, derive `claimed_at` from the assignment event on demand.
-- **Returns**: `{ id, stage, type, title, fields, body, ... }` or `{ ok: false, reason: "not found" }` — `fields` is the full logical set; callers never see storage.
+- **Procedure (filesystem)**: locate `<id>-*.md` across the stage folders (stage = the folder's stage key); slice frontmatter (parsed **opaquely** — a human title may contain `#`, `[`, `"`; a value of `null` normalizes to empty) from the body (sliced byte-exact, so trailing whitespace and a missing final newline round-trip); merge the ticket's ledger entry (`depends_on`, `related`, `milestone`; absent entry → empty). A ledger-resident field found in frontmatter is drift: the ledger wins and the stray name is listed in `drift`.
+- **The uniform field view (FROZEN — TE-004's github path emits this exact shape).** Flat `key=value` in this fixed order, then the body after a `---BODY---` sentinel:
+
+  ```
+  id, stage, type, title, priority, effort, risk, milestone, created,
+  claimed_by, claimed_at, closed_as, depends_on (comma-list), related (comma-list),
+  drift (comma-list; emitted only when non-empty)
+  ---BODY---
+  <raw body, verbatim to EOF>
+  ```
+
+  Absent scalars emit an empty value; empty lists emit `depends_on=`. **Unknown-age claim** is encoded as `claimed_by` set **and** `claimed_at` empty — no separate flag (on github this is the assigned-but-no-timeline case; on filesystem a `claimed_at: null` on a claimed ticket). A caller cannot tell FS from GH, nor frontmatter fields from ledger fields.
+- **Returns**: the field view above on success; `ok=false` / `reason=not found` (exit 1) for an unknown ID.
 
 ### `list_artifacts(role, filters={})`
 
+Implemented by **`te list <role> [--priority] [--effort] [--type] [--milestone] [--depends-satisfied]`** on the filesystem backend (github in TE-004).
+
 - **Input**: role name, optional filters (`priority`, `effort`, `type`, `milestone`, `depends_satisfied: bool`).
-- **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, filter out artifacts whose `depends_on` includes any non-terminal ID. Dependency data comes from one read: the ledger (FS) or the `blockedBy` field on `gh issue list --json` (GH) — never from opening every candidate's body.
-- **Returns**: list of artifact summaries (id, title, priority, effort, type, milestone, claimed_by, claimed_at, created).
+- **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, exclude any artifact whose `depends_on` includes a non-terminal ID — terminality comes from one `id → stage` index built by a single folder scan, and `depends_on` from one ledger read (never by opening every candidate's body). A missing dependency reads as non-terminal (excluded — the safe direction). An empty or absent stage yields no output, exit 0.
+- **Returns**: one summary block per ticket (`id, title, priority, effort, type, milestone, claimed_by, claimed_at, created`), blocks separated by a blank line. `claimed_by`/`claimed_at` are carried so `/ticket:pick` step 0's stale-claim split works.
 
 ### `create_artifact(spec, target_role)`
 
@@ -476,9 +491,11 @@ Note: closure source stage is `review` if a review stage exists; otherwise `in_p
 
 ### `scan_milestone_state(version=null)`
 
+Implemented by **`te milestone scan [--version V]`** on the filesystem backend (github `native`/`labels` in TE-004).
+
 - **Input**: optional version filter.
-- **Procedure**: per § Milestone handling for the active strategy.
-- **Returns**: per-version state including tracker status (if applicable), ticket distribution by stage, expected status, drift flag.
+- **Procedure (filesystem)**: `none` (or `native` on a filesystem backend) → empty, exit 0. `trackers` (incl. `auto`) → read the tracker files in the planned_active/shipped folders (frontmatter `type: milestone`, `version`, `status`); per version emit `tracker_status`, `tracker_folder`, `expected_status`, `expected_folder`, `drift`, and the ticket count per role (`count.pickable/in_progress/review/terminal`) — milestone assignment read from the **ledger** (not frontmatter), each ticket's stage from its file location, expected status per § Milestone handling. `labels` → the ledger milestone distribution (`version` + `count`), no tracker/drift.
+- **Returns**: the per-version blocks above.
 
 ### `apply_milestone_flip(version, target_status)`
 
