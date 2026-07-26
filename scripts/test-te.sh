@@ -87,6 +87,18 @@ run_cli_case() {
   count=$((count + 1))
 }
 
+# gh/ case: like cli/, but TE_GH_FIXTURE points at the case's ghfix/ so the
+# github mapping is tested offline (no gh, no network). See read-gh.sh.
+run_gh_case() {
+  local dir=$1 name got rc
+  name=$(basename "$dir")
+  local argv=()
+  while IFS= read -r a; do argv+=("$a"); done < "$dir/argv"
+  set +e; got=$(cd "$dir" && TE_GH_FIXTURE="ghfix" "$TE_ABS" "${argv[@]}" 2>&1); rc=$?; set -e
+  check_golden "tests/golden/gh/$name.out" "$got"$'\n'"--- exit: $rc" "gh/$name"
+  count=$((count + 1))
+}
+
 # read/ case: byte-exact stdout comparison so the body round-trip AC is real.
 run_read_case() {
   local dir=$1 name out rc
@@ -145,6 +157,10 @@ done
 for dir in tests/fixtures/read/*/; do
   [ -f "${dir}argv" ] || continue
   run_read_case "${dir%/}"
+done
+for dir in tests/fixtures/gh/*/; do
+  [ -f "${dir}argv" ] || continue
+  run_gh_case "${dir%/}"
 done
 run_msg_newline
 run_deps_standalone

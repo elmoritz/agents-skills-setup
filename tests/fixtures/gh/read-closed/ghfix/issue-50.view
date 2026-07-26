@@ -1,0 +1,13 @@
+number=50
+title=Closed one
+state=CLOSED
+stateReason=COMPLETED
+createdAt=2026-06-01T10:00:00Z
+issueType=
+assignee=
+milestone=
+blockedBy=
+labels=status:in-progress,type:tech
+url=https://github.com/honey/bee/issues/50
+---BODY---
+done body

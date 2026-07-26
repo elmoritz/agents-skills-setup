@@ -1,0 +1,10 @@
+id=42
+title=Add bee hive
+priority=P2
+effort=
+type=feature
+milestone=v1
+claimed_by=alice
+claimed_at=2026-07-03T11:00:00Z
+created=2026-07-01T10:00:00Z
+--- exit: 0

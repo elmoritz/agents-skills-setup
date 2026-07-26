@@ -1,0 +1,8 @@
+deps
+check
+5
+--depends-on
+99
+--slate
+99
+config.yaml

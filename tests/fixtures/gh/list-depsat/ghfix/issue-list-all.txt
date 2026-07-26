@@ -1,0 +1,4 @@
+70ReadyOPEN2026-07-06T10:00:00Z50status:backlog,type:tech,prio:P1https://github.com/honey/bee/issues/70
+71BlockedOPEN2026-07-07T10:00:00Z60status:backlog,type:tech,prio:P2https://github.com/honey/bee/issues/71
+60Dep openOPEN2026-07-05T10:00:00Zstatus:backlog,type:techhttps://github.com/honey/bee/issues/60
+50Dep closedCLOSEDCOMPLETED2026-06-01T10:00:00Zstatus:done,type:techhttps://github.com/honey/bee/issues/50

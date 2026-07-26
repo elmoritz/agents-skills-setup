@@ -1,0 +1,15 @@
+number=42
+title=Add bee hive
+state=OPEN
+stateReason=
+createdAt=2026-07-01T10:00:00Z
+issueType=Feature
+assignee=alice
+milestone=v1
+blockedBy=12,34
+labels=status:in-progress,type:feature,prio:P2,effort:M,risk:med
+url=https://github.com/honey/bee/issues/42
+---BODY---
+Related: #12, #34
+
+The body prose.

@@ -1,0 +1,5 @@
+ok=false
+where=deps-check
+failed=depends_on cycle: 3 → 1 → 2 → 3
+recovery=break the cycle by dropping one of the links
+--- exit: 1

@@ -1,0 +1,1 @@
+42BoardOPEN2026-07-01T10:00:00ZFeaturev1status:in-progress,type:feature,prio:P3,effort:S,risk:lowhttps://github.com/honey/bee/issues/42

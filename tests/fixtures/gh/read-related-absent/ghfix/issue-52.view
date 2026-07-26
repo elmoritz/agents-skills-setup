@@ -1,0 +1,13 @@
+number=52
+title=No related
+state=OPEN
+stateReason=
+createdAt=2026-06-03T10:00:00Z
+issueType=
+assignee=
+milestone=
+blockedBy=
+labels=status:backlog,type:tech
+url=https://github.com/honey/bee/issues/52
+---BODY---
+Just prose, no related line.

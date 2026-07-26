@@ -1,0 +1,3 @@
+ok=true
+note=projects resolve is a no-op (projects disabled or filesystem backend)
+--- exit: 0

@@ -1,0 +1,19 @@
+id=42
+stage=in-progress
+type=feature
+title=Add bee hive
+priority=P2
+effort=M
+risk=med
+milestone=v1
+created=2026-07-01T10:00:00Z
+claimed_by=alice
+claimed_at=2026-07-03T11:00:00Z
+closed_as=
+depends_on=12,34
+related=12,34
+---BODY---
+Related: #12, #34
+
+The body prose.
+--- exit: 0

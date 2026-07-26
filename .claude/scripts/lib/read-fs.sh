@@ -112,10 +112,7 @@ cmd_read() {
   [ -n "$id" ] || { te_emit_fail "read" "no id given" "usage: te read <id>"; return 1; }
   load_config "$cfg" || return 1
   local backend; backend=$(cfg_get backend.type)
-  if [ "$backend" != "filesystem" ]; then
-    te_emit_fail "read" "te read on the $backend backend lands in TE-004" "use the filesystem backend"
-    return 1
-  fi
+  if [ "$backend" = "github" ]; then cmd_read_gh "$id"; return; fi
   local root prefix i=0 folder skey file="" stage=""
   root=$(cfg_get backend.filesystem.root); prefix=$(cfg_get ticket_id.prefix)
   while folder=$(cfg_get "lifecycle.stages.$i.filesystem.folder"); do
@@ -188,9 +185,8 @@ cmd_list() {
   [ -n "$role" ] || { te_emit_fail "list" "no role given" "usage: te list <role> [filters]"; return 1; }
   load_config "$cfg" || return 1
   local backend; backend=$(cfg_get backend.type)
-  if [ "$backend" != "filesystem" ]; then
-    te_emit_fail "list" "te list on the $backend backend lands in TE-004" "use the filesystem backend"
-    return 1
+  if [ "$backend" = "github" ]; then
+    cmd_list_gh "$role" "$f_priority" "$f_effort" "$f_type" "$f_milestone" "$depsat"; return
   fi
   local stagekey; stagekey=$(cfg_get "roles.$role" || true)
   if [ -z "$stagekey" ]; then
@@ -253,11 +249,10 @@ cmd_milestone_scan() {
   done
   load_config "$cfg" || return 1
   local backend strat; backend=$(cfg_get backend.type); strat=$(cfg_get milestones.strategy)
-  [ "$strat" = "auto" ] && strat=$([ "$backend" = "filesystem" ] && echo trackers || echo native)
-  if [ "$backend" != "filesystem" ]; then
-    echo "ok=true"; echo "note=github milestone scan (native/labels) lands in TE-004"
-    return 0
+  if [ "$strat" = "auto" ]; then
+    [ "$backend" = "filesystem" ] && strat=trackers || strat=native
   fi
+  if [ "$backend" = "github" ]; then cmd_milestone_scan_gh "$want" "$strat"; return; fi
   if [ "$strat" = "none" ] || [ "$strat" = "native" ]; then
     return 0   # nothing to scan on filesystem
   fi

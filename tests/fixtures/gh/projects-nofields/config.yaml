@@ -1,0 +1,61 @@
+version: 1
+ticket_id:
+  prefix: TE
+  padding: 3
+  start: 1
+lifecycle:
+  stages:
+    - key: backlog
+      label: "Backlog"
+      roles: [pickable]
+      github:
+        label: "status:backlog"
+    - key: in-progress
+      label: "In progress"
+      roles: [in_progress]
+      github:
+        label: "status:in-progress"
+    - key: in-review
+      label: "In review"
+      roles: [review]
+      github:
+        label: "status:in-review"
+    - key: done
+      label: "Done"
+      roles: [terminal]
+      github:
+        label: "status:done"
+        close_issue: true
+backend:
+  type: github
+  github:
+    repo: honey/bee
+    type_map:
+      feature: "Feature"
+types:
+  feature:
+    required_body_sections: [why, acceptance_criteria]
+  tech:
+    required_body_sections: [goal, approach]
+effort:
+  allowed: [S, M, L, XL]
+  pickable_allowed: [S, M]
+milestones:
+  strategy: auto
+projects:
+  enabled: true
+  number:       7
+  owner:        honey
+  owner_type:   org
+  status_field: "Status"
+  status_map:
+    pickable:    "Backlog"
+    in_progress: "In progress"
+    review:      "In review"
+    terminal:    "Done"
+  field_map:
+    priority: "Priority"
+    effort:   "Effort"
+    risk:     "Risk"
+commits:
+  claim: "ticket: claim {id} {title}"

@@ -1,0 +1,20 @@
+id=70
+title=Ready
+priority=P1
+effort=
+type=tech
+milestone=
+claimed_by=
+claimed_at=
+created=2026-07-06T10:00:00Z
+
+id=60
+title=Dep open
+priority=
+effort=
+type=tech
+milestone=
+claimed_by=
+claimed_at=
+created=2026-07-05T10:00:00Z
+--- exit: 0

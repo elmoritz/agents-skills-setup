@@ -51,6 +51,13 @@ if [ ! -r "$TE_LIB/read-fs.sh" ]; then
 fi
 # shellcheck source=lib/read-fs.sh
 . "$TE_LIB/read-fs.sh"
+if [ ! -r "$TE_LIB/read-gh.sh" ]; then
+  printf 'ok=false\nwhere=internal\nfailed=cannot read %s\nrecovery=the te bundle is incomplete; re-copy .claude/scripts (or .github/scripts) intact\n' \
+    "$TE_LIB/read-gh.sh" >&2
+  exit 2
+fi
+# shellcheck source=lib/read-gh.sh
+. "$TE_LIB/read-gh.sh"
 
 DRY_RUN=0
 
@@ -73,8 +80,13 @@ Usage:
   te read <id> [config]                   Uniform field view + body (filesystem).
   te list <role> [--priority P] [--effort E] [--type T] [--milestone M]
           [--depends-satisfied] [config]  List ticket summaries at a role's stage.
-  te milestone scan [--version V] [config] Milestone state (filesystem side).
+  te milestone scan [--version V] [config] Milestone state (filesystem + github).
+  te projects resolve [config]            Resolve GitHub Project field/option IDs.
   te --help                               This message.
+
+The read subcommands (read/list/deps check/milestone scan) work on both the
+filesystem and github backends, emitting one uniform field view. The github path
+renders via 'gh --template'; its mapping is offline-testable via TE_GH_FIXTURE.
 
 Working-tree discipline: every subcommand in this build is READ-ONLY — none
 touches the working tree. --dry-run is accepted everywhere and ignored by reads.
@@ -159,6 +171,13 @@ main() {
       case "$sub" in
         scan) cmd_milestone_scan "$@" || exit 1 ;;
         *) printf 'te: unknown milestone subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    projects)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        resolve) cmd_projects_resolve "$@" || exit 1 ;;
+        *) printf 'te: unknown projects subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;
     *) printf 'te: unknown subcommand: %s\n' "$group" >&2; usage >&2; exit 2 ;;

@@ -168,6 +168,8 @@ The exact colors are not load-bearing — they exist so newly-created labels loo
 
 Active only when `backend.type: github` **and** `projects.enabled: true`. Keeps a Project (v2) board mirroring the workflow: each issue is added to the project on creation, and its `status_field` (default `Status`) follows the stage on every transition. Filesystem tickets are never synced — they aren't issues.
 
+**Read side (scripted).** `te projects resolve` resolves the project node ID, the status field's ID + option map, and each `field_map` entry's field ID + option map from one `gh project field-list`; it degrades to a **soft warning** (never an error) when the status field is absent, the project is deleted, or the `project` scope is missing, and is a clean no-op when `projects.enabled: false` or on a filesystem backend. The dual-homed board reads (`priority`/`effort`/`risk`) are performed by `te read`/`te list` per § Field storage contract. The **write** side below stays prose (the mutation tier). The read mapping is offline-tested against recorded fixtures; the Projects field/option **resolution against a live board is manually verified** (see the ticket's manual checklist).
+
 **ID resolution (session-cached, resolved once per engine invocation).** Project items are edited by node ID, not number, so resolve these up front and cache them:
 
 - **Project node ID:** `gh project view <projects.number> --owner <projects.owner> --format json -q .id`.
@@ -266,10 +268,10 @@ Implemented by **`te effort-cap --effort <e> --role <r>`**: when a ticket is wri
 
 ## § depends_on integrity
 
-Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Implemented by **`te deps check <id> --depends-on <ids> [--slate <ids>]`** (filesystem here; the github graph source lands in TE-004, feeding the *same* cycle walk):
+Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Implemented by **`te deps check <id> --depends-on <ids> [--slate <ids>]`** on both backends, feeding the *same* cycle walk:
 
-- **Existence.** Every proposed dependency must resolve to a ticket file or a ledger entry. Exemption: IDs on the `--slate` list — in-flight siblings not yet written. Failure: `depends_on references <id>, which does not exist`.
-- **No cycles.** A depth-first walk from `<id>` over the ledger's `depends_on` edges plus the proposed edges; a node recurring on the current path is reported as the full chain (e.g. `IV-007 → IV-012 → IV-007`). Never follows `related`. The walk itself lives in `lib/deps.awk` and consumes a flat `id<TAB>dep` edge list, so it is runnable standalone and shared with the github path. Failure: `depends_on cycle: <chain>`.
+- **Existence.** Every proposed dependency must resolve to a ticket file or a ledger entry (filesystem), or to an issue in the graph (github). Exemption: IDs on the `--slate` list — in-flight siblings not yet written. Failure: `depends_on references <id>, which does not exist`.
+- **No cycles.** A depth-first walk from `<id>` over the `depends_on` edges (ledger on filesystem; one `gh issue list --state all` rendering `number<TAB>blockedBy` on github, closed issues included) plus the proposed edges; a node recurring on the current path is reported as the full chain (e.g. `IV-007 → IV-012 → IV-007`). Never follows `related`. The walk lives in `lib/deps.awk` and consumes a flat `id<TAB>dep` edge list — implemented exactly once, only the graph source differs. On github, `gh` < 2.94 (no `blockedBy`) hard-fails with a pointed version message rather than a silent empty. Failure: `depends_on cycle: <chain>`.
 - **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
 
 Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
@@ -376,10 +378,11 @@ Every operation below calls this first. Cache for the duration of the engine inv
 
 ### `read_artifact(id)`
 
-Implemented by **`te read <id>`** on the filesystem backend (github lands in TE-004, conforming to the identical schema below).
+Implemented by **`te read <id>`** on both backends, emitting the identical schema below.
 
 - **Input**: ticket ID.
 - **Procedure (filesystem)**: locate `<id>-*.md` across the stage folders (stage = the folder's stage key); slice frontmatter (parsed **opaquely** — a human title may contain `#`, `[`, `"`; a value of `null` normalizes to empty) from the body (sliced byte-exact, so trailing whitespace and a missing final newline round-trip); merge the ticket's ledger entry (`depends_on`, `related`, `milestone`; absent entry → empty). A ledger-resident field found in frontmatter is drift: the ledger wins and the stray name is listed in `drift`.
+- **Procedure (github)**: one `gh issue view` rendered with `gh --template` (Go templates → flat lines, no jq/JSON-in-awk). `stage` reverse-maps the issue's status label to the config stage **key** (a **closed** issue → the terminal stage key, ignoring any stale label); `type` from the native issue type via `type_map` else the `type:` label; `priority`/`effort`/`risk` board-first-then-label (`projects.enabled`); `milestone` native title else `milestone:` label; `depends_on` from `blockedBy`; `related` from the body's `Related:` line; `claimed_by` from the assignee; `claimed_at` from the most recent `assigned` timeline event. GH has no frontmatter, so `drift` is never emitted.
 - **The uniform field view (FROZEN — TE-004's github path emits this exact shape).** Flat `key=value` in this fixed order, then the body after a `---BODY---` sentinel:
 
   ```
@@ -395,10 +398,11 @@ Implemented by **`te read <id>`** on the filesystem backend (github lands in TE-
 
 ### `list_artifacts(role, filters={})`
 
-Implemented by **`te list <role> [--priority] [--effort] [--type] [--milestone] [--depends-satisfied]`** on the filesystem backend (github in TE-004).
+Implemented by **`te list <role> [--priority] [--effort] [--type] [--milestone] [--depends-satisfied]`** on both backends.
 
 - **Input**: role name, optional filters (`priority`, `effort`, `type`, `milestone`, `depends_satisfied: bool`).
-- **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, exclude any artifact whose `depends_on` includes a non-terminal ID — terminality comes from one `id → stage` index built by a single folder scan, and `depends_on` from one ledger read (never by opening every candidate's body). A missing dependency reads as non-terminal (excluded — the safe direction). An empty or absent stage yields no output, exit 0.
+- **Procedure (filesystem)**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, exclude any artifact whose `depends_on` includes a non-terminal ID — terminality comes from one `id → stage` index built by a single folder scan, and `depends_on` from one ledger read (never by opening every candidate's body). A missing dependency reads as non-terminal (excluded — the safe direction). An empty or absent stage yields no output, exit 0.
+- **Procedure (github)**: one `gh issue list --state all` (explicit high `--limit`, never the 30-row default) supplies every summary plus `blockedBy` (so `--depends-satisfied` needs no per-issue fetch; a dep is satisfied iff its issue is CLOSED). With `projects.enabled: true`, a **second** call — one `gh project item-list` joined by issue URL — supplies the board-homed `priority`/`effort`/`risk` (labels are not written while the board is live); projects disabled → label read only, no project calls. Two calls total either way, never per-issue.
 - **Returns**: one summary block per ticket (`id, title, priority, effort, type, milestone, claimed_by, claimed_at, created`), blocks separated by a blank line. `claimed_by`/`claimed_at` are carried so `/ticket:pick` step 0's stale-claim split works.
 
 ### `create_artifact(spec, target_role)`
@@ -491,10 +495,11 @@ Note: closure source stage is `review` if a review stage exists; otherwise `in_p
 
 ### `scan_milestone_state(version=null)`
 
-Implemented by **`te milestone scan [--version V]`** on the filesystem backend (github `native`/`labels` in TE-004).
+Implemented by **`te milestone scan [--version V]`** on both backends.
 
 - **Input**: optional version filter.
-- **Procedure (filesystem)**: `none` (or `native` on a filesystem backend) → empty, exit 0. `trackers` (incl. `auto`) → read the tracker files in the planned_active/shipped folders (frontmatter `type: milestone`, `version`, `status`); per version emit `tracker_status`, `tracker_folder`, `expected_status`, `expected_folder`, `drift`, and the ticket count per role (`count.pickable/in_progress/review/terminal`) — milestone assignment read from the **ledger** (not frontmatter), each ticket's stage from its file location, expected status per § Milestone handling. `labels` → the ledger milestone distribution (`version` + `count`), no tracker/drift.
+- **Procedure (filesystem)**: `none` (or `native` on a filesystem backend) → empty, exit 0. `trackers` (incl. `auto`) → read the tracker files in the planned_active/shipped folders (frontmatter `type: milestone`, `version`, `status`); per version emit `tracker_status`, `tracker_folder`, `expected_status`, `expected_folder`, `drift`, and the ticket count per role (`count.inbox/pickable/in_progress/review/terminal`) — milestone assignment read from the **ledger** (not frontmatter), each ticket's stage from its file location, expected status per § Milestone handling. `labels` → the ledger milestone distribution (`version` + `count`), no tracker/drift.
+- **Procedure (github)**: `native` (incl. `auto`) → one `gh api …/milestones?state=all` → per milestone `state`, `open_issues`, `closed_issues`, and `drift` (all issues closed but the milestone still open). `labels` → the `milestone:` label distribution from the issue list. `none` → empty, exit 0.
 - **Returns**: the per-version blocks above.
 
 ### `apply_milestone_flip(version, target_status)`

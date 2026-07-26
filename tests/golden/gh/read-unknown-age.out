@@ -1,0 +1,17 @@
+id=51
+stage=in-progress
+type=tech
+title=Unknown age
+priority=P1
+effort=
+risk=
+milestone=
+created=2026-06-02T10:00:00Z
+claimed_by=bob
+claimed_at=
+closed_as=
+depends_on=
+related=
+---BODY---
+body
+--- exit: 0

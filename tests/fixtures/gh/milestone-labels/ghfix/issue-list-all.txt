@@ -1,0 +1,2 @@
+42AOPEN2026-07-01T10:00:00Zmilestone:v2,type:techhttps://github.com/honey/bee/issues/42
+43BOPEN2026-07-02T10:00:00Zmilestone:v2,type:techhttps://github.com/honey/bee/issues/43

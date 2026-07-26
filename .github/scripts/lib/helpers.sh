@@ -224,10 +224,7 @@ cmd_deps_check() {
   fi
   load_config "$cfg" || return 1
   local backend; backend=$(cfg_get backend.type)
-  if [ "$backend" != "filesystem" ]; then
-    echo "ok=true"; echo "note=deps check on the $backend backend lands in TE-004 (graph source differs; the walk is shared)"
-    return 0
-  fi
+  if [ "$backend" = "github" ]; then cmd_deps_check_gh "$id" "$deps" "$slate"; return; fi
   _ledger_flatten "$(_ledger_path)" || return 1
   deps=$(printf '%s' "$deps" | tr ',' ' ')
   slate=$(printf '%s' "$slate" | tr ',' ' ')

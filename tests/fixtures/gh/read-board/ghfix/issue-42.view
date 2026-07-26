@@ -1,0 +1,13 @@
+number=42
+title=Board fields
+state=OPEN
+stateReason=
+createdAt=2026-07-01T10:00:00Z
+issueType=Feature
+assignee=
+milestone=v1
+blockedBy=
+labels=status:in-progress,type:feature,prio:P3,effort:S,risk:low
+url=https://github.com/honey/bee/issues/42
+---BODY---
+body

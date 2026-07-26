@@ -1,0 +1,3 @@
+42Add bee hiveOPEN2026-07-01T10:00:00ZFeaturealicev150status:in-progress,type:feature,prio:P2https://github.com/honey/bee/issues/42
+60Backlog itemOPEN2026-07-05T10:00:00Zstatus:backlog,type:tech,prio:P3https://github.com/honey/bee/issues/60
+50Closed oneCLOSEDCOMPLETED2026-06-01T10:00:00Zstatus:done,type:techhttps://github.com/honey/bee/issues/50
