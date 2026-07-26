@@ -39,3 +39,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: te golden tests
         run: scripts/test-te.sh
+      - name: example flavors — end-to-end smoke
+        run: scripts/test-examples.sh
+      - name: example flavors — no scaffolder drift
+        run: |
+          scripts/gen-examples.sh >/dev/null
+          git diff --exit-code -- examples/ \
+            || { echo "examples/ is stale — run scripts/gen-examples.sh and commit."; exit 1; }

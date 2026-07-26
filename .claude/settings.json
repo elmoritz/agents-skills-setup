@@ -3,7 +3,10 @@
     "allow": [
       "Bash(.claude/scripts/te:*)",
       "Bash(scripts/test-te.sh:*)",
-      "Bash(scripts/check-bundle-sync.sh:*)"
+      "Bash(scripts/check-bundle-sync.sh:*)",
+      "Bash(scripts/te-scaffold.sh:*)",
+      "Bash(scripts/gen-examples.sh:*)",
+      "Bash(scripts/test-examples.sh:*)"
     ]
   }
 }

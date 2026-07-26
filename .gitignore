@@ -1,2 +1,5 @@
 # macOS
 .DS_Store
+
+# throwaway state written by scripts/live-gh-check.sh
+.live-gh-check.state
