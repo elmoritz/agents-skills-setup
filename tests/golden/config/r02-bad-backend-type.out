@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=backend.type must be 'filesystem' or 'github', got 'sqlite'.
+recovery=fix tests/fixtures/config/r02-bad-backend-type/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

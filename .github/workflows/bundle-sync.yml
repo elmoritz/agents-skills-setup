@@ -25,3 +25,17 @@ jobs:
             fi
           fi
           scripts/check-bundle-sync.sh --base "$BASE...HEAD"
+
+  # The te CLI is bash 3.2 + BSD awk. ubuntu-latest ships gawk + bash 5, so it
+  # structurally cannot catch a gawk-ism or a bash-4+ construct — macos-latest
+  # is what actually enforces the baseline. Run the golden tests on both.
+  test-te:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: te golden tests
+        run: scripts/test-te.sh

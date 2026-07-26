@@ -44,32 +44,19 @@ These primitives operate on any artifact type. Today the only live type is `tick
 
 ## § Config: discover, load, validate
 
-**Discovery.** Walk up from `cwd` looking for `.claude/config.yaml`. First match wins. Stop at filesystem root. If no match: **hard fail** with `"No .claude/config.yaml found between <cwd> and /. Run /ticket:init to bootstrap one."`
+Discovery, YAML parsing, and all 18 validation rules are **implemented by the `te` CLI** (`.claude/scripts/te`), not re-applied from prose. The rule list once lived here as 18 numbered checks; it now lives as code with a golden-file test per rule (`scripts/test-te.sh`). This section is the **contract**; `te config validate` is the authority, and there is no prose fallback — a missing or non-executable `te` is a hard fail (see the exec-bit precondition below).
 
-**Loading.** Read the YAML; parse into a structured value. On parse error: `"Could not parse .claude/config.yaml: <yaml parser error with line>"`.
+**Operation.** `te config validate [path]` — reads only; never touches the working tree.
 
-**Validation.** Apply these checks in order. Each failure is line-pointed where possible. Never proceed past the first failure.
+- **Discovery.** With no path, `te` walks up from `cwd` for `.claude/config.yaml` (first match wins; stops at `/`). Not found → the failure shape with `where=discovery` and `"No .claude/config.yaml found between <cwd> and /."` A path may be passed explicitly (`/ticket:init` step 7 passes the file it just wrote).
+- **Parse.** The YAML subset `/ticket:init` generates: 2-space-indented block maps and lists, `key: value` scalars (bare / `"double"` / `'single'` quoted), inline flow lists (`roles: [pickable]`, `effort.allowed: [S, M]`), and `#` comments. Anything outside the subset — tabs in indentation, anchors/aliases (`& *`), tags (`!`), block scalars (`|`/`>`), flow maps (`{}`), nested flow (`[[`) — is a **hard parse error** (`where=parse`) with `"Could not parse <path>: <reason> at line <n>"`. A hand-edited config that drifts out of subset dies pointed, never as a silent misparse.
+- **Validate.** All 18 § Config rules, in order, each stopping at the first failure with the exact spec message. Rules cover: `version`; `backend.type` and its block; `lifecycle.stages` shape, unique keys, and exactly-one-of the required roles `[pickable, in_progress, terminal]` (with `inbox`/`review` optional, at most one each); `types` and each type's `required_body_sections` (a list that **may be empty** — empty is not absent); `effort.allowed` / `pickable_allowed` subset rules; `milestones.strategy` and its backend conditionals (`trackers` filesystem-only, `native` github-only); `projects` linkage (github-only; `number`/`owner` required when enabled; `status_map` keys ⊆ roles; `field_map` keys ⊆ `{priority, effort, risk}`); `claim.stale_after` duration; `backend.github.type_map` (github-only, keys ⊆ types); `research.agents` / `review.agents` name resolution; and `verification.max_loop_rounds`. Defaults the code injects when a key is absent: `claim.stale_after`→`24h`, `verification.max_loop_rounds`→`3`, and (projects enabled) `projects.status_field`→`Status`, `field_map`→`Priority`/`Effort`/`Risk`. The authoritative rule text and message strings are the code and its goldens.
 
-1. `version: 1` required. Other values → `"Unsupported config version <v>; this engine expects 1."`
-2. `backend.type` ∈ {`filesystem`, `github`}.
-3. The matching `backend.<type>:` block exists.
-4. `lifecycle.stages` is a non-empty list. Each entry has `key`, `label`, `roles`, and a backend-specific sub-block matching `backend.type`.
-5. Stage keys are unique.
-6. **Exactly one stage carries each of the required roles** `[pickable, in_progress, terminal]`. The roles `inbox` and `review` are optional; at most one stage may carry each.
-7. Unknown role names → `"lifecycle.stages[<i>].roles: unknown role '<x>'. Valid roles: inbox, pickable, in_progress, review, terminal."`
-8. `types` map has at least one entry. Each entry has `required_body_sections` (list, may be empty).
-9. `effort.allowed` and `effort.pickable_allowed` are subsets of the canonical set; `pickable_allowed ⊆ allowed`.
-10. `milestones.strategy` ∈ {`auto`, `trackers`, `native`, `labels`, `none`}.
-11. On `backend.type: github`, validate `milestones.strategy != trackers` (trackers are filesystem-only).
-12. On `backend.type: filesystem`, validate `milestones.strategy != native` (native is GitHub-only).
-13. **Project linkage is github-only.** A missing `projects:` block is treated as `enabled: false`. On `backend.type: filesystem`, if `projects.enabled` is truthy → `"projects linkage is github-only; set projects.enabled: false on the filesystem backend."` On `backend.type: github` with `projects.enabled: true`: `projects.number` (integer) and `projects.owner` (string) are required; `projects.status_field` defaults to `"Status"` if absent; `projects.status_map`, if present, is a map whose keys are a subset of the declared stage roles and whose values are non-empty strings. An unknown role key → `"projects.status_map: unknown role '<x>'."` `projects.field_map`, if present, is a map whose keys are a subset of `{priority, effort, risk}` and whose values are non-empty board field names; absent keys default to `Priority` / `Effort` / `Risk`.
-14. **`claim.stale_after` is optional.** If present, it must be a duration `<positive-int>(h|d)` (e.g. `24h`, `3d`). Absent → the engine uses `24h`. Malformed → `"claim.stale_after: expected a duration like 24h or 3d, got '<x>'."`
-15. **`backend.github.type_map` is optional** (github only). If present, a map whose keys are a subset of the `types:` keys and whose values are non-empty native issue-type names. On `backend.type: filesystem` a `type_map` → `"backend.github.type_map is github-only."` Config types absent from the map fall back to the `type:` label.
-16. **`research.agents` is optional.** If present, a list of `{ name, consult }` entries: `name` must resolve to an agent definition in the bundle's agents directory (→ `"research.agents: '<name>' does not resolve to an agent file in the agents directory"`), `consult` is a non-empty one-line routing hint. Duplicate names → error.
-17. **`review.agents` is optional.** If present, a non-empty list of agent names, each resolving to an agent definition in the bundle's agents directory. Absent → the engine resolves the default `[code-reviewer, test-adequacy-reviewer]` **without** requiring those files to exist (the caller degrades gracefully if they're missing).
-18. **`verification.max_loop_rounds` is optional.** If present, a positive integer. Absent → `3`. Malformed → `"verification.max_loop_rounds: expected a positive integer, got '<x>'."`
+**Output.** Flat `key=value` lines on stdout: the resolved config in document order, then the injected defaults, then the derived `roles.<role>=<stage.key>` map. Exit `0` on success; `1` on a discovery/parse/validation failure (the `ok=false` / `where` / `failed` / `recovery` shape on stdout); `2` on internal error.
 
-**Output**: a resolved config value the rest of the engine reads. Includes a derived `roles → stage` map.
+**Agent resolution.** The agent-name rules are checked against the agents directory beside the config (`<dir-of-config>/agents/`). Awk cannot stat the filesystem, so the shell half of `te` globs that directory (suffix-agnostic across `.md` / `.agent.md`) and feeds `te` the set of existing agent basenames.
+
+**Exec-bit precondition.** If `te` itself lacks the exec bit, the shell returns `126` **before** `te` runs — it cannot report on its own missing bit. Every caller (`load_and_validate()`, `/ticket:init` step 7) MUST check `[ -x .claude/scripts/te ]` first and, if it fails, emit `"te is present but not executable at .claude/scripts/te — run 'chmod +x .claude/scripts/te'; a bundle copied without exec bits is the usual cause."` The test harness asserts that only `te` is executable, so a bad copy also fails CI.
 
 ## § Role resolution
 
@@ -388,7 +375,7 @@ The operations compose Part 1 primitives plus Part 2 workflow rules.
 
 - **Input**: none.
 - **Reads**: `.claude/config.yaml` via § Config discovery.
-- **Procedure**: discover → parse → validate per § Config. On the filesystem backend, also load and validate the ledger per § Ledger.
+- **Procedure**: verify `te` is executable (`[ -x .claude/scripts/te ]`; on failure emit the exec-bit message from § Config and hard-fail), then run `te config validate` — discover → parse → validate per § Config. On the filesystem backend, also load and validate the ledger per § Ledger.
 - **Returns**: resolved config value (plus the parsed ledger on FS), or hard-fail if invalid.
 
 Every operation below calls this first. Cache for the duration of the engine invocation; never longer.

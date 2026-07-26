@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=claim.stale_after: expected a duration like 24h or 3d, got 'soon'.
+recovery=fix tests/fixtures/config/r14-bad-stale/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

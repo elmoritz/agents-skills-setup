@@ -342,7 +342,9 @@ Show the assembled YAML to the user. Gate (numbered list; user replies with the 
 
 1. **Write `.github/config.yaml`** with the assembled content.
 
-   Then follow `../ticket-engine/SKILL.md` and run its `load_and_validate()` operation against the written file to confirm it parses and passes schema validation. If it fails, surface the exact error and **stop before any side effects or commit** — init assembled the YAML, so a failure here is an init bug worth showing, not user error. The invalid file is left uncommitted for the user to inspect or remove.
+   **Verify `te` is executable** before validating: `[ -x .github/scripts/te ]`. If it is present but not executable (a bundle copied without exec bits — the shell would otherwise return 126 before `te` runs, giving a confusing error), run `chmod +x .github/scripts/te` to repair it and note the fix; if it is missing entirely, stop with `"te is missing at .github/scripts/te — the .github bundle is incomplete; re-copy it intact."`
+
+   Then follow `../ticket-engine/SKILL.md` and run its `load_and_validate()` operation against the written file — it runs `te config validate` — to confirm it parses and passes schema validation. If it fails, surface the exact error and **stop before any side effects or commit** — init assembled the YAML, so a failure here is an init bug worth showing, not user error. The invalid file is left uncommitted for the user to inspect or remove.
 
 2. **Backend side effects.**
 

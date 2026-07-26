@@ -1,0 +1,5 @@
+ok=false
+where=parse
+failed=Could not parse tests/fixtures/config/parse-tab/config.yaml: tab in indentation (use spaces) at line 3
+recovery=fix the YAML at the pointed line — it drifted outside the supported subset — or re-run /ticket:init
+--- exit: 1

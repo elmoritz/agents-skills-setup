@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=at most one stage may carry the 'review' role (found 2).
+recovery=fix tests/fixtures/config/r06b-two-review/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

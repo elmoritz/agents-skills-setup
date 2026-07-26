@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# te — ticket-engine CLI. The deterministic half of ticket-engine/SKILL.md,
+# extracted so validation, parsing, and (later) reads are testable code rather
+# than prose re-applied by a language model on every /ticket:* invocation.
+#
+# Design (TE-001):
+#   - bash 3.2 + POSIX/BSD awk only. No gawk-isms, no bash 4+, no dependencies.
+#   - Awk programs live in lib/*.awk, invoked `awk -f` — never heredocs.
+#   - Output: flat key=value on stdout; multi-line values follow a ---BODY---
+#     sentinel (used by the read path in TE-003). Exit 0 ok / 1 validation
+#     failure / 2 internal error.
+#   - The bundle dir is derived from this script's own path, so the .claude and
+#     .github copies are byte-identical (the sync gate's directory-pair check
+#     needs no normalization for them).
+#   - Every subcommand accepts --dry-run; read subcommands ignore it. Each
+#     declares its working-tree discipline in --help. This slate is read-only:
+#     no subcommand touches the working tree.
+#
+# NOTE ON THE EXEC BIT: if this file itself lacks +x, the shell returns 126
+# ("permission denied") before a single line here runs — te cannot report on its
+# own missing exec bit. Callers (ticket-engine load_and_validate, /ticket:init
+# step 7) MUST `[ -x <path>/te ]` before invoking and emit the pointed message.
+# The test harness asserts the exec bit so a bad bundle copy fails loudly.
+
+set -euo pipefail
+
+# --- self / bundle detection (path-derived, so both copies are identical) ---
+TE_SELF=$(cd "$(dirname "$0")" && pwd)
+TE_BUNDLE=$(dirname "$TE_SELF")
+TE_LIB="$TE_SELF/lib"
+export TE_SELF TE_BUNDLE
+
+if [ ! -r "$TE_LIB/common.sh" ]; then
+  printf 'ok=false\nwhere=internal\nfailed=cannot read %s\nrecovery=the te bundle is incomplete; re-copy .claude/scripts (or .github/scripts) intact\n' \
+    "$TE_LIB/common.sh" >&2
+  exit 2
+fi
+# shellcheck source=lib/common.sh
+. "$TE_LIB/common.sh"
+
+DRY_RUN=0
+
+usage() {
+  cat <<EOF
+te — ticket-engine CLI
+
+Usage:
+  te config validate [path] [--dry-run]   Validate .claude/config.yaml (§ Config,
+                                          18 rules). Prints the resolved config +
+                                          roles->stage map on success. [reads only]
+  te --help                               This message.
+
+Working-tree discipline: every subcommand in this build is READ-ONLY — none
+touches the working tree. --dry-run is accepted everywhere and ignored by reads.
+
+Exit codes: 0 ok · 1 validation/parse failure · 2 internal error.
+EOF
+}
+
+# Strip --dry-run from the argument list (accepted everywhere, ignored by reads).
+strip_flags() {
+  local a
+  ARGS=()
+  for a in "$@"; do
+    case "$a" in
+      --dry-run) DRY_RUN=1 ;;
+      *) ARGS+=("$a") ;;
+    esac
+  done
+}
+
+cmd_config_validate() {
+  local cfg="${1:-}"
+  if [ -z "$cfg" ]; then
+    if ! cfg=$(te_discover_config); then
+      te_emit_fail "discovery" \
+        "No .claude/config.yaml found between $PWD and /." \
+        "Run /ticket:init to bootstrap one, or pass the config path explicitly."
+      exit 1
+    fi
+  fi
+  if [ ! -f "$cfg" ]; then
+    te_emit_fail "discovery" "config file not found: $cfg" \
+      "check the path, or run /ticket:init"
+    exit 1
+  fi
+
+  local flat err combined out rc
+  TE_TMPD=$(mktemp -d) || te_internal "mktemp failed"
+  trap 'rm -rf "$TE_TMPD"' EXIT
+  flat="$TE_TMPD/flat"; err="$TE_TMPD/err"; combined="$TE_TMPD/combined"
+
+  set +e
+  awk -f "$TE_LIB/config.awk" -v path="$cfg" "$cfg" >"$flat" 2>"$err"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "parse" "$(cat "$err")" \
+      "fix the YAML at the pointed line — it drifted outside the supported subset — or re-run /ticket:init"
+    return 1
+  fi
+
+  cat "$flat" >"$combined"
+  te_agent_records "$(dirname "$cfg")/agents" >>"$combined"
+
+  set +e
+  out=$(awk -f "$TE_LIB/validate.awk" -v path="$cfg" "$combined")
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "validation" "$out" \
+      "fix ${cfg} per the message, then re-run — the engine never proceeds past a config error"
+    return 1
+  fi
+  printf '%s\n' "$out"
+}
+
+main() {
+  if [ "$#" -eq 0 ]; then usage >&2; exit 2; fi
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+  esac
+
+  local group="$1"; shift
+  case "$group" in
+    config)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        validate)
+          strip_flags "$@"
+          cmd_config_validate "${ARGS[0]:-}" || exit 1
+          ;;
+        *) printf 'te: unknown config subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    *) printf 'te: unknown subcommand: %s\n' "$group" >&2; usage >&2; exit 2 ;;
+  esac
+}
+
+main "$@"

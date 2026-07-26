@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=Unsupported config version 2; this engine expects 1.
+recovery=fix tests/fixtures/config/r01-bad-version/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

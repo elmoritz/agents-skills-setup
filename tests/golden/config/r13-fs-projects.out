@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=projects linkage is github-only; set projects.enabled: false on the filesystem backend.
+recovery=fix tests/fixtures/config/r13-fs-projects/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

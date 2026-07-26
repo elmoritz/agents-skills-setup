@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=projects.owner (string) is required when projects.enabled: true.
+recovery=fix tests/fixtures/config/r13e-gh-missing-owner/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

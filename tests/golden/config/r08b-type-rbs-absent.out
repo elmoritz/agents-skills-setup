@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=types.note: required_body_sections is required (a list, may be empty).
+recovery=fix tests/fixtures/config/r08b-type-rbs-absent/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

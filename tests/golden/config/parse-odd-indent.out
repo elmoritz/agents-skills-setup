@@ -1,0 +1,5 @@
+ok=false
+where=parse
+failed=Could not parse tests/fixtures/config/parse-odd-indent/config.yaml: odd indentation (expected multiples of 2) at line 3
+recovery=fix the YAML at the pointed line — it drifted outside the supported subset — or re-run /ticket:init
+--- exit: 1

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=milestones.strategy: trackers is filesystem-only.
+recovery=fix tests/fixtures/config/r11-gh-trackers/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

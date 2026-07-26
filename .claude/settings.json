@@ -1,6 +1,9 @@
 {
   "permissions": {
     "allow": [
+      "Bash(.claude/scripts/te:*)",
+      "Bash(scripts/test-te.sh:*)",
+      "Bash(scripts/check-bundle-sync.sh:*)"
     ]
   }
 }
