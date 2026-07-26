@@ -71,17 +71,26 @@ if [ "$MODE" = cleanup ]; then
   # shellcheck disable=SC1090
   . "$STATE"
   : "${LGC_REPO:?state file missing LGC_REPO}" "${LGC_SENTINEL:?state file missing LGC_SENTINEL}"
-  echo "Verifying $LGC_REPO carries this tool's sentinel before deleting…"
+  echo "Verifying $LGC_REPO carries this tool's sentinel before deleting..."
   desc=$(gh repo view "$LGC_REPO" --json description -q .description 2>/dev/null || true)
   if [ "$desc" != "$LGC_SENTINEL" ]; then
     die "refusing to delete $LGC_REPO — its description does not match the recorded sentinel (not created by this run, or already gone)"
   fi
   if [ "${LGC_PROJECT:-}" != "" ]; then
-    echo "Deleting Projects v2 board #$LGC_PROJECT (owner ${LGC_OWNER})…"
-    gh project delete "$LGC_PROJECT" --owner "$LGC_OWNER" || echo "  (board delete failed — remove it manually)"
+    # Projects v2 boards live at the owner level and outlive the repo. Resolve by
+    # TITLE (unique per run) rather than trusting the stored number — the number
+    # reported at create time doesn't always resolve on delete.
+    stamp=${LGC_REPO##*te-live-check-}
+    title="te-live-check $stamp"
+    num=$(gh project list --owner "$LGC_OWNER" --format json \
+            -q ".projects[] | select(.title==\"$title\") | .number" 2>/dev/null | head -1)
+    [ -n "$num" ] || num=$LGC_PROJECT
+    echo "Deleting Projects v2 board '$title' (#$num, owner $LGC_OWNER)..."
+    gh project delete "$num" --owner "$LGC_OWNER" >/dev/null 2>&1 \
+      || echo "  (board delete failed — find + remove it: gh project list --owner $LGC_OWNER ; gh project delete <n> --owner $LGC_OWNER)"
   fi
-  echo "Deleting repo $LGC_REPO…"
-  gh repo delete "$LGC_REPO" --yes
+  echo "Deleting repo $LGC_REPO..."
+  gh repo delete "$LGC_REPO" --yes || die "repo delete failed — state kept at $STATE for retry"
   rm -f "$STATE"
   echo "cleaned up."
   exit 0
@@ -120,7 +129,7 @@ fi
 require_scopes
 gh repo view "$REPO" >/dev/null 2>&1 && die "safety stop: $REPO already exists (name collision). Re-run to get a new name."
 
-echo "Creating $REPO …"
+echo "Creating $REPO ..."
 gh repo create "$REPO" --private --description "$SENTINEL" >/dev/null
 # record state IMMEDIATELY so a mid-run failure is cleanable
 printf 'LGC_REPO=%s\nLGC_OWNER=%s\nLGC_SENTINEL=%q\n' "$REPO" "$OWNER" "$SENTINEL" > "$STATE"
@@ -128,7 +137,7 @@ printf 'LGC_REPO=%s\nLGC_OWNER=%s\nLGC_SENTINEL=%q\n' "$REPO" "$OWNER" "$SENTINE
 trap 'echo "" >&2; echo "live-gh-check: FAILED after creating resources. Tear down with:" >&2; echo "  scripts/live-gh-check.sh --cleanup" >&2' ERR
 
 mklabel() { gh label create "$1" --repo "$REPO" --color "$2" --force >/dev/null; }
-echo "Creating labels …"
+echo "Creating labels ..."
 for l in backlog in-progress in-review done; do mklabel "status:$l" 888888; done
 for t in feature bug tech spike; do mklabel "type:$t" 1d76db; done
 for p in P0 P1 P2 P3; do mklabel "prio:$p" d93f0b; done
@@ -136,10 +145,10 @@ for e in S M L XL; do mklabel "effort:$e" fef2c0; done
 for r in low med high; do mklabel "risk:$r" c2e0c6; done
 mklabel "milestone:v1" 0e8a16
 
-echo "Creating milestone v1 …"
+echo "Creating milestone v1 ..."
 gh api "repos/$REPO/milestones" -f title=v1 -f state=open >/dev/null 2>&1 || true
 
-echo "Creating issues (all in backlog; the lifecycle runs below) …"
+echo "Creating issues (all in backlog; the lifecycle runs below) ..."
 A=$(gh issue create --repo "$REPO" --title "Blocker task" \
       --body "The blocker." --label status:backlog --label type:feature --label prio:P2 \
       --milestone v1 | sed 's#.*/##')
@@ -150,7 +159,7 @@ gh issue edit "$B" --repo "$REPO" --add-blocked-by "$A" >/dev/null 2>&1 \
 
 PROJ=""
 if [ "$PROJECTS" -eq 1 ]; then
-  echo "Creating Projects v2 board …"
+  echo "Creating Projects v2 board ..."
   PROJ=$(gh project create --owner "$OWNER" --title "te-live-check $STAMP" --format json -q .number)
   printf 'LGC_PROJECT=%s\n' "$PROJ" >> "$STATE"
   for f in Priority Effort Risk; do
