@@ -62,13 +62,24 @@ tpl-web-researcher:.claude/references/research-agents/web-researcher.md:.github/
 "
 
 # Files that legitimately exist on one side only. Exact paths, or prefixes
-# ending in '/'. Any tracked file under .claude/, .github/skills/, or
-# .github/agents/ that is neither here nor in PAIRS fails the coverage check.
+# ending in '/'. Any tracked file under .claude/, .github/skills/,
+# .github/agents/, or .github/scripts/ that is neither here, in PAIRS, nor under
+# a DIR_PAIRS directory fails the coverage check.
 IGNORE="
 .claude/settings.json
 .claude/references/
 .claude/config.yaml
 .github/config.yaml
+"
+
+# name:claude-dir:github-dir — recursively mirrored directories. Every tracked
+# file under one side must exist under the other, be byte-identical, AND carry
+# the same git mode (so a bundle copied without the te exec bit fails here, not
+# just in the test harness). The te CLI derives its bundle dir from its own path
+# (see .claude/scripts/te), so the two copies are byte-identical by construction
+# and need none of the normalize/canon machinery the file PAIRS rely on.
+DIR_PAIRS="
+scripts:.claude/scripts/:.github/scripts/
 "
 
 # Pairs whose two mirrors must be logic-identical (after frontmatter + fence
@@ -157,14 +168,19 @@ mode_equiv() {
 }
 
 check_coverage() {
-  # Every tracked file under the bundles must be in PAIRS or IGNORE, so a new
-  # file added to one bundle without a mirror is caught even though the
-  # pairing check (which only sees changed pairs) cannot see it.
-  local fail=0 f entry c g ignored pat
+  # Every tracked file under the bundles must be in PAIRS, under a DIR_PAIRS
+  # directory, or in IGNORE, so a new file added to one bundle without a mirror
+  # is caught even though the pairing check (which only sees changed pairs)
+  # cannot see it.
+  local fail=0 f entry c g cd gd ignored pat
   while IFS= read -r f; do
     for entry in $PAIRS; do
       IFS=: read -r _ c g <<<"$entry"
       [ "$f" = "$c" ] || [ "$f" = "$g" ] && continue 2
+    done
+    for entry in $DIR_PAIRS; do
+      IFS=: read -r _ cd gd <<<"$entry"
+      case "$f" in "$cd"*|"$gd"*) continue 2 ;; esac
     done
     ignored=0
     for pat in $IGNORE; do
@@ -174,9 +190,41 @@ check_coverage() {
       esac
     done
     [ "$ignored" -eq 1 ] && continue
-    echo "FAIL [coverage]: $f is in neither PAIRS nor IGNORE (scripts/check-bundle-sync.sh) — add a mirror + PAIRS entry, or list it in IGNORE."
+    echo "FAIL [coverage]: $f is in neither PAIRS, a DIR_PAIRS directory, nor IGNORE (scripts/check-bundle-sync.sh) — add a mirror, or list it in IGNORE."
     fail=1
-  done < <(git ls-files -- .claude .github/skills .github/agents)
+  done < <(git ls-files -- .claude .github/skills .github/agents .github/scripts)
+  return "$fail"
+}
+
+check_dir_pairs() {
+  # For each mirrored directory: every tracked file on one side must exist on
+  # the other, be byte-identical, and share the same git mode. This is the
+  # equivalence check the file PAIRS get, but by raw bytes — the two copies are
+  # meant to be identical, so there is nothing to normalize.
+  local fail=0 entry name cd gd f rel other m1 m2
+  for entry in $DIR_PAIRS; do
+    IFS=: read -r name cd gd <<<"$entry"
+    while IFS= read -r f; do
+      rel=${f#"$cd"}; other="$gd$rel"
+      if [ ! -f "$other" ]; then
+        echo "FAIL [dir:$name]: $f has no mirror at $other."; fail=1; continue
+      fi
+      if ! diff -q "$f" "$other" >/dev/null 2>&1; then
+        echo "FAIL [dir:$name]: $f and $other differ — the two copies must be byte-identical."; fail=1
+      fi
+      m1=$(git ls-files -s -- "$f"     | awk '{print $1}')
+      m2=$(git ls-files -s -- "$other" | awk '{print $1}')
+      if [ -n "$m1" ] && [ "$m1" != "$m2" ]; then
+        echo "FAIL [dir:$name]: mode $m1 ($f) != $m2 ($other) — the exec bit must match (only te is executable)."; fail=1
+      fi
+    done < <(git ls-files -- "$cd")
+    while IFS= read -r f; do
+      rel=${f#"$gd"}; other="$cd$rel"
+      if [ ! -f "$other" ]; then
+        echo "FAIL [dir:$name]: $f has no mirror at $other."; fail=1
+      fi
+    done < <(git ls-files -- "$gd")
+  done
   return "$fail"
 }
 
@@ -200,6 +248,7 @@ mode_check() {
   local source="${1:-}" changed fail=0
   check_coverage || fail=1
   check_equiv || fail=1
+  check_dir_pairs || fail=1
   case "$source" in
     --staged) changed=$(git diff --name-only --cached) ;;
     "")       changed=$(git diff --name-only HEAD) ;;
@@ -218,6 +267,23 @@ mode_check() {
       fi
       fail=1
     fi
+  done
+  # DIR_PAIRS pairing: a file changed under one mirrored dir but not the other.
+  local cd gd f mirror
+  for entry in $DIR_PAIRS; do
+    IFS=: read -r name cd gd <<<"$entry"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      case "$f" in
+        "$cd"*) mirror="$gd${f#"$cd"}" ;;
+        "$gd"*) mirror="$cd${f#"$gd"}" ;;
+        *) continue ;;
+      esac
+      if ! grep -qxF "$mirror" <<<"$changed"; then
+        echo "FAIL [dir:$name]: $f changed, but its mirror $mirror did not."
+        fail=1
+      fi
+    done < <(printf '%s\n' "$changed" | grep -E "^(${cd}|${gd})" || true)
   done
   if [ "$fail" -ne 0 ]; then
     cat >&2 <<'EOF'

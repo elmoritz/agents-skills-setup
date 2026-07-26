@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=exactly one stage must carry the 'terminal' role (found 0).
+recovery=fix tests/fixtures/config/r06-missing-role/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

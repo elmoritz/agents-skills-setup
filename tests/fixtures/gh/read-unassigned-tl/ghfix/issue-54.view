@@ -1,0 +1,13 @@
+number=54
+title=Unassigned
+state=OPEN
+stateReason=
+createdAt=2026-06-05T10:00:00Z
+issueType=
+assignee=
+milestone=
+blockedBy=
+labels=status:backlog,type:tech
+url=https://github.com/honey/bee/issues/54
+---BODY---
+body

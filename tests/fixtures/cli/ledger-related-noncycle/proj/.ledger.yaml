@@ -1,0 +1,4 @@
+TE-001:
+  depends_on: [TE-002]
+TE-002:
+  related: [TE-001]

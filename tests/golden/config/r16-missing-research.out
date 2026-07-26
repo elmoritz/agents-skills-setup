@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=research.agents: 'ghost-agent' does not resolve to an agent file in the agents directory
+recovery=fix tests/fixtures/config/r16-missing-research/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

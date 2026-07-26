@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=lifecycle.stages: duplicate stage key 'backlog'.
+recovery=fix tests/fixtures/config/r05-dup-stage-key/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

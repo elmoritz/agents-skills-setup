@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=lifecycle.stages[0]: missing 'label'.
+recovery=fix tests/fixtures/config/r04-stage-missing-label/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

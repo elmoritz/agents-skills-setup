@@ -1,0 +1,6 @@
+deps
+check
+3
+--depends-on
+1
+config.yaml

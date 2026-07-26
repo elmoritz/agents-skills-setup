@@ -1,0 +1,17 @@
+id=55
+stage=backlog
+type=tech
+title=NoNL related
+priority=
+effort=
+risk=
+milestone=
+created=2026-06-06T10:00:00Z
+claimed_by=
+claimed_at=
+closed_as=
+depends_on=
+related=7
+---BODY---
+Related: #7
+--- exit: 0

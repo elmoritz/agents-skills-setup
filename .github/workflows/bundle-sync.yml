@@ -9,7 +9,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -25,3 +25,28 @@ jobs:
             fi
           fi
           scripts/check-bundle-sync.sh --base "$BASE...HEAD"
+
+  # The te CLI is bash 3.2 + BSD awk. ubuntu-latest ships gawk + bash 5, so it
+  # structurally cannot catch a gawk-ism or a bash-4+ construct — macos-latest
+  # is what actually enforces the baseline. Run the golden tests on both.
+  test-te:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: te golden tests
+        run: scripts/test-te.sh
+      - name: example flavors — end-to-end smoke
+        run: scripts/test-examples.sh
+      - name: per-skill engine operations (all flavors)
+        run: scripts/test-skill-ops.sh
+      - name: full workflow lifecycle (filesystem write path)
+        run: scripts/test-lifecycle.sh
+      - name: example flavors — no scaffolder drift
+        run: |
+          scripts/gen-examples.sh >/dev/null
+          git diff --exit-code -- examples/ \
+            || { echo "examples/ is stale — run scripts/gen-examples.sh and commit."; exit 1; }

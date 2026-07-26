@@ -1,0 +1,5 @@
+# Machine-owned by the ticket-engine. Do not hand-edit; the engine validates on load.
+TE-001:
+  depends_on: [TE-003]
+TE-002:
+TE-003:

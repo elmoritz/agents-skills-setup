@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=research.agents entries must be name/consult maps, not bare names.
+recovery=fix tests/fixtures/config/r16b-research-flowlist/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=verification.max_loop_rounds: expected a positive integer, got 'zero'.
+recovery=fix tests/fixtures/config/r18-bad-max-rounds/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

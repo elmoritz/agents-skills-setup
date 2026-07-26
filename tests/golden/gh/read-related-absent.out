@@ -1,0 +1,17 @@
+id=52
+stage=backlog
+type=tech
+title=No related
+priority=
+effort=
+risk=
+milestone=
+created=2026-06-03T10:00:00Z
+claimed_by=
+claimed_at=
+closed_as=
+depends_on=
+related=
+---BODY---
+Just prose, no related line.
+--- exit: 0

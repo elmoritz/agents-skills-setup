@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=effort.pickable_allowed: 'L' is not in effort.allowed.
+recovery=fix tests/fixtures/config/r09c-pickable-not-subset/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

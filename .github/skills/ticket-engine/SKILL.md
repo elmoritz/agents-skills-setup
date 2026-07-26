@@ -50,32 +50,19 @@ These primitives operate on any artifact type. Today the only live type is `tick
 
 ## § Config: discover, load, validate
 
-**Discovery.** Walk up from `cwd` looking for `.github/config.yaml`. First match wins. Stop at filesystem root. If no match: **hard fail** with `"No .github/config.yaml found between <cwd> and /. Run /ticket-init to bootstrap one."`
+Discovery, YAML parsing, and all 18 validation rules are **implemented by the `te` CLI** (`.github/scripts/te`), not re-applied from prose. The rule list once lived here as 18 numbered checks; it now lives as code with a golden-file test per rule (`scripts/test-te.sh`). This section is the **contract**; `te config validate` is the authority, and there is no prose fallback — a missing or non-executable `te` is a hard fail (see the exec-bit precondition below).
 
-**Loading.** Read the YAML; parse into a structured value. On parse error: `"Could not parse .github/config.yaml: <yaml parser error with line>"`.
+**Operation.** `te config validate [path]` — reads only; never touches the working tree.
 
-**Validation.** Apply these checks in order. Each failure is line-pointed where possible. Never proceed past the first failure.
+- **Discovery.** With no path, `te` walks up from `cwd` for `.github/config.yaml` (first match wins; stops at `/`). Not found → the failure shape with `where=discovery` and `"No .github/config.yaml found between <cwd> and /."` A path may be passed explicitly (`/ticket-init` step 7 passes the file it just wrote).
+- **Parse.** The YAML subset `/ticket-init` generates: 2-space-indented block maps and lists, `key: value` scalars (bare / `"double"` / `'single'` quoted), inline flow lists (`roles: [pickable]`, `effort.allowed: [S, M]`), and `#` comments. Anything outside the subset — tabs in indentation, anchors/aliases (`& *`), tags (`!`), block scalars (`|`/`>`), flow maps (`{}`), nested flow (`[[`) — is a **hard parse error** (`where=parse`) with `"Could not parse <path>: <reason> at line <n>"`. A hand-edited config that drifts out of subset dies pointed, never as a silent misparse.
+- **Validate.** All 18 § Config rules, in order, each stopping at the first failure with the exact spec message. Rules cover: `version`; `backend.type` and its block; `lifecycle.stages` shape, unique keys, and exactly-one-of the required roles `[pickable, in_progress, terminal]` (with `inbox`/`review` optional, at most one each); `types` and each type's `required_body_sections` (a list that **may be empty** — empty is not absent); `effort.allowed` / `pickable_allowed` subset rules; `milestones.strategy` and its backend conditionals (`trackers` filesystem-only, `native` github-only); `projects` linkage (github-only; `number`/`owner` required when enabled; `status_map` keys ⊆ roles; `field_map` keys ⊆ `{priority, effort, risk}`); `claim.stale_after` duration; `backend.github.type_map` (github-only, keys ⊆ types); `research.agents` / `review.agents` name resolution; and `verification.max_loop_rounds`. Defaults the code injects when a key is absent: `claim.stale_after`→`24h`, `verification.max_loop_rounds`→`3`, and (projects enabled) `projects.status_field`→`Status`, `field_map`→`Priority`/`Effort`/`Risk`. The authoritative rule text and message strings are the code and its goldens.
 
-1. `version: 1` required. Other values → `"Unsupported config version <v>; this engine expects 1."`
-2. `backend.type` ∈ {`filesystem`, `github`}.
-3. The matching `backend.<type>:` block exists.
-4. `lifecycle.stages` is a non-empty list. Each entry has `key`, `label`, `roles`, and a backend-specific sub-block matching `backend.type`.
-5. Stage keys are unique.
-6. **Exactly one stage carries each of the required roles** `[pickable, in_progress, terminal]`. The roles `inbox` and `review` are optional; at most one stage may carry each.
-7. Unknown role names → `"lifecycle.stages[<i>].roles: unknown role '<x>'. Valid roles: inbox, pickable, in_progress, review, terminal."`
-8. `types` map has at least one entry. Each entry has `required_body_sections` (list, may be empty).
-9. `effort.allowed` and `effort.pickable_allowed` are subsets of the canonical set; `pickable_allowed ⊆ allowed`.
-10. `milestones.strategy` ∈ {`auto`, `trackers`, `native`, `labels`, `none`}.
-11. On `backend.type: github`, validate `milestones.strategy != trackers` (trackers are filesystem-only).
-12. On `backend.type: filesystem`, validate `milestones.strategy != native` (native is GitHub-only).
-13. **Project linkage is github-only.** A missing `projects:` block is treated as `enabled: false`. On `backend.type: filesystem`, if `projects.enabled` is truthy → `"projects linkage is github-only; set projects.enabled: false on the filesystem backend."` On `backend.type: github` with `projects.enabled: true`: `projects.number` (integer) and `projects.owner` (string) are required; `projects.status_field` defaults to `"Status"` if absent; `projects.status_map`, if present, is a map whose keys are a subset of the declared stage roles and whose values are non-empty strings. An unknown role key → `"projects.status_map: unknown role '<x>'."` `projects.field_map`, if present, is a map whose keys are a subset of `{priority, effort, risk}` and whose values are non-empty board field names; absent keys default to `Priority` / `Effort` / `Risk`.
-14. **`claim.stale_after` is optional.** If present, it must be a duration `<positive-int>(h|d)` (e.g. `24h`, `3d`). Absent → the engine uses `24h`. Malformed → `"claim.stale_after: expected a duration like 24h or 3d, got '<x>'."`
-15. **`backend.github.type_map` is optional** (github only). If present, a map whose keys are a subset of the `types:` keys and whose values are non-empty native issue-type names. On `backend.type: filesystem` a `type_map` → `"backend.github.type_map is github-only."` Config types absent from the map fall back to the `type:` label.
-16. **`research.agents` is optional.** If present, a list of `{ name, consult }` entries: `name` must resolve to an agent definition in the bundle's agents directory (→ `"research.agents: '<name>' does not resolve to an agent file in the agents directory"`), `consult` is a non-empty one-line routing hint. Duplicate names → error.
-17. **`review.agents` is optional.** If present, a non-empty list of agent names, each resolving to an agent definition in the bundle's agents directory. Absent → the engine resolves the default `[code-reviewer, test-adequacy-reviewer]` **without** requiring those files to exist (the caller degrades gracefully if they're missing).
-18. **`verification.max_loop_rounds` is optional.** If present, a positive integer. Absent → `3`. Malformed → `"verification.max_loop_rounds: expected a positive integer, got '<x>'."`
+**Output.** Flat `key=value` lines on stdout: the resolved config in document order, then the injected defaults, then the derived `roles.<role>=<stage.key>` map. Exit `0` on success; `1` on a discovery/parse/validation failure (the `ok=false` / `where` / `failed` / `recovery` shape on stdout); `2` on internal error.
 
-**Output**: a resolved config value the rest of the engine reads. Includes a derived `roles → stage` map.
+**Agent resolution.** The agent-name rules are checked against the agents directory beside the config (`<dir-of-config>/agents/`). Awk cannot stat the filesystem, so the shell half of `te` globs that directory (suffix-agnostic across `.md` / `.agent.md`) and feeds `te` the set of existing agent basenames.
+
+**Exec-bit precondition.** If `te` itself lacks the exec bit, the shell returns `126` **before** `te` runs — it cannot report on its own missing bit. Every caller (`load_and_validate()`, `/ticket-init` step 7) MUST check `[ -x .github/scripts/te ]` first and, if it fails, emit `"te is present but not executable at .github/scripts/te — run 'chmod +x .github/scripts/te'; a bundle copied without exec bits is the usual cause."` The test harness asserts that only `te` is executable, so a bad copy also fails CI.
 
 ## § Role resolution
 
@@ -88,30 +75,18 @@ Workflow decisions in Part 2 branch on whether these optional roles resolve to a
 
 ## § ID assignment (filesystem)
 
-Used when `backend.type: filesystem`. GitHub backends use native issue numbers and never call this.
+Implemented by **`te id next [--count N]`** — see it (and its goldens) for the authoritative behavior.
 
-1. List every stage folder declared in `lifecycle.stages[].filesystem.folder`, plus the milestone-tracker folders if `milestones.strategy: trackers`.
-2. Collect every filename matching `{prefix}-(\d+)-.*\.md`. Parse the numeric part.
-3. Compute `max + 1`, zero-pad to `ticket_id.padding`, prefix with `ticket_id.prefix`. Result: e.g. `IV-051`.
-4. Reserved-but-unused IDs (gaps from aborted slates) stay gaps. Do not reclaim.
-
-For multi-ID reservations (slate creation), reserve consecutive IDs in one shot and pass them as a list to the caller.
+- **Filesystem**: scans every stage folder (`lifecycle.stages[].filesystem.folder`) plus the milestone-tracker folders when the strategy resolves to `trackers` (`auto` → `trackers` on filesystem), collects filenames matching `{prefix}-{NNN}-*.md`, and returns `max + 1` zero-padded to `ticket_id.padding` and prefixed with `ticket_id.prefix`. Gaps (aborted-slate IDs, and everything below `max`) are never reclaimed — the value is always `max + 1`. `--count N` returns N consecutive IDs for a slate reservation.
+- **GitHub**: never scans; returns provisional handles `NEW-1 … NEW-N` (real issue numbers are minted at `gh issue create`; see § Slate creation & handle resolution).
 
 ## § Slug generation (filesystem)
 
-From a user-provided title or input string, produce a kebab-case slug for filenames. Hardcoded rule:
-
-1. Lowercase.
-2. Strip punctuation (keep `[a-z0-9 ]`).
-3. Collapse whitespace.
-4. Take first 6 words.
-5. Join with `-`.
-
-Example: `"Add bee hive node for honey production"` → `"add-bee-hive-node-for-honey"` (already ≤6 words, kept).
+Implemented by **`te slug "<title>"`**: lowercase, keep `[a-z0-9 ]` (everything else becomes a separator), collapse whitespace, take the first 6 words, join with `-`. Example: `"Add bee hive node for honey production"` → `"add-bee-hive-node-for-honey"`.
 
 ## § Field storage contract
 
-Ticket fields are **logical**: every operation reads and writes named fields, and the backend decides where each field physically lives. `read_artifact` always returns the full logical field set as one uniform view, whatever the storage — callers never care where a field came from.
+Ticket fields are **logical**: every operation reads and writes named fields, and the backend decides where each field physically lives. `read_artifact` always returns the full logical field set as one uniform view — the **frozen field-view schema** defined under `read_artifact` in Part 3 — whatever the storage; callers never care where a field came from. This section describes only the physical *homes* each backend writes to; the read view is assembled by `te read` (filesystem) and, conforming to the same schema, the github path (TE-004).
 
 - **Filesystem**: self-describing fields live as YAML frontmatter at the top of the `.md` file; the structured body follows. The **graph and grouping fields** — `depends_on`, `related`, `milestone` — do **not** live in frontmatter: they live in the ledger (see § Ledger), keyed by ticket ID.
 - **GitHub**: issue bodies carry **no frontmatter — ever**. The body is pure prose sections. Every field has a native or derived home:
@@ -146,8 +121,8 @@ IV-002:
 - **Authoritative, not derived.** For `depends_on`, `related`, `milestone`, the ledger *is* the ticket's data. Ticket frontmatter never carries these fields; if a stray copy appears in a ticket file, the ledger wins and the stray is reported as drift.
 - **Same-commit writes.** Any event that changes a ticket's ledger entry stages the `.ledger.yaml` edit in that event's commit (per Hard rules). Transitions that don't touch ledger fields (claim, review, close…) leave the ledger alone — entries are keyed by ID, not path, so `git mv` never requires a ledger edit.
 - **Entries persist through closure.** A terminal ticket keeps its entry — milestone rollups and dependency history read it. Nothing is ever pruned.
-- **Validated on load.** `load_and_validate()` also parses the ledger when the backend is filesystem: unparseable YAML, an entry whose ID resolves to no ticket file, a `depends_on`/`related` ID that resolves to no ticket file and no ledger entry, or a `depends_on` cycle → hard fail with a pointed message (hand-edit damage is the expected cause). A ticket file with no ledger entry is valid — it simply has no deps/related/milestone (equivalent to an all-empty entry).
-- **Missing ledger.** No `.ledger.yaml` at the root → treated as an empty ledger with a soft warning (`/ticket-init` creates the stub; a legacy project may predate it).
+- **Validated on load** by **`te ledger validate`** (filesystem): unparseable YAML (reusing the config parser's line-pointed error), an entry whose ID resolves to no ticket file, a `depends_on`/`related` ID that resolves to no ticket file and no ledger entry, or a `depends_on` cycle (reported as the full chain, e.g. `IV-007 → IV-012 → IV-007`) → hard fail with a pointed message (hand-edit damage is the expected cause). A ticket file with no ledger entry is valid — it simply has no deps/related/milestone. This is a **standalone** subcommand, not folded into `te config validate`; `load_and_validate()` runs `te config validate` and then, on the filesystem backend, `te ledger validate` — one call from the caller's point of view.
+- **Missing ledger.** No `.ledger.yaml` at the root → `te ledger validate` returns a soft warning and exit 0 (`/ticket-init` creates the stub; a legacy project may predate it).
 
 ## § Transition primitives
 
@@ -199,6 +174,8 @@ The exact colors are not load-bearing — they exist so newly-created labels loo
 
 Active only when `backend.type: github` **and** `projects.enabled: true`. Keeps a Project (v2) board mirroring the workflow: each issue is added to the project on creation, and its `status_field` (default `Status`) follows the stage on every transition. Filesystem tickets are never synced — they aren't issues.
 
+**Read side (scripted).** `te projects resolve` resolves the project node ID, the status field's ID + option map, and each `field_map` entry's field ID + option map from one `gh project field-list`; it degrades to a **soft warning** (never an error) when the status field is absent, the project is deleted, or the `project` scope is missing, and is a clean no-op when `projects.enabled: false` or on a filesystem backend. The dual-homed board reads (`priority`/`effort`/`risk`) are performed by `te read`/`te list` per § Field storage contract. The **write** side below stays prose (the mutation tier). The read mapping is offline-tested against recorded fixtures; the Projects field/option **resolution against a live board is manually verified** (see the ticket's manual checklist).
+
 **ID resolution (session-cached, resolved once per engine invocation).** Project items are edited by node ID, not number, so resolve these up front and cache them:
 
 - **Project node ID:** `gh project view <projects.number> --owner <projects.owner> --format json -q .id`.
@@ -224,14 +201,9 @@ gh project item-edit --id <item-id> --project-id <project-node-id> \
 
 ## § Message formatting
 
-Every workflow event has a template in `commits:`. The engine resolves the event name (e.g. `claim`, `done`, `wontfix`) to a template and interpolates:
+Rendering is implemented by **`te msg <event> --id … --title … [--target-id …] [--status …] [--version …] [--reason …]`**: it looks up the `commits.<event>` template and interpolates `{id}`, `{title}`, `{target_id}` (for `fold`), and `{status}`/`{version}`/`{reason}` (for `milestone_flip`) in a **single left-to-right pass** — a value that itself contains a placeholder is never re-substituted, and titles carrying single/double quotes, backticks, `$`, and newlines survive intact (values pass through the environment, not the shell command line). An unknown event (no `commits.<event>`) fails.
 
-- `{id}`: artifact ID (e.g. `IV-042` on FS, `#42` on GH).
-- `{title}`: artifact title.
-- `{target_id}`: for `fold`, the target's ID.
-- `{status}`, `{version}`, `{reason}`: for `milestone_flip`.
-
-**Filesystem**: the rendered subject is the entire commit message. Pass through a HEREDOC so special characters survive.
+**Filesystem**: the rendered subject is the entire commit message; the caller passes `te msg`'s output through a HEREDOC to `git commit`.
 
 **GitHub**: status-ping events (new, capture, claim, refine, review, done) are **silent** — no comment is posted. The native activity log is the record. Content-bearing events (capture_update, abandon, update, reject, fold, wontfix) post a comment. The comment's first line is the rendered subject; a blank line; then the engine-assembled body block carrying the contextual payload (the abandon notes, the wontfix reasoning, the folded body, etc.). The body block is **not config-templated** — it is rendered from the operation's runtime payload.
 
@@ -298,19 +270,17 @@ Inbox tickets carry only `id`, `type` (may be `unknown`), `title`, `created`. Ot
 
 ## § Effort caps
 
-When the engine writes a ticket into any stage carrying the `pickable` role, it validates `effort ∈ effort.pickable_allowed`. Out-of-range effort → return `{ ok: false, reason: "effort <x> not allowed in pickable stage; allowed: <list>", recovery: "split the ticket or rescope" }`. The caller (`/ticket-new`) surfaces this back to step 3 (split assessment).
-
-No effort enforcement on other stages.
+Implemented by **`te effort-cap --effort <e> --role <r>`**: when a ticket is written into a stage carrying the `pickable` role, `effort ∈ effort.pickable_allowed` is required. Out-of-range → `effort <x> not allowed in pickable stage; allowed: <list>` (the caller, `/ticket-new`, surfaces this back to step 3's split assessment). No enforcement on other roles.
 
 ## § depends_on integrity
 
-Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Three checks:
+Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Implemented by **`te deps check <id> --depends-on <ids> [--slate <ids>]`** on both backends, feeding the *same* cycle walk:
 
-- **Existence.** Every ID in the `depends_on` being written must resolve via `read_artifact(id)`. Exemption: IDs reserved for the current slate — in-flight siblings exist as in-memory specs, not artifacts yet; the caller passes the reserved-ID list. Failure: `{ ok: false, reason: "depends_on references <id>, which does not exist", recovery: "fix the ID or drop the dependency" }`.
-- **No cycles.** Walk the `depends_on` links depth-first starting from the artifact being written, keeping the chain of IDs walked so far (the artifact's own ID first). For each dependency: if its ID is already on the chain, reject and report the chain as the cycle (e.g. `IV-007 → IV-012 → IV-007`); otherwise `read_artifact` it (slate siblings: use the in-memory spec) and walk its `depends_on` in turn. Never follow `related`. Each ticket appears at most once per chain, so the walk always terminates. Failure: `{ ok: false, reason: "depends_on cycle: <chain>", recovery: "break the cycle by dropping one of the links" }`.
+- **Existence.** Every proposed dependency must resolve to a ticket file or a ledger entry (filesystem), or to an issue in the graph (github). Exemption: IDs on the `--slate` list — in-flight siblings not yet written. Failure: `depends_on references <id>, which does not exist`.
+- **No cycles.** A depth-first walk from `<id>` over the `depends_on` edges (ledger on filesystem; one `gh issue list --state all` rendering `number<TAB>blockedBy` on github, closed issues included) plus the proposed edges; a node recurring on the current path is reported as the full chain (e.g. `IV-007 → IV-012 → IV-007`). Never follows `related`. The walk lives in `lib/deps.awk` and consumes a flat `id<TAB>dep` edge list — implemented exactly once, only the graph source differs. On github, `gh` < 2.94 (no `blockedBy`) hard-fails with a pointed version message rather than a silent empty. Failure: `depends_on cycle: <chain>`.
 - **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
 
-Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check). The walk is storage-agnostic: it reads each ticket's `depends_on` through the uniform field view — the ledger on FS, the `blockedBy` JSON field on GH. GitHub may additionally reject some dependency writes natively; the engine's own check still runs first so the failure carries the chain diagnostics.
+Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
 
 ## § Claim identity & staleness
 
@@ -394,7 +364,7 @@ The operations compose Part 1 primitives plus Part 2 workflow rules.
 
 - **Input**: none.
 - **Reads**: `.github/config.yaml` via § Config discovery.
-- **Procedure**: discover → parse → validate per § Config. On the filesystem backend, also load and validate the ledger per § Ledger.
+- **Procedure**: verify `te` is executable (`[ -x .github/scripts/te ]`; on failure emit the exec-bit message from § Config and hard-fail), then run `te config validate` — discover → parse → validate per § Config — and, on the filesystem backend, `te ledger validate` per § Ledger. Two subcommands, one logical call.
 - **Returns**: resolved config value (plus the parsed ledger on FS), or hard-fail if invalid.
 
 Every operation below calls this first. Cache for the duration of the engine invocation; never longer.
@@ -414,15 +384,32 @@ Every operation below calls this first. Cache for the duration of the engine inv
 
 ### `read_artifact(id)`
 
+Implemented by **`te read <id>`** on both backends, emitting the identical schema below.
+
 - **Input**: ticket ID.
-- **Procedure**: locate the file (FS) or fetch the issue (GH); assemble the **uniform field view** per § Field storage contract — FS: parse frontmatter, merge the ticket's ledger entry (`depends_on`, `related`, `milestone`; absent entry → empty); GH: `gh issue view` with `--json title,labels,assignees,state,milestone,createdAt,blockedBy,issueType,stateReason,body,url`, map native fields to logical fields (board fields via § GitHub Projects sync reads where Projects is enabled), parse the `Related:` body line, derive `claimed_at` from the assignment event on demand.
-- **Returns**: `{ id, stage, type, title, fields, body, ... }` or `{ ok: false, reason: "not found" }` — `fields` is the full logical set; callers never see storage.
+- **Procedure (filesystem)**: locate `<id>-*.md` across the stage folders (stage = the folder's stage key); slice frontmatter (parsed **opaquely** — a human title may contain `#`, `[`, `"`; a value of `null` normalizes to empty) from the body (sliced byte-exact, so trailing whitespace and a missing final newline round-trip); merge the ticket's ledger entry (`depends_on`, `related`, `milestone`; absent entry → empty). A ledger-resident field found in frontmatter is drift: the ledger wins and the stray name is listed in `drift`.
+- **Procedure (github)**: one `gh issue view` rendered with `gh --template` (Go templates → flat lines, no jq/JSON-in-awk). `stage` reverse-maps the issue's status label to the config stage **key** (a **closed** issue → the terminal stage key, ignoring any stale label); `type` from the native issue type via `type_map` else the `type:` label; `priority`/`effort`/`risk` board-first-then-label (`projects.enabled`); `milestone` native title else `milestone:` label; `depends_on` from `blockedBy`; `related` from the body's `Related:` line; `claimed_by` from the assignee; `claimed_at` from the most recent `assigned` timeline event. GH has no frontmatter, so `drift` is never emitted.
+- **The uniform field view (FROZEN — TE-004's github path emits this exact shape).** Flat `key=value` in this fixed order, then the body after a `---BODY---` sentinel:
+
+  ```
+  id, stage, type, title, priority, effort, risk, milestone, created,
+  claimed_by, claimed_at, closed_as, depends_on (comma-list), related (comma-list),
+  drift (comma-list; emitted only when non-empty)
+  ---BODY---
+  <raw body, verbatim to EOF>
+  ```
+
+  Absent scalars emit an empty value; empty lists emit `depends_on=`. **Unknown-age claim** is encoded as `claimed_by` set **and** `claimed_at` empty — no separate flag (on github this is the assigned-but-no-timeline case; on filesystem a `claimed_at: null` on a claimed ticket). A caller cannot tell FS from GH, nor frontmatter fields from ledger fields.
+- **Returns**: the field view above on success; `ok=false` / `reason=not found` (exit 1) for an unknown ID.
 
 ### `list_artifacts(role, filters={})`
 
+Implemented by **`te list <role> [--priority] [--effort] [--type] [--milestone] [--depends-satisfied]`** on both backends.
+
 - **Input**: role name, optional filters (`priority`, `effort`, `type`, `milestone`, `depends_satisfied: bool`).
-- **Procedure**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, filter out artifacts whose `depends_on` includes any non-terminal ID. Dependency data comes from one read: the ledger (FS) or the `blockedBy` field on `gh issue list --json` (GH) — never from opening every candidate's body.
-- **Returns**: list of artifact summaries (id, title, priority, effort, type, milestone, claimed_by, claimed_at, created).
+- **Procedure (filesystem)**: resolve role to stage; list artifacts at that stage; apply filters; for `depends_satisfied: true`, exclude any artifact whose `depends_on` includes a non-terminal ID — terminality comes from one `id → stage` index built by a single folder scan, and `depends_on` from one ledger read (never by opening every candidate's body). A missing dependency reads as non-terminal (excluded — the safe direction). An empty or absent stage yields no output, exit 0.
+- **Procedure (github)**: one `gh issue list --state all` (explicit high `--limit`, never the 30-row default) supplies every summary plus `blockedBy` (so `--depends-satisfied` needs no per-issue fetch; a dep is satisfied iff its issue is CLOSED). With `projects.enabled: true`, a **second** call — one `gh project item-list` joined by issue URL — supplies the board-homed `priority`/`effort`/`risk` (labels are not written while the board is live); projects disabled → label read only, no project calls. Two calls total either way, never per-issue.
+- **Returns**: one summary block per ticket (`id, title, priority, effort, type, milestone, claimed_by, claimed_at, created`), blocks separated by a blank line. `claimed_by`/`claimed_at` are carried so `/ticket-pick` step 0's stale-claim split works.
 
 ### `create_artifact(spec, target_role)`
 
@@ -508,15 +495,18 @@ Note: closure source stage is `review` if a review stage exists; otherwise `in_p
 
 ### `validate_type_body(type, body)`
 
-- **Input**: type key, body markdown.
-- **Procedure**: locate each of `types[type].required_body_sections` as a `##` heading in the body. For known types, also check non-emptiness rules (acceptance_criteria for feature, regression_test for bug).
-- **Returns**: `ok` or `{ ok: false, missing: [section_keys] }`.
+- **Input**: type key, body markdown file.
+- **Procedure**: implemented by **`te validate-body --type <t> --file <path>`**. Each `types[type].required_body_sections` entry must appear as a level-2-or-deeper heading, matched by its config **key**: the heading text is normalized (lowercased, non-alphanumeric runs → `_`, trimmed) and compared to the key. `/ticket-init`'s generated `TICKET_TEMPLATE.md` titles each section by its key, so a template-conformant body matches; a project that retitles sections must keep the heading's normalized form equal to the key. Known types also require non-empty content: `acceptance_criteria` (feature), `regression_test` (bug).
+- **Returns**: `ok=true`, or `ok=false` with `missing=<comma list>` (exit 1).
 
 ### `scan_milestone_state(version=null)`
 
+Implemented by **`te milestone scan [--version V]`** on both backends.
+
 - **Input**: optional version filter.
-- **Procedure**: per § Milestone handling for the active strategy.
-- **Returns**: per-version state including tracker status (if applicable), ticket distribution by stage, expected status, drift flag.
+- **Procedure (filesystem)**: `none` (or `native` on a filesystem backend) → empty, exit 0. `trackers` (incl. `auto`) → read the tracker files in the planned_active/shipped folders (frontmatter `type: milestone`, `version`, `status`); per version emit `tracker_status`, `tracker_folder`, `expected_status`, `expected_folder`, `drift`, and the ticket count per role (`count.inbox/pickable/in_progress/review/terminal`) — milestone assignment read from the **ledger** (not frontmatter), each ticket's stage from its file location, expected status per § Milestone handling. `labels` → the ledger milestone distribution (`version` + `count`), no tracker/drift.
+- **Procedure (github)**: `native` (incl. `auto`) → one `gh api …/milestones?state=all` → per milestone `state`, `open_issues`, `closed_issues`, and `drift` (all issues closed but the milestone still open). `labels` → the `milestone:` label distribution from the issue list. `none` → empty, exit 0.
+- **Returns**: the per-version blocks above.
 
 ### `apply_milestone_flip(version, target_status)`
 

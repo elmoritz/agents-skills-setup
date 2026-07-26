@@ -1,0 +1,12 @@
+version=v1
+state=open
+open_issues=0
+closed_issues=5
+drift=true
+
+version=v2
+state=open
+open_issues=3
+closed_issues=2
+drift=false
+--- exit: 0

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=backend.filesystem: block is required on backend.type: filesystem.
+recovery=fix tests/fixtures/config/r03-missing-block/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=backend.github.type_map is github-only.
+recovery=fix tests/fixtures/config/r15-fs-type-map/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=projects.status_map: unknown role 'pikable'.
+recovery=fix tests/fixtures/config/r13b-statusmap-role/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

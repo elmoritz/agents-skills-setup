@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=milestones.strategy: native is GitHub-only.
+recovery=fix tests/fixtures/config/r12-fs-native/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

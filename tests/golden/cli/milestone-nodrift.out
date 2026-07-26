@@ -1,0 +1,12 @@
+version=v1
+tracker_status=planned
+tracker_folder=milestone
+expected_status=planned
+expected_folder=milestone
+drift=false
+count.inbox=0
+count.pickable=1
+count.in_progress=0
+count.review=0
+count.terminal=0
+--- exit: 0

@@ -1,0 +1,13 @@
+number=51
+title=Unknown age
+state=OPEN
+stateReason=
+createdAt=2026-06-02T10:00:00Z
+issueType=
+assignee=bob
+milestone=
+blockedBy=
+labels=status:in-progress,type:tech,prio:P1
+url=https://github.com/honey/bee/issues/51
+---BODY---
+body

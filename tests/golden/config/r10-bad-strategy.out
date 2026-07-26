@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=milestones.strategy must be one of auto, trackers, native, labels, none, got 'bogus'.
+recovery=fix tests/fixtures/config/r10-bad-strategy/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

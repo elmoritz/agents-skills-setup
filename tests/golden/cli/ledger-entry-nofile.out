@@ -1,0 +1,5 @@
+ok=false
+where=ledger
+failed=ledger entry 'TE-050' resolves to no ticket file
+recovery=remove the stale entry, or restore the ticket file
+--- exit: 1

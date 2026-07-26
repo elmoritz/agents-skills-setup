@@ -1,0 +1,5 @@
+ok=false
+where=effort-cap
+failed=effort L not allowed in pickable stage; allowed: S, M
+recovery=split the ticket or rescope
+--- exit: 1

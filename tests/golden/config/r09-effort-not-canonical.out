@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=effort.pickable_allowed: 'Z' is not one of S, M, L, XL.
+recovery=fix tests/fixtures/config/r09-effort-not-canonical/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1
