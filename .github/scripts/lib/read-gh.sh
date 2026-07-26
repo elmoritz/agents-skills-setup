@@ -175,7 +175,9 @@ _gh_board_row() {
 # parse `Related: #12, #34` from a body file -> 12,34 (top-of-body line only)
 _gh_related() {
   local bodyfile=$1 line out=""
-  while IFS= read -r line; do
+  # `|| [ -n "$line" ]` processes a final line with no trailing newline — an
+  # issue body's `Related:` line is often the last line and unterminated.
+  while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       Related:*)
         line=${line#Related:}
