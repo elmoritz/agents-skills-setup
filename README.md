@@ -35,6 +35,54 @@ directory breakdown:
 
 ---
 
+## Quickest start — let the assistant set it up
+
+You don't have to copy files by hand. Open your project in your coding assistant
+(Claude Code or Copilot) and paste this prompt — it copies the right bundle for
+your provider and leaves you ready to run init:
+
+```text
+Look at this repo https://github.com/elmoritz/agents-skills-setup and set up this
+project with its agents-and-skills bundle.
+
+- Detect which assistant I'm using and copy the matching self-contained bundle
+  into my project root — the whole `.claude/` directory for Claude Code, or the
+  whole `.github/` directory plus `AGENTS.md` for GitHub Copilot. Copy the folder
+  whole; don't cherry-pick files.
+- Don't run init yet. Just leave me ready to run the `/ticket:init` command
+  (Claude Code) or the `/ticket-init` command / `ticket:init` skill (Copilot),
+  and tell me which one applies to me.
+```
+
+Then run the init command it points you to (`/ticket:init` or `/ticket-init`) and
+answer the prompts — that's where you tailor stages, backend, and your **research
+agents** (Step 0 below). Prefer to do the copy yourself? The manual steps are in
+[Getting started](#getting-started).
+
+### How the pieces fit together
+
+```mermaid
+flowchart LR
+    T["agents-skills-setup<br/>(this template)"] -->|copy .claude/| C["Claude Code<br/>bundle in your repo"]
+    T -->|copy .github/ + AGENTS.md| G["Copilot bundle<br/>in your repo"]
+    C --> I["/ticket:init<br/>·<br/>/ticket-init"]
+    G --> I
+    I -->|writes config.yaml,<br/>stages, research agents| R["Ready to work"]
+    R --> N["/ticket:new<br/>capture work"]
+    N --> P["/ticket:pick<br/>plan → implement → review"]
+    P --> V["/ticket:review<br/>verify"]
+    V --> CL["/ticket:close<br/>ship"]
+    V -.->|failed| RJ["/ticket:reject<br/>back to in-progress"]
+    RJ --> P
+```
+
+> **Diagrams not rendering?** The diagrams in this README are [Mermaid](https://mermaid.js.org/).
+> GitHub, GitLab, and most modern Markdown viewers render them inline. If you see
+> raw ```mermaid``` code instead, view the file on GitHub or in an editor with a
+> Mermaid preview extension — the surrounding prose stands on its own either way.
+
+---
+
 ## Step 0 — before you init: think about your sources of information
 
 When you create a ticket, the assistant researches the work — reading existing
@@ -128,6 +176,23 @@ review → done), each carrying a **role** the engine resolves against. Effort c
 keep the backlog honest: every ticket landing in the pickable stage must fit the
 project's allowed size, and ticket creation silently splits work that's too big.
 
+```mermaid
+stateDiagram-v2
+    [*] --> inbox: /ticket:new (save)
+    inbox --> backlog: /ticket:refine
+    [*] --> backlog: /ticket:new (full)
+    backlog --> in_progress: /ticket:pick
+    in_progress --> review: pick completes
+    review --> done: /ticket:close
+    review --> in_progress: /ticket:reject
+    in_progress --> done: /ticket:close (no review stage)
+    done --> [*]
+```
+
+Stages are configurable — a project can drop the `inbox` or `review` stage, and
+the commands adapt (e.g. with no review stage, `/ticket:pick` runs straight to
+closure-ready and `/ticket:close` ships from in-progress).
+
 **Ticket data lives native, not in frontmatter.** On the GitHub backend, issues
 carry **no YAML frontmatter** — dependencies are native issue dependencies
 (blocked-by), the claim clock is the assignment event, priority/effort/risk live
@@ -192,4 +257,27 @@ configured `review.agents` in parallel, and ends in an explicit evaluation that
 decides *done / iterate / re-plan / escalate* — bounded by a configurable round
 cap (default 3). Projects can register extra checkers (a11y, security…) in
 `config.yaml` without touching the command. `code-simplifier` runs once the loop
-is done. Each agent also works standalone on any plan or diff.
+is done.
+
+The loop inside `/ticket:pick` looks like this:
+
+```mermaid
+flowchart TD
+    D["Draft plan"] --> CH["challenger agent<br/>stress-tests the plan"]
+    CH --> PG{"Plan gate<br/>you approve?"}
+    PG -->|revise| D
+    PG -->|approved| IMP["Implement this round"]
+    IMP --> VER["Verify<br/>(build / tests)"]
+    VER --> AC["Agent checks in parallel<br/>code-reviewer · test-adequacy-reviewer · your extras"]
+    AC --> EV{"Evaluate"}
+    EV -->|iterate| IMP
+    EV -->|re-plan| D
+    EV -->|escalate| ASK["Ask you"]
+    EV -->|done| SIMP["code-simplifier pass<br/>(gated through you)"]
+    ASK --> IMP
+    SIMP --> REV["→ review stage"]
+
+    RC["Round cap<br/>(default 3)"] -.->|bounds| EV
+```
+
+Each agent also works standalone on any plan or diff.
