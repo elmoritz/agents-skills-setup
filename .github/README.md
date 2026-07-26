@@ -37,6 +37,7 @@ across **VS Code agent mode, the Copilot CLI, and the Copilot cloud agent**.
 │   └── milestone-sync/           milestone drift sync (user-invocable: false)
 ├── agents/                       custom review agents (*.agent.md) wired into /ticket-pick
 │   ├── challenger.agent.md              devil's advocate against a drafted plan
+│   ├── code-challenger.agent.md         devil's advocate against the code, every loop round
 │   ├── code-reviewer.agent.md           diff review vs plan, invariants, conventions
 │   ├── code-simplifier.agent.md         proposes behavior-preserving simplifications
 │   └── test-adequacy-reviewer.agent.md  judges whether new tests can actually fail
@@ -122,20 +123,25 @@ under `research.agents`, each with a `consult` hint that routes dispatch.
   failure scenarios and cheaper alternatives, grounded in the code, never vague doubt.
 - **`code-reviewer`** — reviews an implementation diff against the approved plan,
   architecture invariants, and conventions; verdict + file:line findings.
-- **`code-simplifier`** — proposes behavior-preserving simplifications of a diff as
-  ready-to-apply patches, gated through the main session.
 - **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
   if the change were reverted, catching assertion-free and mock-only tests.
+- **`code-challenger`** — the loop-time sibling of `challenger`: every round it
+  attacks the *route the code actually took* — hidden coupling, a cheaper
+  implementation, an irreversible step, or a plan that turned out wrong.
+- **`code-simplifier`** — proposes behavior-preserving simplifications of the diff
+  as ready-to-apply patches.
 
 `challenger` runs in step 3, so the user judges plan and challenge together at
 the Plan gate. `code-reviewer` and `test-adequacy-reviewer` are the default
-checkers in pick's **implementation loop** — each round implements, verifies,
-runs the configured `review.agents`, and ends in an explicit evaluation that
-decides *done / iterate / re-plan / escalate*, bounded by
+**blocking** checkers in pick's **implementation loop** — each round implements,
+verifies, runs the configured `review.agents`, and ends in an explicit evaluation
+that decides *done / iterate / re-plan / escalate*, bounded by
 `verification.max_loop_rounds` (default 3). Extra checkers register in
-`config.yaml` without touching the command. `code-simplifier` runs once the loop
-is done, its proposals gated before apply. Each also works standalone on any
-plan or diff.
+`config.yaml` without touching the command. `code-challenger` and `code-simplifier`
+run **every round too, as advisory passes** — the session weighs their findings in
+the evaluation and folds the sound ones into the next round's work-list (no user
+gate); a `code-challenger` "route-wrong" verdict can send the loop back to re-plan.
+Each also works standalone on any plan or diff.
 
 ## How Copilot loads these
 

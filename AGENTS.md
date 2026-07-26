@@ -26,15 +26,16 @@ user): **`ticket-engine`** — the execution layer (config load/validate, ID
 assignment, backend transitions, commit/comment formatting, half-state reporting);
 **`milestone-sync`** — milestone-vs-tickets drift detection and repair.
 
-Four read-only review agents under `.github/agents/` are wired into
+Five read-only review agents under `.github/agents/` are wired into
 `/ticket-pick`: **`challenger`** (step 3 — attacks the drafted plan before the
 Plan gate); **`code-reviewer`** and **`test-adequacy-reviewer`** — the default
-checkers in the bounded **implementation loop** (each round: implement → verify
-→ dispatch the configured `review.agents` in parallel → an explicit evaluation
+**blocking** checkers in the bounded **implementation loop** (each round: implement
+→ verify → run the configured `review.agents` → an explicit evaluation
 that decides done / iterate / re-plan / escalate; capped by
-`verification.max_loop_rounds`, default 3); and **`code-simplifier`** (after
-the loop is done — behavior-preserving trims, gated before apply). Each also
-runs standalone.
+`verification.max_loop_rounds`, default 3); and **`code-challenger`** +
+**`code-simplifier`** — advisory passes run every round, whose sound findings the
+session folds into the next round's work-list (no user gate). Each also runs
+standalone.
 
 **Research agents** are project-specific: `/ticket-init`'s research-agent step
 instantiates them from `.github/references/research-agents/` templates (catalog:

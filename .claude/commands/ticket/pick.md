@@ -19,7 +19,8 @@ Invoke the `ticket-engine` skill at the start to load and validate config. Resol
 - `pickable` role → source stage (required).
 - `in_progress` role → claim destination (required).
 - `review` role → optional; determines whether step 6 runs.
-- `review.agents` → the checkers the implementation loop dispatches each round (default `[code-reviewer, test-adequacy-reviewer]` when absent; a listed agent whose file is missing is skipped with a warning).
+- `review.agents` → the **blocking** checkers the implementation loop dispatches each round (default `[code-reviewer, test-adequacy-reviewer]` when absent; a listed agent whose file is missing is skipped with a warning).
+- `code-challenger` and `code-simplifier` → the two **advisory** agents the loop also dispatches every round. They are always on — not part of `review.agents`, not configurable away — and their output informs the evaluation without ever blocking it.
 - `verification.max_loop_rounds` → the loop bound (default 3).
 
 If the engine reports `"No .claude/config.yaml found"`, stop and tell the user `"Run /ticket:init first."`
@@ -121,7 +122,7 @@ If **Abandon**:
    - **Filesystem**: `git mv` back to the pickable stage folder; clears `claimed_by` in frontmatter; appends `## Abandoned notes` to the body; commits with `commits.abandon`.
    - **GitHub**: swap labels back; unassign; append abandon notes to body; post a comment (per § Message formatting, `abandon` is content-bearing).
 
-The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5.8). The `## Abandoned notes` payload records why, whatever the step.
+The Abandon path is not exclusive to the Plan gate — it is the standard exit for any post-claim abort (steps 2–5.7). The `## Abandoned notes` payload records why, whatever the step.
 
 ### Steps 4–5.7 — the implementation loop
 
@@ -152,18 +153,29 @@ This report is what the user follows when verifying before closure.
 
 ### Step 5.5 — agent checks (every round)
 
-Dispatch every agent in `review.agents` (default: `code-reviewer` and `test-adequacy-reviewer`) as read-only subagents, **in parallel**. Pass each: the ticket ID and body (plan + acceptance criteria), the diff base (the claim commit, or `git merge-base HEAD <default branch>`), and `verification.test_commands` where the agent judges tests. On round ≥ 2, also pass the prior findings plus a summary of what changed, so agents verify the fixes instead of re-reviewing from scratch. The agents report; they never edit.
+Dispatch these read-only subagents **in parallel** — none of them edits:
+
+- **Blocking checkers** — every agent in `review.agents` (default: `code-reviewer` and `test-adequacy-reviewer`, plus any a project registers). Their findings can block the loop.
+- **Advisory challengers** — `code-challenger` (`.claude/agents/code-challenger.md`) and `code-simplifier` (`.claude/agents/code-simplifier.md`), always dispatched, every round. `code-challenger` attacks the route the code actually took; `code-simplifier` proposes behavior-preserving trims. Their output is advisory — it informs the evaluation but never blocks on its own.
+
+Pass each: the ticket ID and body (plan + acceptance criteria), the diff base (the claim commit, or `git merge-base HEAD <default branch>`), and `verification.test_commands` where the agent judges tests. On round ≥ 2, also pass the prior findings plus a summary of what changed, so agents verify the fixes instead of re-reviewing from scratch. The agents report; the session decides — no agent gates the user.
 
 ### Step 5.7 — evaluate & decide (every round)
 
-Write an explicit **evaluation verdict** — this is a judgment step, not a reflex off the agents' labels. For each blocking finding (`BLOCKED` from a reviewer-type agent, `INEFFECTIVE` from an adequacy-type agent, or the equivalent from a custom checker): is it valid (agents can be wrong — say so with evidence when one is)? is its fix inside the approved plan's scope? is the fix shape clear? Then decide, in this precedence:
+Write an explicit **evaluation verdict** — this is a judgment step, not a reflex off the agents' labels.
 
-- **Re-plan** — a valid finding implies the plan itself is wrong → return to step 3 with the user. Never auto-fix a wrong plan, whatever the round budget.
+Weigh the **blocking findings** first (`BLOCKED` from a reviewer-type agent, `INEFFECTIVE` from an adequacy-type agent, or the equivalent from a custom checker): is each valid (agents can be wrong — say so with evidence when one is)? is its fix inside the approved plan's scope? is the fix shape clear?
+
+Then weigh the **advisory findings** from `code-challenger` and `code-simplifier` on their merits — never fold reflexively. A sound `code-challenger` challenge or a safe `code-simplifier` proposal becomes a **work-list item** for the next round, exactly like a blocking fix: the implementer applies it and the next round's checks re-verify it. Discard advisory findings you judge unsound or not worth the churn, and say why in the round record.
+
+Then decide, in this precedence:
+
+- **Re-plan** — a valid blocking finding, or a `code-challenger` `ROUTE-WRONG` verdict, implies the plan itself is wrong → return to step 3 with the user. Never auto-fix a wrong plan, whatever the round budget.
 - **Escalate** — the round cap is reached with blocking findings open, or a finding **stalls** (the same finding survives two consecutive rounds) → the escalation gate below.
-- **Iterate** — valid, in-scope blocking findings remain and budget allows → compose the next round's **work-list** (one line per finding: what to change, where) and return to step 4.
-- **Done** — no valid blocking findings remain → record the verdict and exit the loop to step 5.8.
+- **Iterate** — valid blocking fixes and/or sound advisory items remain and budget allows → compose the next round's **work-list** (one line per item: what to change, where) and return to step 4. Advisory items alone justify another round while budget remains, but the work-list never expands scope beyond the approved plan.
+- **Done** — no valid blocking findings remain and no advisory item is worth another round → record the verdict and exit the loop to step 6.
 
-Record each round's evaluation in one short paragraph (round number, agent verdicts, decision, one-line reasoning) — the sign-off report carries these. Non-blocking output (`PASS WITH SUGGESTIONS`, `GAPS`) never drives the loop: fold what is cheap into the next round's work-list if one exists, carry the rest into the sign-off report.
+Record each round's evaluation in one short paragraph (round number, agent verdicts, decision, one-line reasoning) — the sign-off report carries these. Non-blocking reviewer output (`PASS WITH SUGGESTIONS`, `GAPS`) is treated the same as advisory findings: fold what is cheap into the next round's work-list if one exists, carry the rest into the sign-off report. Any advisory item left unapplied when the loop ends (cap reached, or not worth a round) is carried into the sign-off report, never applied silently.
 
 Escalation gate, via `AskUserQuestion`:
 
@@ -171,22 +183,8 @@ Escalation gate, via `AskUserQuestion`:
 - **header:** "Findings"
 - **options:**
   - **Fix now (Recommended)** — one more round under user direction: return to step 4 (step 3 if the plan is wrong), re-run steps 5–5.7.
-  - **Waive & proceed** — continue to step 5.8; record the waived findings in the sign-off report.
+  - **Waive & proceed** — continue to step 6; record the waived findings in the sign-off report.
   - **Abandon** — run the step 3 Abandon path.
-
-### Step 5.8 — simplify (after the loop, never inside it)
-
-Once the evaluation says **Done**, dispatch `code-simplifier`. If it returns proposals (not `Clean`), gate via `AskUserQuestion`:
-
-- **question:** "Simplifier: <N> proposals, safe set <IDs>. Apply?"
-- **header:** "Simplify"
-- **options:**
-  - **Apply safe set (Recommended)** — apply the zero-risk subset.
-  - **Apply all** — apply every proposal.
-  - **Pick** — ask which proposal IDs (free-text follow-up).
-  - **Skip** — proceed unchanged.
-
-Apply accepted diffs in the main session (the agents never edit), then re-run the step 5 test commands before moving on.
 
 ### Step 6 — move to review (only if a review stage exists)
 
@@ -208,7 +206,7 @@ Then post a sign-off report to the user. The full Evidence section already lives
 
 **Tests:** <verification.test_commands joined or "no automated check — visual/docs"> — N / N passing (M new + K existing).
 
-**Agent review:** <verdict per review agent, config order> · <K> round(s) · simplifier <N applied | clean><; waived: <finding> — only if any>.
+**Agent review:** <verdict per blocking review agent, config order> · code-challenger <final verdict> · simplifier <N applied across rounds | clean> · <K> round(s)<; carried/waived: <finding> — only if any>.
 **Loop log:** <one line per round: `R<k>: <agent verdicts> → <decision> — <one-line reasoning>` — from the step 5.7 evaluations>.
 
 **Verification checklist:**
@@ -245,8 +243,9 @@ Do **not** run `verification.pre_close_command` here — that's the engine's job
 - The atomic claim (step 1) happens **before** any research, planning, or code reading. No exceptions.
 - A claimed ticket is never left dangling: any post-claim abort runs the step 3 Abandon transition (back to pickable, `claimed_by: null`, notes appended) as its final act.
 - Plans are presented before implementation. No silent implementation.
-- The step 3 challenge and step 5.5 agent checks are read-only subagent passes; the main session makes every edit. The implementation loop is bounded — at most `verification.max_loop_rounds` rounds (default 3), each ending in an explicit step 5.7 evaluation; iteration fixes findings and never expands scope beyond the approved plan — and blocking findings (`BLOCKED` / `INEFFECTIVE` / custom-checker equivalents) reach step 6 only fixed or explicitly waived by the user.
-- The step 5.7 evaluation is autonomous within the loop's bounds: the user is interrupted only by the escalation gate (cap, stall) or a re-plan (plan wrong). Every round's evaluation is recorded and lands in the sign-off report's loop log.
+- The step 3 challenge and step 5.5 agent checks (blocking checkers plus the advisory `code-challenger` and `code-simplifier`) are read-only subagent passes; the main session makes every edit. The implementation loop is bounded — at most `verification.max_loop_rounds` rounds (default 3), each ending in an explicit step 5.7 evaluation; iteration fixes findings and never expands scope beyond the approved plan — and blocking findings (`BLOCKED` / `INEFFECTIVE` / custom-checker equivalents) reach step 6 only fixed or explicitly waived by the user.
+- The advisory agents (`code-challenger`, `code-simplifier`) never gate the user: the step 5.7 evaluation decides whether each sound finding becomes a next-round work-list item. What is not applied by the time the loop ends is carried into the sign-off report, never applied silently.
+- The step 5.7 evaluation is autonomous within the loop's bounds: the user is interrupted only by the escalation gate (cap, stall) or a re-plan (plan wrong, including a `code-challenger` `ROUTE-WRONG`). Every round's evaluation is recorded and lands in the sign-off report's loop log.
 - Every behavioral change leaves a verification (test or manual evidence).
 - Invariants in `references.architecture` are not optional **when the reference is defined**. If the ticket appears to require violating one, surface that to the user and stop.
 - The engine, not the command, performs `git mv` / `gh issue edit` / commits. The command runs tests, drives gates, and assembles report text.

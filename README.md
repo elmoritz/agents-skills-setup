@@ -166,7 +166,7 @@ skill.
 | `/ticket:init` · `/ticket-init` | Bootstrap a project: write `config.yaml`, create the stage folders or labels, lay down a starter ticket template. One-time. |
 | `/ticket:new` · `/ticket-new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the assistant's understanding before anything is committed. |
 | `/ticket:refine` · `/ticket-refine` | Resume a captured inbox entry and promote it to the backlog (or close it as a fold/wontfix). |
-| `/ticket:pick` · `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review — the plan is stress-tested by the `challenger` agent, then implementation runs as a bounded **implement → agent-checks → evaluate** loop (configurable checker set and round cap), with a simplification pass before sign-off. |
+| `/ticket:pick` · `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review — the plan is stress-tested by the `challenger` agent, then implementation runs as a bounded **implement → agent-checks → evaluate** loop where every round also runs `code-challenger` and `code-simplifier` as advisory passes (configurable checker set and round cap). |
 | `/ticket:review` · `/ticket-review` | Print a read-only verification guide for a ticket in review. |
 | `/ticket:reject` · `/ticket-reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
 | `/ticket:close` · `/ticket-close` | Close a ticket as shipped, trusting you've verified the work. |
@@ -237,7 +237,7 @@ you don't invoke them by hand.
 
 ## The review agents
 
-Alongside the **research agents you add** (Step 0), each bundle ships four
+Alongside the **research agents you add** (Step 0), each bundle ships five
 read-only **review agents**, wired into the pick command. Each judges only what's
 on disk and changes nothing; the main session owns any resulting edits.
 
@@ -248,16 +248,21 @@ on disk and changes nothing; the main session owns any resulting edits.
   architecture invariants, and conventions; verdict + file:line findings.
 - **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
   if the change were reverted, catching assertion-free and mock-only tests.
-- **`code-simplifier`** — proposes behavior-preserving simplifications of a diff as
-  ready-to-apply patches, gated through the main session.
+- **`code-challenger`** — the loop-time sibling of `challenger`: every round it
+  attacks the *route the code actually took* — hidden coupling, a cheaper
+  implementation, an irreversible step, or a plan that turned out wrong.
+- **`code-simplifier`** — proposes behavior-preserving simplifications of the diff
+  as ready-to-apply patches.
 
-`code-reviewer` and `test-adequacy-reviewer` are the default checkers in pick's
-**implementation loop**: each round implements, verifies, dispatches the
+`code-reviewer` and `test-adequacy-reviewer` are the default **blocking** checkers
+in pick's **implementation loop**: each round implements, verifies, dispatches the
 configured `review.agents` in parallel, and ends in an explicit evaluation that
 decides *done / iterate / re-plan / escalate* — bounded by a configurable round
 cap (default 3). Projects can register extra checkers (a11y, security…) in
-`config.yaml` without touching the command. `code-simplifier` runs once the loop
-is done.
+`config.yaml` without touching the command. `code-challenger` and `code-simplifier`
+run **every round too, as advisory passes** — the session weighs their findings in
+the evaluation and folds the sound ones into the next round's work-list (no user
+gate); a `code-challenger` "route-wrong" verdict can send the loop back to re-plan.
 
 The loop inside `/ticket:pick` looks like this:
 
@@ -268,14 +273,13 @@ flowchart TD
     PG -->|revise| D
     PG -->|approved| IMP["Implement this round"]
     IMP --> VER["Verify<br/>(build / tests)"]
-    VER --> AC["Agent checks in parallel<br/>code-reviewer · test-adequacy-reviewer · your extras"]
-    AC --> EV{"Evaluate"}
-    EV -->|iterate| IMP
-    EV -->|re-plan| D
+    VER --> AC["Agent checks in parallel<br/>blocking: code-reviewer · test-adequacy-reviewer · your extras<br/>advisory: code-challenger · code-simplifier"]
+    AC --> EV{"Evaluate<br/>(session weighs all findings)"}
+    EV -->|iterate<br/>+ sound advisory items| IMP
+    EV -->|re-plan / route-wrong| D
     EV -->|escalate| ASK["Ask you"]
-    EV -->|done| SIMP["code-simplifier pass<br/>(gated through you)"]
+    EV -->|done| REV["→ review stage"]
     ASK --> IMP
-    SIMP --> REV["→ review stage"]
 
     RC["Round cap<br/>(default 3)"] -.->|bounds| EV
 ```

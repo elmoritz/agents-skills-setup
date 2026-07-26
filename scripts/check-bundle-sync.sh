@@ -49,6 +49,7 @@ milestone-sync:.claude/skills/milestone-sync/SKILL.md:.github/skills/milestone-s
 grill-me:.claude/skills/grill-me/SKILL.md:.github/skills/grill-me/SKILL.md
 readme:.claude/README.md:.github/README.md
 challenger:.claude/agents/challenger.md:.github/agents/challenger.agent.md
+code-challenger:.claude/agents/code-challenger.md:.github/agents/code-challenger.agent.md
 code-reviewer:.claude/agents/code-reviewer.md:.github/agents/code-reviewer.agent.md
 code-simplifier:.claude/agents/code-simplifier.md:.github/agents/code-simplifier.agent.md
 test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.github/agents/test-adequacy-reviewer.agent.md
@@ -88,7 +89,7 @@ scripts:.claude/scripts/:.github/scripts/
 # get the hard equivalence gate. Everything else (commands, skills, the
 # human-facing READMEs) legitimately rephrases invocation/gate mechanics per
 # platform and relies on the pairing check + the advisory `--equiv` instead.
-EQUIV_CHECK="engine challenger code-reviewer code-simplifier test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
+EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
 
 # Canonicalize the documented intentional differences to common tokens so
 # whatever remains is real drift. Reads stdin, writes stdout.
