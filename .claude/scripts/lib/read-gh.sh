@@ -14,6 +14,11 @@
 # `<no value>` where the schema wants an empty field.
 
 # --- gh --template strings (defensive: guarded for null, ranges for lists) ----
+# Confirmed field shapes against live gh 2.96 (2026-07-27): `blockedBy` is a
+# CONNECTION object `{nodes:[{number,...}], totalCount}` — range `.blockedBy.nodes`,
+# never `.blockedBy` (ranging the object hits totalCount and errors, which aborts
+# the whole template and truncates every later field). `labels`/`assignees` are
+# flat arrays; `milestone`/`issueType` are objects-or-null (guarded with {{if}}).
 # Flat key=value view of one issue, then the body after ---BODY---.
 TE_GH_VIEW_TMPL='number={{.number}}
 title={{.title}}
@@ -23,7 +28,7 @@ createdAt={{.createdAt}}
 issueType={{if .issueType}}{{.issueType.name}}{{end}}
 assignee={{range $i, $a := .assignees}}{{if $i}},{{end}}{{$a.login}}{{end}}
 milestone={{if .milestone}}{{.milestone.title}}{{end}}
-blockedBy={{range $i, $b := .blockedBy}}{{if $i}},{{end}}{{$b.number}}{{end}}
+blockedBy={{if .blockedBy}}{{range $i, $b := .blockedBy.nodes}}{{if $i}},{{end}}{{$b.number}}{{end}}{{end}}
 labels={{range $i, $l := .labels}}{{if $i}},{{end}}{{$l.name}}{{end}}
 url={{.url}}
 ---BODY---
@@ -32,10 +37,10 @@ url={{.url}}
 # One line per issue for lists: fields separated by US (\x1f, a non-whitespace
 # delimiter — a tab-IFS read collapses consecutive tabs and would eat empty
 # middle fields like an absent stateReason/assignee). Body excluded.
-TE_GH_LIST_TMPL='{{range .}}{{.number}}{{"\x1f"}}{{.title}}{{"\x1f"}}{{.state}}{{"\x1f"}}{{.stateReason}}{{"\x1f"}}{{.createdAt}}{{"\x1f"}}{{if .issueType}}{{.issueType.name}}{{end}}{{"\x1f"}}{{range $i, $a := .assignees}}{{if $i}},{{end}}{{$a.login}}{{end}}{{"\x1f"}}{{if .milestone}}{{.milestone.title}}{{end}}{{"\x1f"}}{{range $i, $b := .blockedBy}}{{if $i}},{{end}}{{$b.number}}{{end}}{{"\x1f"}}{{range $i, $l := .labels}}{{if $i}},{{end}}{{$l.name}}{{end}}{{"\x1f"}}{{.url}}{{"\n"}}{{end}}'
+TE_GH_LIST_TMPL='{{range .}}{{.number}}{{"\x1f"}}{{.title}}{{"\x1f"}}{{.state}}{{"\x1f"}}{{.stateReason}}{{"\x1f"}}{{.createdAt}}{{"\x1f"}}{{if .issueType}}{{.issueType.name}}{{end}}{{"\x1f"}}{{range $i, $a := .assignees}}{{if $i}},{{end}}{{$a.login}}{{end}}{{"\x1f"}}{{if .milestone}}{{.milestone.title}}{{end}}{{"\x1f"}}{{if .blockedBy}}{{range $i, $b := .blockedBy.nodes}}{{if $i}},{{end}}{{$b.number}}{{end}}{{end}}{{"\x1f"}}{{range $i, $l := .labels}}{{if $i}},{{end}}{{$l.name}}{{end}}{{"\x1f"}}{{.url}}{{"\n"}}{{end}}'
 
 # id<TAB>blockedBy-csv per issue, for the deps.awk edge list.
-TE_GH_DEPS_TMPL='{{range .}}{{$n := .number}}{{range .blockedBy}}{{$n}}{{"\t"}}{{.number}}{{"\n"}}{{end}}{{end}}'
+TE_GH_DEPS_TMPL='{{range .}}{{$n := .number}}{{if .blockedBy}}{{range .blockedBy.nodes}}{{$n}}{{"\t"}}{{.number}}{{"\n"}}{{end}}{{end}}{{end}}'
 
 TE_GH_LIMIT=1000   # explicit high limit: gh list calls default to 30 rows, which
                    # would silently truncate the dependency graph / board join.
