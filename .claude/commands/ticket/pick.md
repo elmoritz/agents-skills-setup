@@ -156,7 +156,7 @@ This report is what the user follows when verifying before closure.
 Dispatch these read-only subagents **in parallel** — none of them edits:
 
 - **Blocking checkers** — every agent in `review.agents` (default: `code-reviewer` and `test-adequacy-reviewer`, plus any a project registers). Their findings can block the loop.
-- **Advisory challengers** — `code-challenger` (`.claude/agents/code-challenger.md`) and `code-simplifier` (`.claude/agents/code-simplifier.md`), always dispatched, every round. `code-challenger` attacks the route the code actually took; `code-simplifier` proposes behavior-preserving trims. Their output is advisory — it informs the evaluation but never blocks on its own.
+- **Advisory challengers** — `code-challenger` (`.claude/agents/code-challenger.md`) and `code-simplifier` (`.claude/agents/code-simplifier.md`), always dispatched as subagents, every round. `code-challenger` attacks the route the code actually took; `code-simplifier` proposes behavior-preserving trims. Their output is advisory — it informs the evaluation but never blocks on its own.
 
 Pass each: the ticket ID and body (plan + acceptance criteria), the diff base (the claim commit, or `git merge-base HEAD <default branch>`), and `verification.test_commands` where the agent judges tests. On round ≥ 2, also pass the prior findings plus a summary of what changed, so agents verify the fixes instead of re-reviewing from scratch. The agents report; the session decides — no agent gates the user.
 

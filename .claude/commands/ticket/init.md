@@ -170,6 +170,24 @@ Ticket creation (`/ticket:new` steps 2 and 4, and `/ticket:refine` via resume) d
 
 5. **Record the set.** Each agent contributes a `research.agents` entry: `name` plus a one-line `consult` hint (when ticket creation should dispatch it — e.g. `perf-expert: "the work could affect latency, memory, or throughput"`). Selecting nothing is fine: `research.agents` is omitted and ticket creation reads sources inline as before.
 
+### Step 5.7 — which assistants read this repo
+
+This bundle is Claude Code's: `.claude/` is the only place Claude Code looks for
+commands, skills, and subagents. Every other AGENTS.md-class assistant (Codex,
+Antigravity, Gemini CLI, GitHub Copilot) reads the sibling `.agents/` bundle
+instead. Ask (numbered list; the user replies with the number):
+
+- **question:** "Does any assistant other than Claude Code work in this repo?"
+- **header:** "Assistants"
+- **options:**
+  - **Claude Code only (Recommended)** — proceed; nothing else to install.
+  - **Others too** — name them (free-text follow-up). Note in the Step 8 report
+    that they need the `.agents/` bundle from the template repo, initialised on
+    its own `.agents/config.yaml`; the two bundles are functionally equal and
+    each stays self-contained.
+
+Default when the user skips: Claude Code only.
+
 ### Step 6 — assemble config
 
 Build the `.claude/config.yaml` content based on the gate answers. Use this skeleton; fill the values from the gates. Comments mark each section so the user can later hand-edit confidently.
@@ -352,7 +370,8 @@ Show the assembled YAML to the user. Gate via `AskUserQuestion`:
    - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here). Write the **ledger stub** at `<root>/.ledger.yaml` — the machine-owned comment header from ticket-engine § Ledger and an empty map (`{}`); it is the authoritative home of `depends_on`/`related`/`milestone` from the first ticket on.
    - **GitHub**: invoke the `ticket-engine` skill's auto-label creation procedure (see § Auto-label creation rules) for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`, plus `risk:low`, `risk:med`, `risk:high`. Create the `prio:`/`effort:`/`risk:` families even when Projects is enabled — there they are the engine's fallback home when a board write fails. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
    - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. Then create each board field Step 5.6 found missing: `gh project field-create <number> --owner <owner> --name "<Field>" --data-type SINGLE_SELECT --single-select-options "<options>"` (Priority: `P0,P1,P2,P3`; Effort: the `effort.allowed` set; Risk: `low,med,high`). If a field-create fails, warn and continue — the engine's label fallback covers it. No items are added at init — issues join the project as they're created (see `ticket-engine` `create_artifact`).
-   - **Research agents** (both backends, only for Step 5.5 selections): for each catalog selection, copy its template from `.claude/references/research-agents/` into `.claude/agents/<name>.md` with the fill-ins applied; write each custom agent from the interview answers. Never overwrite an existing agent file — skip with a note and keep its `research.agents` entry.
+   - **Research agents** (both backends, only for Step 5.5 selections): for each catalog selection, copy its template from `.claude/references/research-agents/` into `.claude/agents/<name>.md` with the fill-ins applied; write each custom agent from the interview answers. Give each one `name`, `description`, and `tools` frontmatter. Never overwrite an existing agent file — skip with a note and keep its `research.agents` entry.
+   - **Other assistants** (only if Step 5.7 named any): nothing is written here — Claude Code reads only `.claude/`. Carry the names into the Step 8 report so the user knows to install the `.agents/` bundle for them.
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 

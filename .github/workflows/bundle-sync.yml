@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Pairing check (.claude vs .github bundles)
+      - name: Pairing check (.claude vs .agents bundles)
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="origin/${{ github.base_ref }}"
@@ -37,6 +37,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - name: provider conformance (codex · antigravity · gemini · copilot · claude)
+        run: scripts/test-adapters.sh
+
       - name: te golden tests
         run: scripts/test-te.sh
       - name: example flavors — end-to-end smoke

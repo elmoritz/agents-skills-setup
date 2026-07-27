@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Guard against drift between the .claude and .github agent bundles.
+# Guard against drift between the .claude and .agents agent bundles.
 #
 # The two bundles mirror each other; any logic change must land in both in the
-# same commit (see AGENTS.md § Keeping the bundles in sync). The default gate
-# (also --staged / --base) runs three checks:
+# same commit (see AGENTS.md § Keeping the bundles in sync). `.agents/` serves
+# every AGENTS.md-class assistant (Codex, Antigravity, Gemini CLI, Copilot);
+# the per-platform entry points under .agents/workflows/, .gemini/, .codex/, and
+# .github/agents/ are generated routers, gated by scripts/gen-adapters.sh
+# --check rather than mirrored. The default gate (also --staged / --base) runs
+# four checks:
 #
 #   Pairing check — if a file in a mirrored pair changed but its mirror did not
 #   change in the same range, fail. Catches "edited one, forgot the other".
@@ -35,52 +39,54 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-# name:claude-path:github-path
+# name:claude-path:agents-path
 PAIRS="
-init:.claude/commands/ticket/init.md:.github/skills/ticket-init/SKILL.md
-new:.claude/commands/ticket/new.md:.github/skills/ticket-new/SKILL.md
-refine:.claude/commands/ticket/refine.md:.github/skills/ticket-refine/SKILL.md
-pick:.claude/commands/ticket/pick.md:.github/skills/ticket-pick/SKILL.md
-review:.claude/commands/ticket/review.md:.github/skills/ticket-review/SKILL.md
-reject:.claude/commands/ticket/reject.md:.github/skills/ticket-reject/SKILL.md
-close:.claude/commands/ticket/close.md:.github/skills/ticket-close/SKILL.md
-engine:.claude/skills/ticket-engine/SKILL.md:.github/skills/ticket-engine/SKILL.md
-milestone-sync:.claude/skills/milestone-sync/SKILL.md:.github/skills/milestone-sync/SKILL.md
-grill-me:.claude/skills/grill-me/SKILL.md:.github/skills/grill-me/SKILL.md
-readme:.claude/README.md:.github/README.md
-challenger:.claude/agents/challenger.md:.github/agents/challenger.agent.md
-code-challenger:.claude/agents/code-challenger.md:.github/agents/code-challenger.agent.md
-code-reviewer:.claude/agents/code-reviewer.md:.github/agents/code-reviewer.agent.md
-code-simplifier:.claude/agents/code-simplifier.md:.github/agents/code-simplifier.agent.md
-test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.github/agents/test-adequacy-reviewer.agent.md
-tpl-perf-expert:.claude/references/research-agents/perf-expert.md:.github/references/research-agents/perf-expert.agent.md
-tpl-language-expert:.claude/references/research-agents/language-expert.md:.github/references/research-agents/language-expert.agent.md
-tpl-precedent-researcher:.claude/references/research-agents/precedent-researcher.md:.github/references/research-agents/precedent-researcher.agent.md
-tpl-docs-researcher:.claude/references/research-agents/docs-researcher.md:.github/references/research-agents/docs-researcher.agent.md
-tpl-api-docs-researcher:.claude/references/research-agents/api-docs-researcher.md:.github/references/research-agents/api-docs-researcher.agent.md
-tpl-design-spec-researcher:.claude/references/research-agents/design-spec-researcher.md:.github/references/research-agents/design-spec-researcher.agent.md
-tpl-web-researcher:.claude/references/research-agents/web-researcher.md:.github/references/research-agents/web-researcher.agent.md
+init:.claude/commands/ticket/init.md:.agents/skills/ticket-init/SKILL.md
+new:.claude/commands/ticket/new.md:.agents/skills/ticket-new/SKILL.md
+refine:.claude/commands/ticket/refine.md:.agents/skills/ticket-refine/SKILL.md
+pick:.claude/commands/ticket/pick.md:.agents/skills/ticket-pick/SKILL.md
+review:.claude/commands/ticket/review.md:.agents/skills/ticket-review/SKILL.md
+reject:.claude/commands/ticket/reject.md:.agents/skills/ticket-reject/SKILL.md
+close:.claude/commands/ticket/close.md:.agents/skills/ticket-close/SKILL.md
+engine:.claude/skills/ticket-engine/SKILL.md:.agents/skills/ticket-engine/SKILL.md
+milestone-sync:.claude/skills/milestone-sync/SKILL.md:.agents/skills/milestone-sync/SKILL.md
+grill-me:.claude/skills/grill-me/SKILL.md:.agents/skills/grill-me/SKILL.md
+readme:.claude/README.md:.agents/README.md
+challenger:.claude/agents/challenger.md:.agents/agents/challenger.md
+code-challenger:.claude/agents/code-challenger.md:.agents/agents/code-challenger.md
+code-reviewer:.claude/agents/code-reviewer.md:.agents/agents/code-reviewer.md
+code-simplifier:.claude/agents/code-simplifier.md:.agents/agents/code-simplifier.md
+test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.agents/agents/test-adequacy-reviewer.md
+tpl-perf-expert:.claude/references/research-agents/perf-expert.md:.agents/references/research-agents/perf-expert.md
+tpl-language-expert:.claude/references/research-agents/language-expert.md:.agents/references/research-agents/language-expert.md
+tpl-precedent-researcher:.claude/references/research-agents/precedent-researcher.md:.agents/references/research-agents/precedent-researcher.md
+tpl-docs-researcher:.claude/references/research-agents/docs-researcher.md:.agents/references/research-agents/docs-researcher.md
+tpl-api-docs-researcher:.claude/references/research-agents/api-docs-researcher.md:.agents/references/research-agents/api-docs-researcher.md
+tpl-design-spec-researcher:.claude/references/research-agents/design-spec-researcher.md:.agents/references/research-agents/design-spec-researcher.md
+tpl-web-researcher:.claude/references/research-agents/web-researcher.md:.agents/references/research-agents/web-researcher.md
 "
 
 # Files that legitimately exist on one side only. Exact paths, or prefixes
-# ending in '/'. Any tracked file under .claude/, .github/skills/,
-# .github/agents/, or .github/scripts/ that is neither here, in PAIRS, nor under
-# a DIR_PAIRS directory fails the coverage check.
+# ending in '/'. Any tracked file under .claude/ or .agents/ that is neither
+# here, in PAIRS, nor under a DIR_PAIRS directory fails the coverage check. The
+# generated adapters (.agents/workflows/, .gemini/, .codex/, .github/agents/)
+# are covered by scripts/gen-adapters.sh --check instead.
 IGNORE="
 .claude/settings.json
 .claude/references/
 .claude/config.yaml
-.github/config.yaml
+.agents/config.yaml
+.agents/workflows/
 "
 
-# name:claude-dir:github-dir — recursively mirrored directories. Every tracked
+# name:claude-dir:agents-dir — recursively mirrored directories. Every tracked
 # file under one side must exist under the other, be byte-identical, AND carry
 # the same git mode (so a bundle copied without the te exec bit fails here, not
 # just in the test harness). The te CLI derives its bundle dir from its own path
 # (see .claude/scripts/te), so the two copies are byte-identical by construction
 # and need none of the normalize/canon machinery the file PAIRS rely on.
 DIR_PAIRS="
-scripts:.claude/scripts/:.github/scripts/
+scripts:.claude/scripts/:.agents/scripts/
 "
 
 # Pairs whose two mirrors must be logic-identical (after frontmatter + fence
@@ -92,12 +98,21 @@ scripts:.claude/scripts/:.github/scripts/
 EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
 
 # Canonicalize the documented intentional differences to common tokens so
-# whatever remains is real drift. Reads stdin, writes stdout.
+# whatever remains is real drift. Reads stdin, writes stdout. The bundle prefix
+# is one of those differences: `.claude`, `.agents`, and the pre-relocation
+# `.github/<bundle-subpath>` all collapse to the same token, so a mirror is
+# compared on what it says, not on where it lives.
 normalize() {
-  sed -e 's|\.claude|.github|g' \
+  sed -E \
+      -e 's|\.claude|.agents|g' \
+      -e 's#\.github#.agents#g' \
+      -e 's#(agents/[a-z0-9-]+)\.agent\.md#\1.md#g' \
       -e 's|/ticket:|/ticket-|g' \
       -e 's/\$ARGUMENTS/«ARGS»/g' \
       -e 's/Copilot/«ASSISTANT»/g' \
+      -e 's/Codex/«ASSISTANT»/g' \
+      -e 's/Antigravity/«ASSISTANT»/g' \
+      -e 's/Gemini CLI/«ASSISTANT»/g' \
       -e 's/Claude/«ASSISTANT»/g' \
       -e 's/`AskUserQuestion`/«GATE»/g' \
       -e 's/AskUserQuestion/«GATE»/g' \
@@ -193,7 +208,7 @@ check_coverage() {
     [ "$ignored" -eq 1 ] && continue
     echo "FAIL [coverage]: $f is in neither PAIRS, a DIR_PAIRS directory, nor IGNORE (scripts/check-bundle-sync.sh) — add a mirror, or list it in IGNORE."
     fail=1
-  done < <(git ls-files -- .claude .github/skills .github/agents .github/scripts)
+  done < <(git ls-files -- .claude .agents)
   return "$fail"
 }
 
@@ -245,11 +260,43 @@ check_equiv() {
   return "$fail"
 }
 
+check_adapters() {
+  # The per-platform entry points are generated from the canonical bundle, so
+  # they can't drift by hand-edit — they can only go stale. One command decides.
+  if ! scripts/gen-adapters.sh --check >/dev/null 2>&1; then
+    scripts/gen-adapters.sh --check 2>&1 | sed 's/^/FAIL [adapters]: /' >&2
+    return 1
+  fi
+  return 0
+}
+
+# True when a file's change is invisible to canon() — i.e. it moved, or only its
+# own bundle prefix was rewritten, and no logic changed. Follows renames so a
+# relocated bundle compares against its pre-move blob.
+canon_unchanged() { # canon_unchanged <path-now> <source>
+  local now="$1" source="${2:-}" base old tmp
+  case "$source" in
+    --staged) base="HEAD" ;;
+    "")       base="HEAD" ;;
+    *)        base="${source%%...*}" ;;
+  esac
+  old=$(git diff --name-status -M "$base" 2>/dev/null \
+        | awk -v n="$now" '$1 ~ /^R/ && $3 == n { print $2; exit }')
+  [ -n "$old" ] || old="$now"
+  git cat-file -e "$base:$old" 2>/dev/null || return 1
+  tmp=$(mktemp); git show "$base:$old" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
+  if diff -q <(canon "$tmp") <(canon "$now") >/dev/null 2>&1; then
+    rm -f "$tmp"; return 0
+  fi
+  rm -f "$tmp"; return 1
+}
+
 mode_check() {
   local source="${1:-}" changed fail=0
   check_coverage || fail=1
   check_equiv || fail=1
   check_dir_pairs || fail=1
+  check_adapters || fail=1
   case "$source" in
     --staged) changed=$(git diff --name-only --cached) ;;
     "")       changed=$(git diff --name-only HEAD) ;;
@@ -257,10 +304,22 @@ mode_check() {
   esac
   for entry in $PAIRS; do
     IFS=: read -r name c g <<<"$entry"
-    local in_c=0 in_g=0
+    local in_c=0 in_g=0 lone
     grep -qxF "$c" <<<"$changed" && in_c=1
     grep -qxF "$g" <<<"$changed" && in_g=1
     if [ "$in_c" -ne "$in_g" ]; then
+      [ "$in_c" -eq 1 ] && lone="$c" || lone="$g"
+      # For an equivalence-gated pair, equivalence is the stronger statement: if
+      # the mirrors still say the same thing, no logic moved one-sidedly.
+      if is_equiv_checked "$name" && diff -q <(canon "$c") <(canon "$g") >/dev/null 2>&1; then
+        continue
+      fi
+      # A one-sided edit that survives canon() unchanged carried no logic — a
+      # bundle relocation or a path rewrite the normalizer already accounts for.
+      # The mirror has nothing to mirror, so this is not drift.
+      if canon_unchanged "$lone" "$source"; then
+        continue
+      fi
       if [ "$in_c" -eq 1 ]; then
         echo "FAIL [$name]: $c changed, but its mirror $g did not."
       else
@@ -281,6 +340,11 @@ mode_check() {
         *) continue ;;
       esac
       if ! grep -qxF "$mirror" <<<"$changed"; then
+        # Byte-identical already (check_dir_pairs asserts that separately): the
+        # one-sided change was a relocation, so the mirror has nothing to track.
+        if diff -q "$f" "$mirror" >/dev/null 2>&1; then
+          continue
+        fi
         echo "FAIL [dir:$name]: $f changed, but its mirror $mirror did not."
         fail=1
       fi
@@ -295,6 +359,8 @@ Bundle drift (see AGENTS.md "Keeping the bundles in sync"):
                          wrap the intentional difference in a
                          <!-- sync:divergent --> … <!-- sync:end --> fence.
   - FAIL [coverage]      a bundle file has no mirror + PAIRS entry.
+  - FAIL [adapters]      a generated platform entry point is stale — run
+                         scripts/gen-adapters.sh and commit the result.
 
 Inspect a pair:
   scripts/check-bundle-sync.sh --equiv <name>   # the equivalence residual

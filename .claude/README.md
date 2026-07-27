@@ -10,6 +10,21 @@ are Markdown instructions Claude loads on demand and runs with its own tools.
 > cherry-pick files — the commands call into the skills, and the skills read
 > `.claude/config.yaml`. Copy the folder whole and it just works.
 
+## Who reads this bundle
+
+Claude Code, and only Claude Code: `.claude/` is the one place it looks for
+commands, skills, and subagents. Every other AGENTS.md-class assistant — OpenAI
+Codex, Google Antigravity, Gemini CLI, GitHub Copilot — reads the sibling
+[`.agents/`](../.agents/README.md) bundle instead, which is functionally equal
+and kept in lockstep with this one. A repo worked on by mixed assistants installs
+both; each stays self-contained, with its own `config.yaml`.
+
+The template repo checks both bundles on every commit:
+`scripts/check-bundle-sync.sh` for lockstep between them, and
+`scripts/test-adapters.sh` for the surface each assistant expects — including
+Claude's, so a skill that gains a `/ticket-*` command on one side and not the
+other fails loudly.
+
 ## What's in here
 
 ```

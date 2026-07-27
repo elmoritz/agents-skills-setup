@@ -34,7 +34,7 @@ count=0
 # ---- structural assertion: only `te` carries the exec bit in each bundle ----
 check_exec_bits() {
   local bundle f
-  for bundle in .claude/scripts .github/scripts; do
+  for bundle in .claude/scripts .agents/scripts; do
     [ -d "$bundle" ] || { echo "FAIL [exec]: missing bundle dir $bundle"; fail=1; continue; }
     if [ ! -x "$bundle/te" ]; then
       echo "FAIL [exec]: $bundle/te is not executable — a bundle copied without exec bits."
