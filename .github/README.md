@@ -1,83 +1,225 @@
-# .github — portable GitHub Copilot setup
+# agents-skills-setup
 
-This directory is a **self-contained GitHub Copilot configuration bundle** — the
-Copilot counterpart to the `.claude/` bundle in this repo. It ships the ticket
-workflow and helpers as **Agent Skills** (`SKILL.md`), the open standard supported
-across **VS Code agent mode, the Copilot CLI, and the Copilot cloud agent**.
+A **template** for wiring an agentic coding assistant into your project. Use this
+repo as a starting point — copy one of its two self-contained bundles into your
+own project, customize it, and you get a complete, backend-agnostic **ticket
+workflow** plus a handful of auto-triggered **authoring and review agents**.
 
-> **Why skills, not prompt files?** Prompt files (`.prompt.md`) only work in VS
-> Code. Agent Skills run on every Copilot surface — CLI included — and a skill with
-> `user-invocable: true` is still invoked as `/skill-name` in chat, so you keep the
-> slash-command ergonomics and gain portability. Skills also auto-trigger when
-> their `description` matches the task.
+Everything here is prompt-and-config only: no runtime, no dependencies, no build
+step. The commands, skills, and agents are Markdown instructions the assistant
+loads on demand and executes with its own tools.
 
-> **Claude or Copilot — pick one.** This repo ships two parallel bundles:
-> `.claude/` for Claude Code and `.github/` for Copilot. They are **functionally
-> equal** and **independent** — each is fully self-contained. The only difference
-> is the generated config path: Claude writes `.claude/config.yaml`, Copilot writes
-> `.github/config.yaml`. (Copilot can also read `.claude/skills/` directly, but this
-> bundle keeps everything under `.github/` so a Copilot-only project needs nothing
-> else.)
+> **This is a template, not a library.** Don't depend on it — fork it, copy it,
+> and edit the copied bundle to fit your project. The setup is meant to be
+> shaped: rename stages, adjust ticket types, and — most importantly — set up the
+> **research agents** your project's ticket creation needs. Init guides you
+> through that (see below); thinking about your sources beforehand makes its
+> questions easy to answer.
 
-## What's in here
+## Two setups: `claude` and `copilot`
 
+The repo ships **two parallel, functionally-equal bundles**. Pick the one that
+matches your assistant — each is fully self-contained, and you only copy one.
+
+| Assistant | Bundle | Commands look like | Config path |
+| --- | --- | --- | --- |
+| **Claude Code** | [`.claude/`](.claude/) | `/ticket:new` | `.claude/config.yaml` |
+| **GitHub Copilot** | [`.github/`](.github/) + [`AGENTS.md`](AGENTS.md) | `/ticket-new` | `.github/config.yaml` |
+
+The two bundles are kept in lockstep by `scripts/check-bundle-sync.sh` (run in CI)
+— any logic change lands in both. See each bundle's own README for the full
+directory breakdown:
+
+- **Claude Code →** [.claude/README.md](.claude/README.md)
+- **GitHub Copilot →** [.github/README.md](.github/README.md)
+
+---
+
+## Quickest start — let the assistant set it up
+
+You don't have to copy files by hand. Open your project in your coding assistant
+(Claude Code or Copilot) and paste this prompt — it copies the right bundle for
+your provider and leaves you ready to run init:
+
+```text
+Look at this repo https://github.com/elmoritz/agents-skills-setup and set up this
+project with its agents-and-skills bundle.
+
+- Detect which assistant I'm using and copy the matching self-contained bundle
+  into my project root — the whole `.claude/` directory for Claude Code, or the
+  whole `.github/` directory plus `AGENTS.md` for GitHub Copilot. Copy the folder
+  whole; don't cherry-pick files.
+- Don't run init yet. Just leave me ready to run the `/ticket:init` command
+  (Claude Code) or the `/ticket-init` command / `ticket:init` skill (Copilot),
+  and tell me which one applies to me.
 ```
-.github/
-├── README.md                     this file
-├── skills/                       Agent Skills (SKILL.md per directory)
-│   ├── ticket-init/              /ticket-init   — one-time bootstrap
-│   ├── ticket-new/               /ticket-new    — create ticket(s)
-│   ├── ticket-refine/            /ticket-refine — promote an inbox entry
-│   ├── ticket-pick/              /ticket-pick   — implement next ticket
-│   ├── ticket-review/            /ticket-review — print a verification guide
-│   ├── ticket-reject/            /ticket-reject — send failed review back
-│   ├── ticket-close/             /ticket-close  — close as shipped
-│   ├── grill-me/                 /grill-me      — stress-test a plan/design
-│   ├── ticket-engine/            execution layer (user-invocable: false)
-│   └── milestone-sync/           milestone drift sync (user-invocable: false)
-├── agents/                       custom review agents (*.agent.md) wired into /ticket-pick
-│   ├── challenger.agent.md              devil's advocate against a drafted plan
-│   ├── code-challenger.agent.md         devil's advocate against the code, every loop round
-│   ├── code-reviewer.agent.md           diff review vs plan, invariants, conventions
-│   ├── code-simplifier.agent.md         proposes behavior-preserving simplifications
-│   └── test-adequacy-reviewer.agent.md  judges whether new tests can actually fail
-└── references/
-    └── research-agents/          templates /ticket-init instantiates into agents/
-        ├── perf-expert.agent.md            tech-stack performance expert (recommended)
-        ├── language-expert.agent.md        language idioms & pitfalls (recommended)
-        ├── precedent-researcher.agent.md   in-repo & past-ticket prior art
-        ├── docs-researcher.agent.md        internal docs / wiki / ADRs
-        ├── api-docs-researcher.agent.md    version-accurate library/API answers
-        ├── design-spec-researcher.agent.md design-tool specs, distilled
-        └── web-researcher.agent.md         external candidates, license rules baked in
+
+Then run the init command it points you to (`/ticket:init` or `/ticket-init`) and
+answer the prompts — that's where you tailor stages, backend, and your **research
+agents** (Step 0 below). Prefer to do the copy yourself? The manual steps are in
+[Getting started](#getting-started).
+
+### Already set up? Update to the latest version
+
+If you copied this bundle a while ago and want the newest commands, skills, and
+review agents, paste this prompt. It refreshes the **shipped** files while leaving
+everything **you** customized — your `config.yaml`, your research agents, your
+ticket template — untouched:
+
+```text
+Look at this repo https://github.com/elmoritz/agents-skills-setup and update my
+existing agents-and-skills bundle to its latest version.
+
+- Detect which bundle I have: `.claude/` (Claude Code) or `.github/` + `AGENTS.md`
+  (GitHub Copilot). Only update the one I actually have.
+- Refresh the SHIPPED files to match the template: the ticket commands, the skills
+  (ticket-engine, milestone-sync, grill-me, …), and the review agents (challenger,
+  code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
+- Do NOT overwrite anything I customized: my `config.yaml`, the research agents I
+  added under `.claude/agents/` / `.github/agents/`, and my ticket template. If a
+  shipped file and my customized copy have both changed, show me a diff and ask
+  before touching it — never clobber my edits silently.
+- When you're done, give me a short summary of what changed (new commands, renamed
+  files, behavior changes) so I know what's new, and flag anything in my
+  `config.yaml` that a new template version now expects.
 ```
 
-Base instructions for all Copilot surfaces live in the repo-root
-[`AGENTS.md`](../AGENTS.md). `config.yaml`, stage folders, and `TICKET_TEMPLATE.md`
-are generated on first use by `ticket-init`.
+The two bundles stay in lockstep, so a Claude Code setup updates from `.claude/`
+and a Copilot setup from `.github/` — the update never mixes the two.
+
+### How the pieces fit together
+
+```mermaid
+flowchart LR
+    T["agents-skills-setup<br/>(this template)"] -->|copy .claude/| C["Claude Code<br/>bundle in your repo"]
+    T -->|copy .github/ + AGENTS.md| G["Copilot bundle<br/>in your repo"]
+    C --> I["/ticket:init<br/>·<br/>/ticket-init"]
+    G --> I
+    I -->|writes config.yaml,<br/>stages, research agents| R["Ready to work"]
+    R --> N["/ticket:new<br/>capture work"]
+    N --> P["/ticket:pick<br/>plan → implement → review"]
+    P --> V["/ticket:review<br/>verify"]
+    V --> CL["/ticket:close<br/>ship"]
+    V -.->|failed| RJ["/ticket:reject<br/>back to in-progress"]
+    RJ --> P
+```
+
+> **Diagrams not rendering?** The diagrams in this README are [Mermaid](https://mermaid.js.org/).
+> GitHub, GitLab, and most modern Markdown viewers render them inline. If you see
+> raw ```mermaid``` code instead, view the file on GitHub or in an editor with a
+> Mermaid preview extension — the surrounding prose stands on its own either way.
+
+---
+
+## Step 0 — before you init: think about your sources of information
+
+When you create a ticket, the assistant researches the work — reading existing
+code, docs, APIs, design specs, prior tickets, external references. If it reads
+all of that **inline**, the raw source material floods the main context and
+crowds out the actual ticket. The fix is to push each **source of information
+into its own research agent**:
+
+> **Any source that holds information should be a research agent, not inline
+> reading.** An agent reads the source in its *own* isolated context and returns
+> only the distilled finding — so the main conversation stays clean and the
+> ticket body carries conclusions, not dumps.
+
+**Init sets these up for you.** The init command's research-agent step walks you
+through a shipped catalog — pick what fits, answer a couple of fill-in questions
+per pick (your stack, your doc paths…), and it writes the agent files and
+registers them in the config. Two catalog entries are recommended for every
+project, because every project has a tech stack and a language:
+
+- **`perf-expert`** — a performance expert for *your* tech stack, consulted
+  whenever the work could affect latency, memory, or throughput.
+- **`language-expert`** — an expert in *your* language(s) and their idioms,
+  consulted on language-level design questions.
+
+The rest of the catalog covers the usual sources — internal docs/wiki
+(`docs-researcher`), API/SDK references (`api-docs-researcher`), design specs
+(`design-spec-researcher`), in-repo prior art (`precedent-researcher`), and
+external web research with license rules baked in (`web-researcher`) — and init
+also loops to generate **custom agents** for any source it doesn't cover
+("search our Notion", "check crates.io"…).
+
+So before you run init, just think through: *which sources would I otherwise
+paste into the conversation?* Agents you hand-author under `.claude/agents/` /
+`.github/agents/` before init are detected and offered for registration too.
+Ticket creation then dispatches the registered agents during its analysis and
+research steps instead of reading those sources inline.
+
+---
+
+## Getting started
+
+### Claude Code
+
+1. **Copy the whole [`.claude/`](.claude/) directory** into the root of your
+   project. Don't cherry-pick — the commands call into the skills, and the skills
+   read `.claude/config.yaml`.
+2. Run **`/ticket:init`** and answer the prompts. It generates
+   `.claude/config.yaml` tailored to your backend (filesystem or GitHub) and
+   lifecycle — and guides you through setting up your **research agents** (Step 0).
+3. Capture your first piece of work with **`/ticket:new`**.
+4. Implement it with **`/ticket:pick`**, then close it out with **`/ticket:close`**.
+
+Full details: [.claude/README.md](.claude/README.md).
+
+### GitHub Copilot
+
+1. **Copy the whole [`.github/`](.github/) directory and [`AGENTS.md`](AGENTS.md)**
+   into your project root. The bundle ships the workflow as **Agent Skills**, so it
+   works across VS Code agent mode, the Copilot CLI, and the cloud agent.
+2. Run **`/ticket-init`** and answer the numbered prompts. It generates
+   `.github/config.yaml` tailored to your backend (filesystem or GitHub) — and
+   guides you through setting up your **research agents** (Step 0).
+3. Capture your first piece of work with **`/ticket-new`**.
+4. Implement it with **`/ticket-pick`**, then close it out with **`/ticket-close`**.
+
+Full details: [.github/README.md](.github/README.md).
+
+---
 
 ## The ticket workflow
 
-A small, opinionated issue tracker that lives in your repo. The same skills work
-whether tickets are **Markdown files committed to the repo** (filesystem backend)
-or **GitHub issues** (github backend) — the choice lives in `.github/config.yaml`,
-and every skill delegates the actual reads, writes, and stage transitions to the
-`ticket-engine` skill.
+A small, opinionated issue tracker that lives in your repo and runs through a
+handful of slash commands. The same commands work whether tickets are **Markdown
+files committed to the repo** (filesystem backend) or **GitHub issues** (github
+backend) — the choice lives in your bundle's `config.yaml`, and every command
+delegates the actual reads, writes, and stage transitions to the **`ticket-engine`**
+skill.
 
-| Skill | Invoke as | What it does |
-| --- | --- | --- |
-| `ticket-init` | `/ticket-init` | Bootstrap a project: write `.github/config.yaml`, create the stage folders (with the `.ledger.yaml`) or labels/board fields, guide research-agent setup, lay down a starter ticket template. |
-| `ticket-new` | `/ticket-new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the agent's understanding before anything is committed. |
-| `ticket-refine` | `/ticket-refine` | Resume a captured inbox entry and promote it to the backlog (or close it as fold/wontfix). Only if an inbox stage is configured. |
-| `ticket-pick` | `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review. |
-| `ticket-review` | `/ticket-review` | Print a read-only verification guide for a ticket in review. |
-| `ticket-reject` | `/ticket-reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
-| `ticket-close` | `/ticket-close` | Close a ticket as shipped, trusting you've verified the work. |
+| Command (Claude / Copilot) | What it does |
+| --- | --- |
+| `/ticket:init` · `/ticket-init` | Bootstrap a project: write `config.yaml`, create the stage folders or labels, lay down a starter ticket template. One-time. |
+| `/ticket:new` · `/ticket-new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the assistant's understanding before anything is committed. |
+| `/ticket:refine` · `/ticket-refine` | Resume a captured inbox entry and promote it to the backlog (or close it as a fold/wontfix). |
+| `/ticket:pick` · `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review — the plan is stress-tested by the `challenger` agent, then implementation runs as a bounded **implement → agent-checks → evaluate** loop where every round also runs `code-challenger` and `code-simplifier` as advisory passes (configurable checker set and round cap). |
+| `/ticket:review` · `/ticket-review` | Print a read-only verification guide for a ticket in review. |
+| `/ticket:reject` · `/ticket-reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
+| `/ticket:close` · `/ticket-close` | Close a ticket as shipped, trusting you've verified the work. |
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress →
 review → done), each carrying a **role** the engine resolves against. Effort caps
-keep the backlog honest: every ticket landing in a pickable stage must fit the
-project's allowed size, and `ticket-new` silently splits work that's too big.
+keep the backlog honest: every ticket landing in the pickable stage must fit the
+project's allowed size, and ticket creation silently splits work that's too big.
+
+```mermaid
+stateDiagram-v2
+    [*] --> inbox: /ticket:new (save)
+    inbox --> backlog: /ticket:refine
+    [*] --> backlog: /ticket:new (full)
+    backlog --> in_progress: /ticket:pick
+    in_progress --> review: pick completes
+    review --> done: /ticket:close
+    review --> in_progress: /ticket:reject
+    in_progress --> done: /ticket:close (no review stage)
+    done --> [*]
+```
+
+Stages are configurable — a project can drop the `inbox` or `review` stage, and
+the commands adapt (e.g. with no review stage, `/ticket:pick` runs straight to
+closure-ready and `/ticket:close` ships from in-progress).
 
 **Ticket data lives native, not in frontmatter.** On the GitHub backend, issues
 carry **no YAML frontmatter** — dependencies are native issue dependencies
@@ -88,39 +230,48 @@ self-describing frontmatter while the graph data — `depends_on`, `related`,
 `milestone` — lives in a machine-owned **ledger** (`.ledger.yaml`) beside the
 stage folders, updated in the same commit as every event.
 
-## The internal skills
+On the GitHub backend you can optionally **link tickets to a GitHub Project (v2)
+board**: init lets you pick a project, and from then on every ticket is added to it
+on creation with its `Status` field synced to the workflow stage — and Priority /
+Effort / Risk live as board fields init creates if missing. The issue stays
+the source of truth for stage — a failed board update never blocks a transition.
 
-These carry `user-invocable: false` — the workflow loads them, you don't call them
-directly (though `milestone-sync` also runs standalone if you ask Copilot to "sync
-milestones"):
+### Aligned by design
 
-- **`ticket-engine`** — the shared execution layer every `ticket-*` skill reads and
-  runs inline. Loads and validates `config.yaml`, assigns IDs, runs backend-specific
-  transitions, formats commit/comment messages, and reports half-state on partial
-  failure. Contains **no user gates** — the calling skill owns those.
+Ticket creation treats shared understanding as a first-class goal. After analyzing
+the relevant code (and dispatching your research agents), it runs an
+**alignment-grilling pass** — walking the decision tree branch by branch, answering
+what it can from the codebase and asking you only the questions that genuinely
+change scope, type, acceptance criteria, or size. Every answer (and every silent
+default) is recorded in a `## Decisions & assumptions` section on the ticket, so
+whoever picks it up later sees the same reconciled view you signed off on.
+
+## The skills
+
+Skills trigger automatically when their description matches what you're doing —
+you don't invoke them by hand.
+
+- **`ticket-engine`** — the shared execution layer behind every ticket command.
+  Loads and validates `config.yaml`, assigns IDs, runs backend-specific transitions
+  (filesystem commits or GitHub label flips), formats commit/comment messages, and
+  reports precise half-state on partial failure.
 - **`milestone-sync`** — detects and fixes drift between a milestone's declared
-  state and the tickets that reference it. Read-only until you approve a fix. Read
-  as a preflight in `ticket-pick` and a postflight in `ticket-close`.
+  state and the tickets that reference it. Read-only until you approve a fix; each
+  fix lands as its own atomic event. Runs as a preflight in pick, a postflight in
+  close, or standalone.
+- **`grill-me`** — interviews you relentlessly about a plan or design, resolving
+  each branch of the decision tree one dependency at a time, with a recommended
+  answer for every question. Use it to stress-test a design before you build.
 
-## The agents
+## The review agents
 
-`agents/` holds read-only **custom agents** (`<name>.agent.md`) — focused workers
-Copilot picks from the agents dropdown / `/agents`, or auto-selects when a task
-matches their `description`. Each judges only what's on disk and changes nothing;
-the main session owns any resulting edits. Two kinds ship or get generated here:
-
-**Research agents** (added by `/ticket-init` from the `references/research-agents/`
-templates, plus any custom ones init generates) are dispatched by `/ticket-new`
-and `/ticket-refine` during analysis and research: each reads one source of
-information — docs, prior art, API references, design specs, the web, your
-stack's performance characteristics, your language's idioms — in its own context
-and returns only distilled findings. The registered set lives in `config.yaml`
-under `research.agents`, each with a `consult` hint that routes dispatch.
-
-**Review agents** (shipped) are wired into `/ticket-pick`:
+Alongside the **research agents you add** (Step 0), each bundle ships five
+read-only **review agents**, wired into the pick command. Each judges only what's
+on disk and changes nothing; the main session owns any resulting edits.
 
 - **`challenger`** — devil's advocate against a freshly drafted plan: concrete
-  failure scenarios and cheaper alternatives, grounded in the code, never vague doubt.
+  failure scenarios and cheaper alternatives, grounded in the code, never vague
+  doubt. Runs in step 3, so you judge plan and challenge together at the Plan gate.
 - **`code-reviewer`** — reviews an implementation diff against the approved plan,
   architecture invariants, and conventions; verdict + file:line findings.
 - **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
@@ -131,32 +282,34 @@ under `research.agents`, each with a `consult` hint that routes dispatch.
 - **`code-simplifier`** — proposes behavior-preserving simplifications of the diff
   as ready-to-apply patches.
 
-`challenger` runs in step 3, so the user judges plan and challenge together at
-the Plan gate. `code-reviewer` and `test-adequacy-reviewer` are the default
-**blocking** checkers in pick's **implementation loop** — each round implements,
-verifies, runs the configured `review.agents`, and ends in an explicit evaluation
-that decides *done / iterate / re-plan / escalate*, bounded by
-`verification.max_loop_rounds` (default 3). Extra checkers register in
+`code-reviewer` and `test-adequacy-reviewer` are the default **blocking** checkers
+in pick's **implementation loop**: each round implements, verifies, dispatches the
+configured `review.agents` in parallel, and ends in an explicit evaluation that
+decides *done / iterate / re-plan / escalate* — bounded by a configurable round
+cap (default 3). Projects can register extra checkers (a11y, security…) in
 `config.yaml` without touching the command. `code-challenger` and `code-simplifier`
 run **every round too, as advisory passes** — the session weighs their findings in
 the evaluation and folds the sound ones into the next round's work-list (no user
 gate); a `code-challenger` "route-wrong" verdict can send the loop back to re-plan.
-Each also works standalone on any plan or diff.
 
-## How Copilot loads these
+The loop inside `/ticket:pick` looks like this:
 
-- **Slash invocation:** type `/ticket-new` (etc.) in Copilot Chat or the CLI — the
-  user-invocable skills appear in the `/` menu.
-- **Automatic:** Copilot loads a skill when your request matches its `description`
-  (e.g. "create a ticket" → `ticket-new`).
-- **Arguments** are whatever you type after the command; each skill's
-  `argument-hint` shows what it expects.
-- **Gates** are numbered lists — reply with the number.
+```mermaid
+flowchart TD
+    D["Draft plan"] --> CH["challenger agent<br/>stress-tests the plan"]
+    CH --> PG{"Plan gate<br/>you approve?"}
+    PG -->|revise| D
+    PG -->|approved| IMP["Implement this round"]
+    IMP --> VER["Verify<br/>(build / tests)"]
+    VER --> AC["Agent checks in parallel<br/>blocking: code-reviewer · test-adequacy-reviewer · your extras<br/>advisory: code-challenger · code-simplifier"]
+    AC --> EV{"Evaluate<br/>(session weighs all findings)"}
+    EV -->|iterate<br/>+ sound advisory items| IMP
+    EV -->|re-plan / route-wrong| D
+    EV -->|escalate| ASK["Ask you"]
+    EV -->|done| REV["→ review stage"]
+    ASK --> IMP
 
-## Getting started
+    RC["Round cap<br/>(default 3)"] -.->|bounds| EV
+```
 
-1. **Copy the whole `.github/` directory** (and `AGENTS.md`) into your project root.
-2. Run **`/ticket-init`** and answer the numbered prompts. It generates
-   `.github/config.yaml` tailored to your backend (filesystem or GitHub).
-3. Capture your first piece of work with **`/ticket-new`**.
-4. Implement it with **`/ticket-pick`**, then close it out with **`/ticket-close`**.
+Each agent also works standalone on any plan or diff.
