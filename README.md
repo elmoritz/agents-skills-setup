@@ -16,7 +16,7 @@ loads on demand and executes with its own tools.
 > through that (see below); thinking about your sources beforehand makes its
 > questions easy to answer.
 
-## Two setups: `claude` and `copilot`
+## Two bundles, five assistants
 
 The repo ships **two parallel, functionally-equal bundles**. Pick the one that
 matches your assistant — each is fully self-contained, and you only copy one.
@@ -24,22 +24,36 @@ matches your assistant — each is fully self-contained, and you only copy one.
 | Assistant | Bundle | Commands look like | Config path |
 | --- | --- | --- | --- |
 | **Claude Code** | [`.claude/`](.claude/) | `/ticket:new` | `.claude/config.yaml` |
-| **GitHub Copilot** | [`.github/`](.github/) + [`AGENTS.md`](AGENTS.md) | `/ticket-new` | `.github/config.yaml` |
+| **OpenAI Codex** | [`.agents/`](.agents/) + [`AGENTS.md`](AGENTS.md) | `$ticket-new` | `.agents/config.yaml` |
+| **Google Antigravity** | [`.agents/`](.agents/) + [`AGENTS.md`](AGENTS.md) | `/ticket-new` | `.agents/config.yaml` |
+| **Gemini CLI** | [`.agents/`](.agents/) + [`AGENTS.md`](AGENTS.md) | `/ticket-new` | `.agents/config.yaml` |
+| **GitHub Copilot** | [`.agents/`](.agents/) + [`AGENTS.md`](AGENTS.md) | `/ticket-new` | `.agents/config.yaml` |
+
+Why one bundle covers four of them: `.agents/skills/` is where Codex,
+Antigravity, Gemini CLI, and Copilot *all* look for
+[Agent Skills](https://agentskills.io), so the workflow is written once and read
+by each. Only the **entry points** differ per assistant — slash commands and
+subagent registrations — and those are a few generated lines each under
+`.agents/workflows/`, `.gemini/`, `.codex/`, and `.github/agents/`, every one of
+them a router into `.agents/`. Claude Code reads only `.claude/`, which is why it
+keeps its own bundle. The full evidence behind this split, with vendor
+documentation and live probe results, is in
+[docs/platform-support.md](docs/platform-support.md).
 
 The two bundles are kept in lockstep by `scripts/check-bundle-sync.sh` (run in CI)
 — any logic change lands in both. See each bundle's own README for the full
 directory breakdown:
 
 - **Claude Code →** [.claude/README.md](.claude/README.md)
-- **GitHub Copilot →** [.github/README.md](.github/README.md)
+- **Everyone else →** [.agents/README.md](.agents/README.md)
 
 ---
 
 ## Quickest start — let the assistant set it up
 
 You don't have to copy files by hand. Open your project in your coding assistant
-(Claude Code or Copilot) and paste this prompt — it copies the right bundle for
-your provider and leaves you ready to run init:
+(Claude Code, Codex, Antigravity, Gemini CLI, or Copilot) and paste this prompt —
+it copies the right bundle for your provider and leaves you ready to run init:
 
 ```text
 Look at this repo https://github.com/elmoritz/agents-skills-setup and set up this
@@ -47,17 +61,20 @@ project with its agents-and-skills bundle.
 
 - Detect which assistant I'm using and copy the matching self-contained bundle
   into my project root — the whole `.claude/` directory for Claude Code, or the
-  whole `.github/` directory plus `AGENTS.md` for GitHub Copilot. Copy the folder
-  whole; don't cherry-pick files.
-- Don't run init yet. Just leave me ready to run the `/ticket:init` command
-  (Claude Code) or the `/ticket-init` command / `ticket:init` skill (Copilot),
-  and tell me which one applies to me.
+  whole `.agents/` directory plus `AGENTS.md` for every other assistant (Codex,
+  Antigravity, Gemini CLI, GitHub Copilot). Copy the folder whole; don't
+  cherry-pick files.
+- With the `.agents/` bundle, also copy the entry points my assistant needs:
+  `.gemini/` for Gemini CLI, `.codex/agents/` for Codex, `.github/agents/` for
+  Copilot. Antigravity needs nothing beyond `.agents/` itself.
+- Don't run init yet. Just leave me ready to run init — `/ticket:init` on Claude
+  Code, `/ticket-init` on Antigravity, Gemini CLI, and Copilot, `$ticket-init` on
+  Codex — and tell me which one applies to me.
 ```
 
-Then run the init command it points you to (`/ticket:init` or `/ticket-init`) and
-answer the prompts — that's where you tailor stages, backend, and your **research
-agents** (Step 0 below). Prefer to do the copy yourself? The manual steps are in
-[Getting started](#getting-started).
+Then run the init command it points you to and answer the prompts — that's where
+you tailor stages, backend, and your **research agents** (Step 0 below). Prefer to
+do the copy yourself? The manual steps are in [Getting started](#getting-started).
 
 ### Already set up? Update to the latest version
 
@@ -70,13 +87,15 @@ ticket template — untouched:
 Look at this repo https://github.com/elmoritz/agents-skills-setup and update my
 existing agents-and-skills bundle to its latest version.
 
-- Detect which bundle I have: `.claude/` (Claude Code) or `.github/` + `AGENTS.md`
-  (GitHub Copilot). Only update the one I actually have.
+- Detect which bundle I have: `.claude/` (Claude Code) or `.agents/` + `AGENTS.md`
+  (Codex, Antigravity, Gemini CLI, GitHub Copilot). Only update the one I
+  actually have. If my bundle still lives in `.github/skills/` + `.github/config.yaml`,
+  that is the old layout — move it to `.agents/` and tell me what moved.
 - Refresh the SHIPPED files to match the template: the ticket commands, the skills
   (ticket-engine, milestone-sync, grill-me, …), and the review agents (challenger,
   code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
 - Do NOT overwrite anything I customized: my `config.yaml`, the research agents I
-  added under `.claude/agents/` / `.github/agents/`, and my ticket template. If a
+  added under `.claude/agents/` / `.agents/agents/`, and my ticket template. If a
   shipped file and my customized copy have both changed, show me a diff and ask
   before touching it — never clobber my edits silently.
 - When you're done, give me a short summary of what changed (new commands, renamed
@@ -85,14 +104,14 @@ existing agents-and-skills bundle to its latest version.
 ```
 
 The two bundles stay in lockstep, so a Claude Code setup updates from `.claude/`
-and a Copilot setup from `.github/` — the update never mixes the two.
+and every other setup from `.agents/` — the update never mixes the two.
 
 ### How the pieces fit together
 
 ```mermaid
 flowchart LR
     T["agents-skills-setup<br/>(this template)"] -->|copy .claude/| C["Claude Code<br/>bundle in your repo"]
-    T -->|copy .github/ + AGENTS.md| G["Copilot bundle<br/>in your repo"]
+    T -->|copy .agents/ + AGENTS.md| G["Codex · Antigravity · Gemini CLI · Copilot<br/>bundle in your repo"]
     C --> I["/ticket:init<br/>·<br/>/ticket-init"]
     G --> I
     I -->|writes config.yaml,<br/>stages, research agents| R["Ready to work"]
@@ -144,7 +163,7 @@ also loops to generate **custom agents** for any source it doesn't cover
 
 So before you run init, just think through: *which sources would I otherwise
 paste into the conversation?* Agents you hand-author under `.claude/agents/` /
-`.github/agents/` before init are detected and offered for registration too.
+`.agents/agents/` before init are detected and offered for registration too.
 Ticket creation then dispatches the registered agents during its analysis and
 research steps instead of reading those sources inline.
 
@@ -165,18 +184,21 @@ research steps instead of reading those sources inline.
 
 Full details: [.claude/README.md](.claude/README.md).
 
-### GitHub Copilot
+### Codex · Antigravity · Gemini CLI · GitHub Copilot
 
-1. **Copy the whole [`.github/`](.github/) directory and [`AGENTS.md`](AGENTS.md)**
-   into your project root. The bundle ships the workflow as **Agent Skills**, so it
-   works across VS Code agent mode, the Copilot CLI, and the cloud agent.
-2. Run **`/ticket-init`** and answer the numbered prompts. It generates
-   `.github/config.yaml` tailored to your backend (filesystem or GitHub) — and
-   guides you through setting up your **research agents** (Step 0).
+1. **Copy the whole [`.agents/`](.agents/) directory and [`AGENTS.md`](AGENTS.md)**
+   into your project root, plus the entry points your assistant reads:
+   `.codex/agents/` (Codex), `.gemini/` (Gemini CLI), `.github/agents/`
+   (Copilot). Antigravity needs nothing beyond `.agents/`. The workflow itself
+   ships as **Agent Skills**, which all four discover from `.agents/skills/`.
+2. Run **`/ticket-init`** (Codex: **`$ticket-init`**) and answer the numbered
+   prompts. It generates `.agents/config.yaml` tailored to your backend
+   (filesystem or GitHub) — and guides you through setting up your **research
+   agents** (Step 0).
 3. Capture your first piece of work with **`/ticket-new`**.
 4. Implement it with **`/ticket-pick`**, then close it out with **`/ticket-close`**.
 
-Full details: [.github/README.md](.github/README.md).
+Full details: [.agents/README.md](.agents/README.md).
 
 ---
 
@@ -189,7 +211,7 @@ backend) — the choice lives in your bundle's `config.yaml`, and every command
 delegates the actual reads, writes, and stage transitions to the **`ticket-engine`**
 skill.
 
-| Command (Claude / Copilot) | What it does |
+| Command (Claude / everyone else) | What it does |
 | --- | --- |
 | `/ticket:init` · `/ticket-init` | Bootstrap a project: write `config.yaml`, create the stage folders or labels, lay down a starter ticket template. One-time. |
 | `/ticket:new` · `/ticket-new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the assistant's understanding before anything is committed. |

@@ -1,18 +1,34 @@
 # AGENTS.md
 
-Base instructions for GitHub Copilot (VS Code agent mode, Copilot CLI, and the
-cloud agent all read this file). The capabilities ship as **Agent Skills** under
-[`.github/skills/`](.github/skills/) — Copilot loads a skill when its description
-matches the task, and the user-invocable ones also appear in the `/` menu.
+Base instructions for every AGENTS.md-class assistant working in this repo —
+**OpenAI Codex**, **Google Antigravity**, **Gemini CLI**, and **GitHub Copilot**.
+(Claude Code reads `CLAUDE.md` and the `.claude/` bundle instead; see
+[.claude/README.md](.claude/README.md).)
+
+The capabilities ship as **Agent Skills** under [`.agents/skills/`](.agents/skills/),
+which all four assistants discover natively. A skill loads when its description
+matches the task; the user-invocable ones are also reachable as commands:
+
+| Assistant | Command form | Entry point it reads |
+| --- | --- | --- |
+| Codex | `$ticket-new` (skills invoked directly) | `.agents/skills/` — Codex has no project-level slash commands |
+| Antigravity | `/ticket-new` | `.agents/workflows/*.md` |
+| Gemini CLI | `/ticket-new` | `.gemini/commands/*.toml` |
+| Copilot | `/ticket-new` | the skill itself |
+
+Everything outside `.agents/skills/` and `.agents/agents/` in that table is a
+**generated router** — a few lines naming the canonical file and handing over.
+They are produced by `scripts/gen-adapters.sh`; never hand-edit one, and never
+let a router carry workflow logic.
 
 ## The ticket workflow
 
 A backend-agnostic, in-repo issue tracker. Configuration lives in
-`.github/config.yaml`, generated on first use by the `ticket-init` skill.
+`.agents/config.yaml`, generated on first use by the `ticket-init` skill.
 
 | Skill | Invoke as | What it does |
 | --- | --- | --- |
-| `ticket-init` | `/ticket-init` | Bootstrap: write `.github/config.yaml`, create stage folders (with the `.ledger.yaml`) or labels/board fields, guide research-agent setup, lay down a ticket template. One-time. |
+| `ticket-init` | `/ticket-init` | Bootstrap: write `.agents/config.yaml`, create stage folders (with the `.ledger.yaml`) or labels/board fields, guide research-agent setup, lay down a ticket template. One-time. |
 | `ticket-new` | `/ticket-new` | Create a ticket (or a small slate) through a gated, alignment-checked flow. |
 | `ticket-refine` | `/ticket-refine` | Promote an inbox entry to backlog (or fold/wontfix). |
 | `ticket-pick` | `/ticket-pick` | Implement the next ticket through to review. |
@@ -26,7 +42,7 @@ user): **`ticket-engine`** — the execution layer (config load/validate, ID
 assignment, backend transitions, commit/comment formatting, half-state reporting);
 **`milestone-sync`** — milestone-vs-tickets drift detection and repair.
 
-Five read-only review agents under `.github/agents/` are wired into
+Five read-only review agents live under `.agents/agents/` and are wired into
 `/ticket-pick`: **`challenger`** (step 3 — attacks the drafted plan before the
 Plan gate); **`code-reviewer`** and **`test-adequacy-reviewer`** — the default
 **blocking** checkers in the bounded **implementation loop** (each round: implement
@@ -37,12 +53,17 @@ that decides done / iterate / re-plan / escalate; capped by
 session folds into the next round's work-list (no user gate). Each also runs
 standalone.
 
+Each review agent is registered with every assistant that supports custom
+subagents — `.codex/agents/<name>.toml`, `.gemini/agents/<name>.md`,
+`.github/agents/<name>.agent.md`, and, for Antigravity, `.agents/agents/<name>.md`
+directly. All of those are routers into the canonical body.
+
 **Research agents** are project-specific: `/ticket-init`'s research-agent step
-instantiates them from `.github/references/research-agents/` templates (catalog:
+instantiates them from `.agents/references/research-agents/` templates (catalog:
 `perf-expert` and `language-expert` — recommended for every project — plus
 precedent/docs/api-docs/design-spec/web researchers, and custom sources).
 `/ticket-new` and `/ticket-refine` dispatch the ones registered under
-`research.agents` in `.github/config.yaml`, routed by their `consult` hints;
+`research.agents` in `.agents/config.yaml`, routed by their `consult` hints;
 each returns distilled findings from its source instead of inline reading.
 
 ## Conventions
@@ -56,33 +77,45 @@ each returns distilled findings from its source instead of inline reading.
 
 ## Keeping the bundles in sync
 
-`.github/` mirrors `.claude/` — commands + skills (under `.github/skills/`) and
-review agents (under `.github/agents/`). The workflow logic is duplicated by
-design — each bundle must stay self-contained — so **any logic change must land in
-both bundles in the same commit**: a step, gate option, hard rule, config key,
-engine operation, or agent instruction edited on one side is edited on the other
-side too.
+`.agents/` mirrors `.claude/` — skills (under `.agents/skills/`) and review
+agents (under `.agents/agents/`). The workflow logic is duplicated by design —
+each bundle must stay self-contained — so **any logic change must land in both
+bundles in the same commit**: a step, gate option, hard rule, config key, engine
+operation, or agent instruction edited on one side is edited on the other side
+too. There are exactly two copies no matter how many assistants ship: `.agents/`
+serves Codex, Antigravity, Gemini CLI, and Copilot, because all four read
+`.agents/skills/` natively (evidence: `docs/platform-support.md`).
 
 Only these differences are intentional; everything else must stay identical:
 
-- **Gate mechanism** — Claude uses the `AskUserQuestion` tool; Copilot prints a
-  numbered list and the user replies with the number.
-- **Command naming** — `/ticket:new` (Claude) vs `/ticket-new` (Copilot).
-- **Config path** — `.claude/config.yaml` vs `.github/config.yaml`.
-- **Invocation style** — Claude invokes skills via the Skill tool; Copilot follows
-  `../<skill>/SKILL.md` by reference.
-- **Frontmatter** — Copilot skills carry `name:` and (for internal skills)
+- **Gate mechanism** — Claude uses the `AskUserQuestion` tool; every other
+  assistant prints a numbered list and the user replies with the number.
+- **Command naming** — `/ticket:new` (Claude) vs `/ticket-new` (everyone else;
+  `$ticket-new` on Codex, which invokes skills directly).
+- **Config path** — `.claude/config.yaml` vs `.agents/config.yaml`.
+- **Invocation style** — Claude invokes skills via the Skill tool; the `.agents/`
+  bundle follows `../<skill>/SKILL.md` by reference.
+- **Frontmatter** — `.agents/` skills carry `name:` and (for internal skills)
   `user-invocable: false`; file layout differs (`.claude/commands/ticket/*.md` vs
-  `.github/skills/ticket-*/SKILL.md`).
-- **Agent files** — `.claude/agents/<name>.md` vs `.github/agents/<name>.agent.md`,
-  and the `tools:` frontmatter uses Claude tool names (`Read, Grep, Glob, Bash`) vs
-  Copilot aliases (`["read", "search", "execute"]`). The agent bodies are otherwise
-  identical up to the config-path and `/ticket-*` command transforms.
+  `.agents/skills/ticket-*/SKILL.md`).
+- **Agent files** — `.claude/agents/<name>.md` carries `tools: Read, Grep, Glob,
+  Bash`; `.agents/agents/<name>.md` carries `subagent: true` and leaves tools to
+  the platform, with the read-only contract stated in the body. The bodies are
+  otherwise identical up to the config-path and `/ticket-*` command transforms.
+
+**Platform entry points are generated, not mirrored.** `.agents/workflows/`,
+`.gemini/commands/`, `.gemini/agents/`, `.codex/agents/`, and `.github/agents/`
+are produced by `scripts/gen-adapters.sh` from the canonical skills and agents.
+Edit the canonical file, re-run the generator, commit both. The sync gate runs
+`gen-adapters.sh --check` and fails on a stale router.
 
 This is enforced by `scripts/check-bundle-sync.sh`: it fails when a file in a
-mirrored pair changes without its mirror, and when a tracked file under either
+mirrored pair changes without its mirror, when a tracked file under either
 bundle is in neither its PAIRS nor its IGNORE list (so a file added to one
-bundle without a mirror is caught too). CI runs it on every PR and push to
+bundle without a mirror is caught too), and when a generated router is stale. A
+one-sided change that survives normalization unchanged — a relocation, or a path
+rewrite the normalizer already accounts for — carries no logic and is not
+reported as drift. CI runs it on every PR and push to
 main (`.github/workflows/bundle-sync.yml`); enable the local pre-commit hook
 once per clone with `git config core.hooksPath .githooks`. To eyeball whether
 two mirrors still say the same thing, run
