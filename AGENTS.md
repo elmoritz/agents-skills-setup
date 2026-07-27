@@ -103,6 +103,17 @@ Only these differences are intentional; everything else must stay identical:
   the platform, with the read-only contract stated in the body. The bodies are
   otherwise identical up to the config-path and `/ticket-*` command transforms.
 
+**Provider conformance is tested.** `scripts/test-adapters.sh` (offline, in CI
+and the pre-commit hook) asserts the documented requirement of every supported
+provider — skill shape and frontmatter, Codex's TOML keys and its
+no-auto-delegation rule, Antigravity's `subagent: true` and 12,000-character
+workflow cap, Gemini's `prompt`/`{{args}}`/`context.fileName`, Copilot's
+`.agent.md`, Claude's counterpart surface, and a size limit that stops a router
+from growing logic. A failure names the provider it breaks.
+`scripts/live-provider-check.sh` is its live counterpart: it copies the bundle
+into a throwaway repo and asks each installed assistant to list its skills and
+actually run `ticket-review`. Dry by default; `--go` costs tokens.
+
 **Platform entry points are generated, not mirrored.** `.agents/workflows/`,
 `.gemini/commands/`, `.gemini/agents/`, `.codex/agents/`, and `.github/agents/`
 are produced by `scripts/gen-adapters.sh` from the canonical skills and agents.

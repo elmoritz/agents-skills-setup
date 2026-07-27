@@ -31,6 +31,12 @@ of lines naming the canonical file and handing over. They are produced by
 Nothing about the workflow lives in them, which is also why Antigravity's
 12,000-character cap on workflow files is a non-issue — the engine alone is ~57k.
 
+Two checks keep that promise honest in the template repo:
+`scripts/test-adapters.sh` (offline, per commit) asserts every documented
+per-provider requirement, and `scripts/live-provider-check.sh --go` asks the
+assistants you actually have installed whether they can see and run the
+workflow. Neither ships in the bundle — they guard the template.
+
 ## What's in here
 
 ```

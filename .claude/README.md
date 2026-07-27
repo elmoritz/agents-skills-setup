@@ -19,6 +19,12 @@ Codex, Google Antigravity, Gemini CLI, GitHub Copilot — reads the sibling
 and kept in lockstep with this one. A repo worked on by mixed assistants installs
 both; each stays self-contained, with its own `config.yaml`.
 
+The template repo checks both bundles on every commit:
+`scripts/check-bundle-sync.sh` for lockstep between them, and
+`scripts/test-adapters.sh` for the surface each assistant expects — including
+Claude's, so a skill that gains a `/ticket-*` command on one side and not the
+other fails loudly.
+
 ## What's in here
 
 ```

@@ -4,8 +4,8 @@ Research and decision record for extending this template beyond `claude` and
 `copilot`. Written **before** any platform-specific implementation, so the
 design rests on what the vendors actually document rather than on assumption.
 
-Status: **accepted (Option B)** on 2026-07-27, with the Copilot migration gated on
-the live checks in §6. Researched against the sources listed at the bottom.
+Status: **accepted (Option B)** and implemented on 2026-07-27, with the Copilot
+migration gated on the outstanding live checks in §7. Researched against the sources listed at the bottom.
 
 ---
 
@@ -168,7 +168,36 @@ which is a cheap grep-shaped rule rather than a new mirror.
 | Copilot cloud agent path support | Docs list `.agents/skills` for agent skills generally and name the cloud agent among supported surfaces, but do not map path→surface explicitly. **Open** — see §6; the CLI surface is proven, cloud and VS Code are not. |
 | `.agents/agents/` vs `.agents/skills/` confusion | Cosmetic; both are Antigravity's own names. Documented in the bundle README. |
 
-## 6. Verification log
+## 6. How "it works on every provider" stays true
+
+Three layers, in decreasing order of how often they run and increasing order of
+what they prove:
+
+1. **`scripts/gen-adapters.sh --check`** (every commit, via the sync gate) — the
+   per-platform entry points are generated, so they cannot be hand-edited into
+   drift; they can only go stale, and this catches that.
+2. **`scripts/test-adapters.sh`** (every commit + CI, free, offline) — ~290
+   assertions, each encoding a documented vendor requirement from §1: skill
+   depth and frontmatter, Codex's TOML keys and its no-auto-delegation rule,
+   Antigravity's `subagent: true` and 12,000-character cap, Gemini's `prompt` /
+   `{{args}}` / `context.fileName`, Copilot's `.agent.md` shape, Claude's
+   counterpart surface, and a hard limit on router size so no router can grow
+   logic. A failure names the provider it breaks. Mutation-tested: renaming a
+   skill, deleting a router, dropping `subagent: true`, dropping `{{args}}`, or
+   growing a workflow past the cap each turn it red.
+3. **`scripts/live-provider-check.sh --go [--functional]`** (by hand, costs
+   tokens) — copies the bundle into a throwaway repo *without* a `config.yaml`
+   and asks each installed assistant to (1) list its skills and (2) actually run
+   `ticket-review`. Stage 2 is the real end-to-end proof: the correct answer,
+   "run ticket-init first", is only knowable by having discovered the skill,
+   followed its engine dependency, and read the failure contract. Providers with
+   no headless CLI print a manual checklist instead.
+
+What no amount of local testing can cover: a vendor silently changing its
+discovery paths. That is what layer 3 is for — re-run it when a provider ships a
+major version, and update the table below.
+
+## 7. Verification log
 
 Probe repo: three canary skills, one per candidate directory
 (`.agents/skills/canary-agents/`, `.github/skills/canary-github/`,
@@ -178,18 +207,18 @@ context, without reading files itself.
 
 | Surface | `.agents/skills` | Result | How |
 | --- | --- | --- | --- |
-| Codex CLI | **yes** | Loaded `canary-agents` with its absolute repo path; `canary-github` and `canary-claude` absent — matches the documented "`.agents/skills` only". Re-run against the migrated bundle: all ten `ticket-*` / `grill-me` / `milestone-sync` skills load from `.agents/skills/`. | `codex exec --sandbox read-only`, 2026-07-27 |
-| Copilot CLI | **yes** | Loaded all three project canaries, `.agents/skills` among them. Re-run against the migrated bundle: all ten skills load, `ticket-engine` correctly marked internal, and the five review agents are registered. | `copilot -p … --allow-all-tools`, 2026-07-27 |
-| Copilot cloud agent | **unverified** | Blocks removing `.github/skills/` from the shipped template. | Push the probe repo, assign an issue to Copilot, ask it to list its skills |
+| Codex CLI | **yes** | Canary probe: loaded `canary-agents` only — `canary-github` and `canary-claude` absent, matching the documented "`.agents/skills` only". Against the real bundle: all 8 user-invocable skills discovered, **and** `ticket-review` ran end-to-end in a config-less repo and correctly asked for init. | `live-provider-check.sh --go --functional`, 2026-07-27 |
+| Copilot CLI | **yes** | Canary probe: loaded all three project canaries, `.agents/skills` among them. Against the real bundle: all 8 skills discovered, `ticket-engine` correctly internal, five review agents registered, **and** the functional stage passed. | `live-provider-check.sh --go --functional`, 2026-07-27 |
+| Copilot cloud agent | **unverified** | The one gate left before this branch merges. | Push the probe repo, assign an issue to Copilot, ask it to list its skills |
 | Copilot in VS Code / JetBrains agent mode | **unverified** | Same gate. | Open the probe repo in agent mode, ask it to list its skills |
-| Antigravity | **unverified** — docs only | CLI not installed locally. | Open the probe repo, ask the agent to list skills |
-| Gemini CLI | **unverified** — docs only | CLI not installed locally. Docs additionally promise `.agents/skills` *precedence* over `.gemini/skills`. | `gemini -p …` in the probe repo |
+| Antigravity | **unverified** — docs only | Not installed locally; the IDE has no headless mode, so this one is manual by nature. | The Antigravity checklist printed by `scripts/live-provider-check.sh` |
+| Gemini CLI | **unverified** — docs only | CLI not installed locally (`npm i -g @google/gemini-cli` + a Google login would close this). Docs additionally promise `.agents/skills` *precedence* over `.gemini/skills`. | `scripts/live-provider-check.sh --go --only gemini` |
 
 Everything unverified above is documented vendor behavior, not guesswork — the
 gate exists because a shipped template that silently loses its workflow on one
 surface is worse than a week's delay.
 
-## 7. Sources
+## 8. Sources
 
 - Agent Skills standard — <https://agentskills.io>
 - Claude Code skills (paths, `/name`, frontmatter) — <https://code.claude.com/docs/en/skills>
