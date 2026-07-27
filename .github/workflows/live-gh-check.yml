@@ -1,0 +1,55 @@
+name: live-gh-check
+
+# Live end-to-end verification of the github backend against a REAL throwaway
+# repo (scripts/live-gh-check.sh). Unlike the offline golden suite, this needs a
+# credential and creates + deletes a real private repo on the token owner's
+# account, so it is deliberately its own workflow.
+#
+# Prerequisite: a repo secret LIVE_GH_TOKEN holding a CLASSIC PAT with scopes
+#   repo, delete_repo
+# (a fine-grained PAT will NOT work: the script reads `gh auth status` token
+# scopes, which only classic PATs report). Set it with:
+#   gh secret set LIVE_GH_TOKEN --repo elmoritz/agents-skills-setup
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Each run creates a real repo; don't let superseded runs pile up.
+concurrency:
+  group: live-gh-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-gh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Require the live token (absent on fork PRs)
+        env:
+          LIVE_GH_TOKEN: ${{ secrets.LIVE_GH_TOKEN }}
+        run: |
+          if [ -z "$LIVE_GH_TOKEN" ]; then
+            echo "::error::LIVE_GH_TOKEN is not set (or unavailable on a fork PR)."
+            echo "This check creates a throwaway repo on that token's account and needs a"
+            echo "classic PAT with scopes: repo, delete_repo. Set it with:"
+            echo "  gh secret set LIVE_GH_TOKEN --repo elmoritz/agents-skills-setup"
+            exit 1
+          fi
+
+      - name: Live github backend verification (creates + deletes a real repo)
+        env:
+          GH_TOKEN: ${{ secrets.LIVE_GH_TOKEN }}
+        run: scripts/live-gh-check.sh --go
+
+      - name: Tear down the throwaway repo (always)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.LIVE_GH_TOKEN }}
+        run: |
+          if [ -f .live-gh-check.state ]; then
+            scripts/live-gh-check.sh --cleanup
+          else
+            echo "No run-state file — nothing to clean up."
+          fi
