@@ -59,6 +59,34 @@ answer the prompts — that's where you tailor stages, backend, and your **resea
 agents** (Step 0 below). Prefer to do the copy yourself? The manual steps are in
 [Getting started](#getting-started).
 
+### Already set up? Update to the latest version
+
+If you copied this bundle a while ago and want the newest commands, skills, and
+review agents, paste this prompt. It refreshes the **shipped** files while leaving
+everything **you** customized — your `config.yaml`, your research agents, your
+ticket template — untouched:
+
+```text
+Look at this repo https://github.com/elmoritz/agents-skills-setup and update my
+existing agents-and-skills bundle to its latest version.
+
+- Detect which bundle I have: `.claude/` (Claude Code) or `.github/` + `AGENTS.md`
+  (GitHub Copilot). Only update the one I actually have.
+- Refresh the SHIPPED files to match the template: the ticket commands, the skills
+  (ticket-engine, milestone-sync, grill-me, …), and the review agents (challenger,
+  code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
+- Do NOT overwrite anything I customized: my `config.yaml`, the research agents I
+  added under `.claude/agents/` / `.github/agents/`, and my ticket template. If a
+  shipped file and my customized copy have both changed, show me a diff and ask
+  before touching it — never clobber my edits silently.
+- When you're done, give me a short summary of what changed (new commands, renamed
+  files, behavior changes) so I know what's new, and flag anything in my
+  `config.yaml` that a new template version now expects.
+```
+
+The two bundles stay in lockstep, so a Claude Code setup updates from `.claude/`
+and a Copilot setup from `.github/` — the update never mixes the two.
+
 ### How the pieces fit together
 
 ```mermaid
