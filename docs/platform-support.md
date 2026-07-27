@@ -4,8 +4,12 @@ Research and decision record for extending this template beyond `claude` and
 `copilot`. Written **before** any platform-specific implementation, so the
 design rests on what the vendors actually document rather than on assumption.
 
-Status: **accepted (Option B)** and implemented on 2026-07-27, with the Copilot
-migration gated on the outstanding live checks in §7. Researched against the sources listed at the bottom.
+Status: **accepted (Option B)**, implemented and merged on 2026-07-27. The
+Copilot cloud-agent and IDE-agent-mode probes (§7) were deliberately merged
+ahead of — not instead of. If either comes back negative, the fix is additive
+and does not touch the canonical bundle: generate `.github/skills/ticket-*/`
+routers pointing at `.agents/skills/`, exactly as the other platforms already
+do. Nothing needs unwinding. Researched against the sources listed at the bottom.
 
 ---
 
@@ -165,7 +169,7 @@ which is a cheap grep-shaped rule rather than a new mirror.
 | Gemini CLI needs opt-in to read `AGENTS.md` | It defaults to `GEMINI.md`; `context.fileName` accepts `["AGENTS.md", …]`. Init should offer to write `.gemini/settings.json`, or ship a one-line `GEMINI.md` that points at `AGENTS.md`. |
 | Antigravity 12k-char cap | Applies to workflows and rules only; skills are exempt. The stub design already respects it — but no stub may ever inline a step. |
 | Codex TOML subagents are a fourth format | Wrapper-only, ~6 lines each; `developer_instructions` points at the canonical body. |
-| Copilot cloud agent path support | Docs list `.agents/skills` for agent skills generally and name the cloud agent among supported surfaces, but do not map path→surface explicitly. **Open** — see §6; the CLI surface is proven, cloud and VS Code are not. |
+| Copilot cloud agent path support | Docs list `.agents/skills` for agent skills generally and name the cloud agent among supported surfaces, but do not map path→surface explicitly. **Open** — the CLI surface is proven end-to-end, cloud and IDE agent mode are not. Remedy if it fails: add generated `.github/skills/` routers (additive, ~8 files). |
 | `.agents/agents/` vs `.agents/skills/` confusion | Cosmetic; both are Antigravity's own names. Documented in the bundle README. |
 
 ## 6. How "it works on every provider" stays true
