@@ -3,3 +3,7 @@
 
 # throwaway state written by scripts/live-gh-check.sh
 .live-gh-check.state
+
+# docs site — built by CI, not committed
+site/
+.venv-docs/

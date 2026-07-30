@@ -9,6 +9,11 @@ Everything here is prompt-and-config only: no runtime, no dependencies, no build
 step. The commands, skills, and agents are Markdown instructions the assistant
 loads on demand and executes with its own tools.
 
+**📖 [Full documentation](https://elmoritz.github.io/agents-skills-setup/)** —
+every command, skill, and review agent, each with a diagram of how it actually
+moves through its steps and gates. This README stays high-level; that site is
+the detailed reference.
+
 > **This is a template, not a library.** Don't depend on it — fork it, copy it,
 > and edit the copied bundle to fit your project. The setup is meant to be
 > shaped: rename stages, adjust ticket types, and — most importantly — set up the
@@ -222,116 +227,36 @@ skill.
 | `/ticket:close` · `/ticket-close` | Close a ticket as shipped, trusting you've verified the work. |
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress →
-review → done), each carrying a **role** the engine resolves against. Effort caps
-keep the backlog honest: every ticket landing in the pickable stage must fit the
-project's allowed size, and ticket creation silently splits work that's too big.
+review → done), each carrying a **role** the engine resolves against, and every
+transition is gated by explicit user approval. Effort caps keep the backlog
+honest: every ticket landing in the pickable stage must fit the project's
+allowed size, and ticket creation silently splits work that's too big.
 
-```mermaid
-stateDiagram-v2
-    [*] --> inbox: /ticket:new (save)
-    inbox --> backlog: /ticket:refine
-    [*] --> backlog: /ticket:new (full)
-    backlog --> in_progress: /ticket:pick
-    in_progress --> review: pick completes
-    review --> done: /ticket:close
-    review --> in_progress: /ticket:reject
-    in_progress --> done: /ticket:close (no review stage)
-    done --> [*]
-```
+Ticket creation also runs an **alignment-grilling pass** before anything
+commits — walking the decision tree branch by branch and recording every
+answer (and every silent default) in a `## Decisions & assumptions` section,
+so whoever picks up the ticket later sees the same reconciled view you signed
+off on.
 
-Stages are configurable — a project can drop the `inbox` or `review` stage, and
-the commands adapt (e.g. with no review stage, `/ticket:pick` runs straight to
-closure-ready and `/ticket:close` ships from in-progress).
+**→ Full command-by-command flow diagrams, gates, and exit states:
+[Workflow docs](https://elmoritz.github.io/agents-skills-setup/workflow/overview/).**
 
-**Ticket data lives native, not in frontmatter.** On the GitHub backend, issues
-carry **no YAML frontmatter** — dependencies are native issue dependencies
-(blocked-by), the claim clock is the assignment event, priority/effort/risk live
-as Project board fields (labels as fallback) or labels, and `type` maps to native
-org issue types where available. On the filesystem backend, ticket files keep
-self-describing frontmatter while the graph data — `depends_on`, `related`,
-`milestone` — lives in a machine-owned **ledger** (`.ledger.yaml`) beside the
-stage folders, updated in the same commit as every event.
+## Skills and review agents
 
-On the GitHub backend you can optionally **link tickets to a GitHub Project (v2)
-board**: init lets you pick a project, and from then on every ticket is added to it
-on creation with its `Status` field synced to the workflow stage — and Priority /
-Effort / Risk live as board fields init creates if missing. The issue stays
-the source of truth for stage — a failed board update never blocks a transition.
+Skills trigger automatically when their description matches what you're
+doing; the three shipped are `ticket-engine` (the execution layer behind
+every ticket command), `milestone-sync` (detects and fixes drift between a
+milestone and the tickets that reference it), and `grill-me` (interviews you
+relentlessly about a plan or design).
 
-### Aligned by design
+Each bundle also ships five read-only **review agents**, wired into
+`/ticket:pick`'s implementation loop: `challenger` and `code-challenger`
+stress-test the plan and the code-as-built, `code-reviewer` and
+`test-adequacy-reviewer` are the default blocking checkers, and
+`code-simplifier` proposes behavior-preserving cleanups. None of them edit
+anything — each judges what's on disk and the main session owns any
+resulting edits. Every agent also works standalone, outside the loop.
 
-Ticket creation treats shared understanding as a first-class goal. After analyzing
-the relevant code (and dispatching your research agents), it runs an
-**alignment-grilling pass** — walking the decision tree branch by branch, answering
-what it can from the codebase and asking you only the questions that genuinely
-change scope, type, acceptance criteria, or size. Every answer (and every silent
-default) is recorded in a `## Decisions & assumptions` section on the ticket, so
-whoever picks it up later sees the same reconciled view you signed off on.
-
-## The skills
-
-Skills trigger automatically when their description matches what you're doing —
-you don't invoke them by hand.
-
-- **`ticket-engine`** — the shared execution layer behind every ticket command.
-  Loads and validates `config.yaml`, assigns IDs, runs backend-specific transitions
-  (filesystem commits or GitHub label flips), formats commit/comment messages, and
-  reports precise half-state on partial failure.
-- **`milestone-sync`** — detects and fixes drift between a milestone's declared
-  state and the tickets that reference it. Read-only until you approve a fix; each
-  fix lands as its own atomic event. Runs as a preflight in pick, a postflight in
-  close, or standalone.
-- **`grill-me`** — interviews you relentlessly about a plan or design, resolving
-  each branch of the decision tree one dependency at a time, with a recommended
-  answer for every question. Use it to stress-test a design before you build.
-
-## The review agents
-
-Alongside the **research agents you add** (Step 0), each bundle ships five
-read-only **review agents**, wired into the pick command. Each judges only what's
-on disk and changes nothing; the main session owns any resulting edits.
-
-- **`challenger`** — devil's advocate against a freshly drafted plan: concrete
-  failure scenarios and cheaper alternatives, grounded in the code, never vague
-  doubt. Runs in step 3, so you judge plan and challenge together at the Plan gate.
-- **`code-reviewer`** — reviews an implementation diff against the approved plan,
-  architecture invariants, and conventions; verdict + file:line findings.
-- **`test-adequacy-reviewer`** — checks whether the new tests would actually go red
-  if the change were reverted, catching assertion-free and mock-only tests.
-- **`code-challenger`** — the loop-time sibling of `challenger`: every round it
-  attacks the *route the code actually took* — hidden coupling, a cheaper
-  implementation, an irreversible step, or a plan that turned out wrong.
-- **`code-simplifier`** — proposes behavior-preserving simplifications of the diff
-  as ready-to-apply patches.
-
-`code-reviewer` and `test-adequacy-reviewer` are the default **blocking** checkers
-in pick's **implementation loop**: each round implements, verifies, dispatches the
-configured `review.agents` in parallel, and ends in an explicit evaluation that
-decides *done / iterate / re-plan / escalate* — bounded by a configurable round
-cap (default 3). Projects can register extra checkers (a11y, security…) in
-`config.yaml` without touching the command. `code-challenger` and `code-simplifier`
-run **every round too, as advisory passes** — the session weighs their findings in
-the evaluation and folds the sound ones into the next round's work-list (no user
-gate); a `code-challenger` "route-wrong" verdict can send the loop back to re-plan.
-
-The loop inside `/ticket:pick` looks like this:
-
-```mermaid
-flowchart TD
-    D["Draft plan"] --> CH["challenger agent<br/>stress-tests the plan"]
-    CH --> PG{"Plan gate<br/>you approve?"}
-    PG -->|revise| D
-    PG -->|approved| IMP["Implement this round"]
-    IMP --> VER["Verify<br/>(build / tests)"]
-    VER --> AC["Agent checks in parallel<br/>blocking: code-reviewer · test-adequacy-reviewer · your extras<br/>advisory: code-challenger · code-simplifier"]
-    AC --> EV{"Evaluate<br/>(session weighs all findings)"}
-    EV -->|iterate<br/>+ sound advisory items| IMP
-    EV -->|re-plan / route-wrong| D
-    EV -->|escalate| ASK["Ask you"]
-    EV -->|done| REV["→ review stage"]
-    ASK --> IMP
-
-    RC["Round cap<br/>(default 3)"] -.->|bounds| EV
-```
-
-Each agent also works standalone on any plan or diff.
+**→ What each one does, when it runs, and what it returns:
+[Skills docs](https://elmoritz.github.io/agents-skills-setup/skills/) ·
+[Review agents docs](https://elmoritz.github.io/agents-skills-setup/agents/).**

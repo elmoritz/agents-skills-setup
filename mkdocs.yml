@@ -1,0 +1,96 @@
+site_name: agents-skills-setup
+site_description: A backend-agnostic ticket workflow and review-agent bundle for coding assistants.
+site_url: https://elmoritz.github.io/agents-skills-setup/
+repo_url: https://github.com/elmoritz/agents-skills-setup
+repo_name: elmoritz/agents-skills-setup
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Workflow:
+      - Overview: workflow/overview.md
+      - "/ticket:init": workflow/init.md
+      - "/ticket:new": workflow/new.md
+      - "/ticket:refine": workflow/refine.md
+      - "/ticket:pick": workflow/pick.md
+      - "/ticket:review": workflow/review.md
+      - "/ticket:reject": workflow/reject.md
+      - "/ticket:close": workflow/close.md
+  - Skills:
+      - Overview: skills/index.md
+      - ticket-engine: skills/ticket-engine.md
+      - milestone-sync: skills/milestone-sync.md
+      - grill-me: skills/grill-me.md
+  - Review agents:
+      - Overview: agents/index.md
+      - challenger: agents/challenger.md
+      - code-reviewer: agents/code-reviewer.md
+      - code-challenger: agents/code-challenger.md
+      - code-simplifier: agents/code-simplifier.md
+      - test-adequacy-reviewer: agents/test-adequacy-reviewer.md
+  - Configuration:
+      - config.yaml reference: config/reference.md
+      - Example projects: config/examples.md
+  - Platform support: platform-support.md
