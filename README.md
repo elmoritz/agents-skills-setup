@@ -1,4 +1,4 @@
-
+# agents-skills-setup
 
 A **template** for wiring an agentic coding assistant into your project. Use this
 repo as a starting point — copy one of its two self-contained bundles into your
