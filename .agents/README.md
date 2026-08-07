@@ -157,6 +157,13 @@ the evaluation and folds the sound ones into the next round's work-list (no user
 gate); a `code-challenger` "route-wrong" verdict can send the loop back to re-plan.
 Each also works standalone on any plan or diff.
 
+`challenger`, `code-challenger`, and `code-simplifier` are always on — a
+project can't configure them away — but can register **extra** advisors
+alongside them, the same way extra blocking checkers register in
+`review.agents`: `review.plan_advisors` adds agents to the step 3 challenge
+pass, `review.advisors` adds agents to the step 5.5 loop pass. Both default
+to empty; a listed agent whose file is missing is skipped with a warning.
+
 An assistant that supports custom subagents dispatches these by name through its
 own router (`.codex/agents/`, `.gemini/agents/`, `.github/agents/`, or — for
 Antigravity — this directory directly). One that doesn't reads the agent file and

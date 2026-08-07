@@ -34,9 +34,12 @@ flowchart TD
     G6 -->|yes| G6a{"Gate: link a GitHub<br/>Project v2 board?"}
     G6a -->|no| G7
     G6a -->|yes| ProjSetup["Resolve owner, list projects"]
-    ProjSetup --> G6b{"Gate: pick project"}
-    G6b --> ProjFields["Read Status field,<br/>build status_map,<br/>plan Priority/Effort/Risk fields"]
+    ProjSetup --> G6b{"Gate: pick a project,<br/>or Create a new Project<br/>(default if none exist)"}
+    G6b -->|existing| ProjFields["Read Status field,<br/>build status_map,<br/>plan Priority/Effort/Risk fields"]
+    G6b -->|create new| ProjPending["Record title, mark project pending —<br/>nothing created yet"]
+    ProjPending --> ProjPlan["Plan Status from stage labels +<br/>Priority/Effort/Risk fields<br/>(all missing by construction)"]
     ProjFields --> G7
+    ProjPlan --> G7
 
     G7["Detect existing hand-authored<br/>research agents"] --> G7a{"found any?"}
     G7a -->|yes| G7g{"Gate: register which ones"}
@@ -47,11 +50,20 @@ flowchart TD
     G7custom -->|add one| G7fill
     G7custom -->|done| G8
 
-    G8{"Gate: which assistants<br/>read this repo?"} --> G9["Assemble full config.yaml<br/>from all gate answers"]
+    G8{"Gate: which assistants<br/>read this repo?"} --> G8a{"Gate: branch per ticket?<br/>(pick + close manage a<br/>git branch, default yes)"}
+    G8a -->|no| G9["Assemble full config.yaml<br/>from all gate answers"]
+    G8a -->|yes| G8b{"Gate: merge strategy<br/>merge / squash / ff_only"}
+    G8b --> G8c{"backend == github?"}
+    G8c -->|no| G9
+    G8c -->|yes| G8d{"Gate: local merge or<br/>GitHub PR?"}
+    G8d --> G9
     G9 --> G9g{"Gate: Apply / Edit / Cancel"}
     G9g -->|edit| G9
     G9g -->|cancel| Cancelled["Nothing written"]
-    G9g -->|apply| Apply["Write config.yaml, verify/chmod te,<br/>load_and_validate()"]
+    G9g -->|apply| CreateProject{"project was<br/>pending?"}
+    CreateProject -->|yes| DoCreateProject["gh project create —<br/>resolve real project number"]
+    DoCreateProject --> Apply["Write config.yaml, verify/chmod te,<br/>load_and_validate()"]
+    CreateProject -->|no| Apply
 
     Apply --> Valid{"config valid?"}
     Valid -->|no| AbortInvalid["Stop — uncommitted file<br/>left for inspection"]
@@ -65,7 +77,8 @@ flowchart TD
 ## Reads / writes
 
 - **Writes:** `config.yaml`, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
-- **GitHub side effects:** creates labels, verifies/creates issue-type map, verifies/creates Project fields.
+- **Branch workflow gate:** decides the `git:` block — `branch_workflow`, `merge_strategy`, and (github backend only) `pr_integration`. Defaults to branch-per-ticket enabled with a `--no-ff` merge and no PR integration.
+- **GitHub side effects:** creates labels, verifies/creates issue-type map, creates the Project itself if none existed (before anything else in the apply step), verifies/creates Project fields (including a `Status` field seeded from the project's own stage labels, when one didn't already exist).
 
 ## Exit states
 

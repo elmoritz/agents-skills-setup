@@ -29,7 +29,12 @@ flowchart TD
 
     G1{"Gate: Ship it / Cancel<br/>(never skipped — one-way)"}
     G1 -->|cancel| Cancelled(["Untouched"])
-    G1 -->|ship| Close["close_artifact(id, closed_as: shipped)"]
+    G1 -->|ship| MergeBranch{"git.branch_workflow<br/>enabled?"}
+    MergeBranch -->|yes| DoMerge["Merge ticket branch into base<br/>(merge_strategy, or gh pr merge<br/>if pr_integration: github)"]
+    DoMerge --> Conflict{"conflict?"}
+    Conflict -->|yes| MergeStop(["Stop — half-state,<br/>resolve then re-run"])
+    Conflict -->|no| Close
+    MergeBranch -->|no| Close["close_artifact(id, closed_as: shipped)"]
 
     Close --> FS{"backend?"}
     FS -->|filesystem| FSClose["git mv → terminal stage,<br/>run pre_close_command if defined,<br/>commit commits.done"]
@@ -44,6 +49,7 @@ flowchart TD
 ## Reads / writes
 
 - **Writes:** `close_artifact` (filesystem: `git mv` + commit; GitHub: issue close + label removal); the [`milestone-sync` skill](../skills/milestone-sync.md) postflight may write its own atomic fix as a separate event.
+- **Branch:** when `git.branch_workflow: enabled` (default), merges the ticket branch into base — or merges a PR when `pr_integration: github` — before the close above runs, then deletes it. A merge conflict stops here; closure never runs against an unmerged conflict.
 
 ## Exit states
 
@@ -52,6 +58,7 @@ flowchart TD
 | Shipped | Ticket in the terminal stage |
 | Cancelled | Nothing changed |
 | Half-state | Surfaced and stopped — e.g. `pre_close_command` fails after the move already happened |
+| Merge conflict | Surfaced and stopped before closure; resolve on the ticket branch, then re-run |
 
 ## See also
 

@@ -64,6 +64,12 @@ projects:                # github backend only
   status_map:   { pickable: "Backlog", in_progress: "In progress", review: "In review", terminal: "Done" }
   field_map:    { priority: "Priority", effort: "Effort", risk: "Risk" }
 
+git:                      # branch-per-ticket workflow (defaults shown)
+  branch_workflow: enabled   # enabled | disabled
+  branch_prefix: "ticket/"   # branch names: <prefix><id>-<slug>
+  merge_strategy: merge      # merge | squash | ff_only
+  pr_integration: none       # none | github (github backend only)
+
 commits:                 # one message template per event, {id}/{title}/etc. interpolated
   new: "ticket: new {id} {title}"
   # ... capture, capture_update, refine, claim, abandon, update, review, reject,
@@ -74,6 +80,8 @@ research:                 # optional — registered research agents
 
 review:
   agents: [code-reviewer, test-adequacy-reviewer]   # blocking checkers in the pick loop
+  plan_advisors: []   # optional — extra agents alongside the fixed `challenger` at the plan gate
+  advisors: []         # optional — extra agents alongside the fixed `code-challenger`/`code-simplifier` every round
 
 references:                # all nullable
   architecture:   null
@@ -149,6 +157,24 @@ enacted by [`milestone-sync`](../skills/milestone-sync.md)):
 | `auto` → `native` | github | Native GitHub milestones |
 | `labels` | either | `milestone:` prefixed label |
 | `none` | either | Milestones disabled entirely |
+
+## Git branch workflow
+
+`git.branch_workflow` (resolved by [`ticket-engine`](../skills/ticket-engine.md) §
+Git branch workflow): when `enabled` (the default), `/ticket:pick` creates a
+branch right after claiming and does all implementation work there;
+`/ticket:close` merges it into the base branch — per `merge_strategy`, and via
+a GitHub PR instead of a local merge when `pr_integration: github` — before
+closing. Ticket state itself (claim, review, close) always commits to the
+base branch, on both backends, regardless of this setting — only the
+implementation commits move to the ticket's branch.
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `branch_workflow` | `enabled` (default) / `disabled` | Whether pick/close manage a per-ticket branch at all |
+| `branch_prefix` | any string, default `ticket/` | Branch names look like `<prefix><id>-<slug>` |
+| `merge_strategy` | `merge` (default) / `squash` / `ff_only` | How `/ticket:close` folds the branch into base |
+| `pr_integration` | `none` (default) / `github` | github backend only — open/merge a PR instead of a local merge |
 
 ## See also
 

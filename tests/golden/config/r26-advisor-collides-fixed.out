@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=review.advisors: 'code-simplifier' already runs unconditionally every round; remove it from the list.
+recovery=fix tests/fixtures/config/r26-advisor-collides-fixed/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

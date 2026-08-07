@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=review.advisors: 'nonexistent-agent' does not resolve to an agent file in the agents directory
+recovery=fix tests/fixtures/config/r24-advisor-unresolved/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

@@ -1,4 +1,4 @@
-# validate.awk — the 18 § Config rules of ticket-engine/SKILL.md, applied in
+# validate.awk — the 22 § Config rules of ticket-engine/SKILL.md, applied in
 # order against config.awk's tagged records plus `A <TAB> name` agent-existence
 # records (emitted by common.sh, which can stat the filesystem where awk cannot).
 #
@@ -18,6 +18,8 @@ BEGIN {
   VALID_ROLES = " inbox pickable in_progress review terminal "
   CANON_EFFORT = " S M L XL "
   MS_STRAT = " auto trackers native labels none "
+  FIXED_PLAN_ADVISORS = " challenger "
+  FIXED_ADVISORS = " code-challenger code-simplifier "
 }
 
 $1 == "V" { key = $2; if (!(key in seen)) { ord[nord++] = key; seen[key] = 1 }
@@ -228,6 +230,64 @@ END {
     fail("verification.max_loop_rounds: expected a positive integer, got '" \
          val["verification.max_loop_rounds"] "'.")
 
+  # ---- Rule 19: git.branch_workflow ----
+  if (has("git.branch_workflow") && val["git.branch_workflow"] != "enabled" && val["git.branch_workflow"] != "disabled")
+    fail("git.branch_workflow must be 'enabled' or 'disabled', got '" val["git.branch_workflow"] "'.")
+
+  # ---- Rule 20: git.branch_prefix ----
+  if (has("git.branch_prefix")) {
+    bp = val["git.branch_prefix"]
+    if (bp == "") fail("git.branch_prefix must be a non-empty string.")
+    if (bp ~ / /) fail("git.branch_prefix must not contain spaces.")
+  }
+
+  # ---- Rule 21: git.merge_strategy ----
+  if (has("git.merge_strategy") && val["git.merge_strategy"] != "merge" && val["git.merge_strategy"] != "squash" && val["git.merge_strategy"] != "ff_only")
+    fail("git.merge_strategy must be one of merge, squash, ff_only, got '" val["git.merge_strategy"] "'.")
+
+  # ---- Rule 22: git.pr_integration ----
+  if (has("git.pr_integration")) {
+    pri = val["git.pr_integration"]
+    if (pri != "none" && pri != "github")
+      fail("git.pr_integration must be 'none' or 'github', got '" pri "'.")
+    if (pri == "github" && bt != "github")
+      fail("git.pr_integration: github requires backend.type: github.")
+  }
+
+  # ---- Rule 23: review.plan_advisors ----
+  # Extra agents dispatched at the Step 3 plan gate, alongside the fixed
+  # `challenger` (always on, never configured away).
+  if (has("review.plan_advisors")) {
+    if (typ["review.plan_advisors"] != "list") fail("review.plan_advisors must be a list.")
+    npa = listlen("review.plan_advisors")
+    for (i = 0; i < npa; i++) {
+      nm = val["review.plan_advisors." i]
+      if (inset(FIXED_PLAN_ADVISORS, nm))
+        fail("review.plan_advisors: '" nm "' already runs unconditionally every plan gate; remove it from the list.")
+      if (nm in pa_seen) fail("review.plan_advisors: duplicate name '" nm "'.")
+      pa_seen[nm] = 1
+      if (!(nm in agent))
+        fail("review.plan_advisors: '" nm "' does not resolve to an agent file in the agents directory")
+    }
+  }
+
+  # ---- Rule 24: review.advisors ----
+  # Extra agents dispatched every implementation-loop round (Step 5.5),
+  # alongside the fixed `code-challenger` and `code-simplifier` pair.
+  if (has("review.advisors")) {
+    if (typ["review.advisors"] != "list") fail("review.advisors must be a list.")
+    nad = listlen("review.advisors")
+    for (i = 0; i < nad; i++) {
+      nm = val["review.advisors." i]
+      if (inset(FIXED_ADVISORS, nm))
+        fail("review.advisors: '" nm "' already runs unconditionally every round; remove it from the list.")
+      if (nm in ad_seen) fail("review.advisors: duplicate name '" nm "'.")
+      ad_seen[nm] = 1
+      if (!(nm in agent))
+        fail("review.advisors: '" nm "' does not resolve to an agent file in the agents directory")
+    }
+  }
+
   # ---- Success: resolved config ----
   # Leaves in document order, plus an explicit marker for a *declared but empty*
   # container so a leaf-less entry (e.g. required_body_sections: []) survives to
@@ -242,6 +302,10 @@ END {
   print "# --- resolved defaults ---"
   if (!has("claim.stale_after"))            print "claim.stale_after=24h"
   if (!has("verification.max_loop_rounds")) print "verification.max_loop_rounds=3"
+  if (!has("git.branch_workflow"))          print "git.branch_workflow=enabled"
+  if (!has("git.branch_prefix"))            print "git.branch_prefix=ticket/"
+  if (!has("git.merge_strategy"))           print "git.merge_strategy=merge"
+  if (!has("git.pr_integration"))           print "git.pr_integration=none"
   if (bt == "github" && enabled) {
     if (!has("projects.status_field"))   print "projects.status_field=Status"
     if (!has("projects.field_map.priority")) print "projects.field_map.priority=Priority"

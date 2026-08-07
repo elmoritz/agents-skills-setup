@@ -29,6 +29,7 @@ flowchart LR
 - **IDs** — prefix + padding + monotonic counter from `config.yaml`.
 - **Field storage** — filesystem: YAML frontmatter + a machine-owned `.ledger.yaml` for `depends_on` / `related` / `milestone`. GitHub: everything native or dual-homed (labels, native issue types, Project v2 fields with label fallback, native issue dependencies, assignment-event-derived claim clock) — issue bodies never carry frontmatter.
 - **The ledger** — `.ledger.yaml`, machine-owned, written in the same commit as every event it records.
+- **Git branch workflow** (`git.branch_workflow`, default `enabled`) — after claiming, `/ticket:pick` isolates its implementation commits on a per-ticket branch; `/ticket:close` merges it into base (per `merge_strategy`, or via a GitHub PR when `pr_integration: github`) before closing. Ticket-state commits (claim/review/close) always land on base regardless — the branch isolates code, not ticket state.
 
 ## Operation catalog
 

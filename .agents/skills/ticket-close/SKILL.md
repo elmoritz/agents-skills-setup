@@ -56,6 +56,8 @@ Do not skip this gate. Closure is one-way — the engine moves the artifact to t
 
 ### Step 2 — close via the engine
 
+If `git.branch_workflow: enabled` (default), the engine merges the ticket's branch into base first, per `git.merge_strategy` (and `git.pr_integration` when the backend is github) — ticket-engine § Git branch workflow. A merge conflict is a hard stop: the command surfaces the half-state and does not invoke the terminal transition below until the conflict is resolved and `/ticket-close` is re-run.
+
 Invoke `close_artifact(id, closed_as: "shipped")`. The engine:
 
 - **Filesystem**:
@@ -101,6 +103,9 @@ Pre-close: <verification.pre_close_command> applied (<files-touched-count> file<
 <GitHub only:>
 Issue: <repo>#N closed (reason: completed).
 
+<git.branch_workflow: enabled only:>
+Branch: <branch> merged into <base> (<merge_strategy>) and deleted.
+
 Milestone: <one-line result from the milestone-sync procedure — "in sync", "flipped vX.Y → shipped", or "drift skipped"; omit the line entirely if step 3 was skipped because the ticket was unscoped>.
 ```
 
@@ -115,4 +120,5 @@ That's the whole report. No congratulations, no next-ticket suggestion (that's `
 - Never skip git hooks (no `--no-verify`); never bypass signing.
 - Trust the user's verification. This command does not run `verification.test_commands` — that's `/ticket-review`'s territory and the user's verification responsibility. If the build is broken, that's a regression that should be caught before closure.
 - If the engine reports half-state, surface it and stop. Do not push through.
+- When `git.branch_workflow: enabled`, the branch merge happens before the terminal transition; a merge conflict is a hard stop, never auto-resolved (ticket-engine § Git branch workflow).
 - `closed_as: shipped` is what this command writes. Wontfix / duplicate closures of in-progress or in-review work are a different decision and currently a manual edit; the inbox path covers wontfix/duplicate via `../ticket-refine/SKILL.md`. Failed verification is not a closure at all — that's `/ticket-reject`'s territory (back to in_progress with the reason recorded).

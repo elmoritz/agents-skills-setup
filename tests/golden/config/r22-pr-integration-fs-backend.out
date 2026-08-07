@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=git.pr_integration: github requires backend.type: github.
+recovery=fix tests/fixtures/config/r22-pr-integration-fs-backend/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

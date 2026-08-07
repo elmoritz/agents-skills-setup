@@ -85,6 +85,10 @@ verification.build_command=null
 verification.pre_close_command=null
 verification.max_loop_rounds=3
 # --- resolved defaults ---
+git.branch_workflow=enabled
+git.branch_prefix=ticket/
+git.merge_strategy=merge
+git.pr_integration=none
 # --- roles -> stage ---
 roles.inbox=inbox
 roles.pickable=backlog

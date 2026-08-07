@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=git.branch_workflow must be 'enabled' or 'disabled', got 'sometimes'.
+recovery=fix tests/fixtures/config/r19-bad-branch-workflow/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

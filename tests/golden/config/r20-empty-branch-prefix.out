@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=git.branch_prefix must be a non-empty string.
+recovery=fix tests/fixtures/config/r20-empty-branch-prefix/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

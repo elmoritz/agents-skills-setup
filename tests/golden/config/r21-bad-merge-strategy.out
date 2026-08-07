@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=git.merge_strategy must be one of merge, squash, ff_only, got 'rebase'.
+recovery=fix tests/fixtures/config/r21-bad-merge-strategy/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

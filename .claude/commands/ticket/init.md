@@ -120,15 +120,24 @@ If **Yes**:
 
 1. **Resolve the owner.** Default to the owner half of `backend.github.repo` (`owner/repo` → `owner`). Detect user vs. org with `gh api users/<owner> -q .type` (`User` → `projects.owner_type: user`; `Organization` → `org`).
 2. **List projects:** `gh project list --owner <owner> --format json`. If the call fails because the token lacks the `project` scope, **stop** with: `"Linking to a GitHub Project needs the 'project' scope. Run 'gh auth refresh -s project --hostname github.com', then re-run /ticket:init."`
-3. **Pick the project** via `AskUserQuestion`:
-   - **question:** "Which Project should tickets land in?"
-   - **header:** "Which board"
-   - **options:** one per discovered project (label = `#<number> <title>`), plus **Specify a number** (free-text follow-up to type the project number).
-4. **Read the Status options:** `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` (the default for new Projects). If there is no `Status` field, tell the user the synced field will be `Status` and they'll need to add it (or hand-edit `projects.status_field` later); proceed with defaults.
-5. **Build `projects.status_map`** by matching each configured stage role to the closest-named Status option (case-insensitive contains; e.g. role `pickable` → "Backlog", `in_progress` → "In progress", `terminal` → "Done"). Fill any unmatched role with the stage's own `label`. The map is written into the config for the user to hand-edit; the engine resolves option IDs at runtime and silently skips any option name that doesn't exist on the board — the stage transition still succeeds (see ticket-engine § GitHub Projects sync).
-6. **Plan the dual-home fields.** With Projects enabled, `priority`, `effort`, and `risk` live as board single-select fields (labels become the fallback home — see ticket-engine § Field storage contract). From the same `field-list` output, check for single-select fields named `Priority`, `Effort`, `Risk` (case-insensitive). Note which are missing — Step 7 creates them (`gh project field-create`) with options `P0,P1,P2,P3` / the `effort.allowed` set / `low,med,high`. If an existing field's name differs (e.g. `Prio`), record it in `projects.field_map` instead of creating a duplicate.
+3. **Pick or plan the project.**
+   - If the list is non-empty, ask via `AskUserQuestion`:
+     - **question:** "Which Project should tickets land in?"
+     - **header:** "Which board"
+     - **options:** one per discovered project (label = `#<number> <title>`), plus **Create a new Project**, plus **Specify a number** (free-text follow-up to type an existing project's number).
+   - If the list is empty, skip the question — there's nothing to choose from — and go straight to **Create a new Project**.
+   - **Create a new Project:** ask for a title as a free-text follow-up (suggest `<repo name> tickets` as the default, e.g. "bee-hive-sim tickets"). Nothing is created yet — record the title and mark the project **pending**; Step 7 runs `gh project create` first, ahead of everything else it does, once the user has approved the assembled config at Step 6's gate. A pending project has no existing fields to read, so skip straight to planning in steps 4–6 below instead of querying anything.
+4. **Resolve the Status field.**
+   - **Existing project:** `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status`.
+   - **No `Status` field found** (a fieldless existing project, or a pending new one): plan to create it — one `SINGLE_SELECT` field named `Status` whose options are this project's own configured stage `label`s, in lifecycle order. Step 7 creates it (`gh project field-create`) alongside the rest.
+5. **Build `projects.status_map`.**
+   - If Status already existed with options, match each configured stage role to the closest-named option (case-insensitive contains; e.g. role `pickable` → "Backlog", `in_progress` → "In progress", `terminal` → "Done"). Fill any unmatched role with the stage's own `label`.
+   - If Status is being created fresh (step 4 above), the map is exact by construction: every role points at its own stage's `label`, since that's the option text Step 7 will create.
 
-Record the resolved `number`, `owner`, `owner_type`, `status_field`, `status_map`, `field_map`, and the missing-fields list for the config skeleton and Step 7.
+   The map is written into the config for the user to hand-edit; the engine resolves option IDs at runtime and silently skips any option name that doesn't exist on the board — the stage transition still succeeds (see ticket-engine § GitHub Projects sync).
+6. **Plan the dual-home fields.** With Projects enabled, `priority`, `effort`, and `risk` live as board single-select fields (labels become the fallback home — see ticket-engine § Field storage contract). From the same `field-list` output (or, on a pending new project, treat every field as missing — there's nothing to read yet), check for single-select fields named `Priority`, `Effort`, `Risk` (case-insensitive). Note which are missing — Step 7 creates them (`gh project field-create`) with options `P0,P1,P2,P3` / the `effort.allowed` set / `low,med,high`. If an existing field's name differs (e.g. `Prio`), record it in `projects.field_map` instead of creating a duplicate.
+
+Record the resolved (or **pending**, with its title) `number`, `owner`, `owner_type`, `status_field`, `status_map`, `field_map`, and the missing-fields list (`Status` included, when step 4 planned it) for the config skeleton and Step 7.
 
 ### Step 5.5 — research agents (both backends)
 
@@ -187,6 +196,35 @@ instead. Ask (numbered list; the user replies with the number):
     each stays self-contained.
 
 Default when the user skips: Claude Code only.
+
+### Step 5.8 — git branch workflow
+
+Ask via `AskUserQuestion`:
+
+- **question:** "Should /ticket:pick create a branch per ticket, merged by /ticket:close?"
+- **header:** "Branching"
+- **options:**
+  - **Yes (Recommended)** — after claiming, `/ticket:pick` creates `<prefix><id>-<slug>` and does all implementation work there; `/ticket:close` merges it into the base branch before closing. Ticket state (claim/review/close) still commits directly to the base branch either way — only code moves to the ticket branch. Sets `git.branch_workflow: enabled`.
+  - **No** — commits land directly on whatever branch is checked out, as today. Sets `git.branch_workflow: disabled`; skip the remaining questions in this step.
+
+If **Yes**, ask via `AskUserQuestion`:
+
+- **question:** "How should /ticket:close merge a ticket's branch into the base branch?"
+- **header:** "Merge"
+- **options:**
+  - **Merge commit --no-ff (Recommended)** — preserves the branch's individual implementation commits under one merge commit. Sets `git.merge_strategy: merge`.
+  - **Squash** — collapses the branch's commits into a single commit on base. Sets `git.merge_strategy: squash`.
+  - **Fast-forward only** — requires the branch to already be caught up with base; fails otherwise, forcing a rebase first. Sets `git.merge_strategy: ff_only`.
+
+On the **github** backend only, also ask via `AskUserQuestion`:
+
+- **question:** "Should closing a ticket use a GitHub Pull Request, or a plain local git merge?"
+- **header:** "PR"
+- **options:**
+  - **Plain local git merge (Recommended)** — same mechanics as the filesystem backend; review happens the way it does today. Sets `git.pr_integration: none`.
+  - **Open and merge a GitHub PR** — `/ticket:pick` pushes the branch and opens a PR when it reaches review; `/ticket:close` merges it via `gh pr merge --delete-branch`. Sets `git.pr_integration: github`.
+
+On the **filesystem** backend, skip this question — `git.pr_integration` is always `none` (PR integration requires the github backend).
 
 ### Step 6 — assemble config
 
@@ -288,7 +326,7 @@ milestones:
 # Ignored on the filesystem backend — leave enabled: false there.
 projects:
   enabled: <true if Step 5 = Yes, else false>
-  number:       <project number from Step 5>   # null when disabled
+  number:       <project number from Step 5, or "(created on Apply)" in the preview if Step 5.3 planned a new project — Step 7 resolves it to the real number before the file is written>   # null when disabled
   owner:        <project owner login>           # null when disabled
   owner_type:   <user | org>                    # null when disabled
   status_field: "Status"                        # single-select field synced to stage
@@ -302,6 +340,18 @@ projects:
     priority: "Priority"                        # (labels are the fallback home; see
     effort:   "Effort"                          #  ticket-engine § Field storage contract)
     risk:     "Risk"
+
+# --- Git branch workflow -----------------------------------------------
+# When enabled, /ticket:pick creates a branch per ticket after claiming, and
+# /ticket:close merges it into the base branch before closing. Ticket-state
+# commits (claim/review/close) land on the base branch either way — only the
+# implementation commits move to the ticket's branch (ticket-engine § Git
+# branch workflow).
+git:
+  branch_workflow: <enabled | disabled>         # from Step 5.8
+  branch_prefix: "ticket/"                      # branch names: <prefix><id>-<slug>
+  merge_strategy: <merge | squash | ff_only>    # from Step 5.8; ignored if disabled
+  pr_integration: <none | github>               # github backend only; from Step 5.8
 
 # --- Commit / activity messages ---------------------------------------
 commits:
@@ -324,6 +374,10 @@ commits:
 #   (steps 2 & 4) and /ticket:refine. Omit the section if none were set up.
 # review: the checkers /ticket:pick dispatches each round of its
 #   implement -> check -> evaluate loop.
+#   agents (fixed, always on): challenger (plan gate), code-challenger and
+#   code-simplifier (every round). Add extra advisors alongside them with:
+#     plan_advisors: [<name>, ...]   # extra agents at the plan gate
+#     advisors: [<name>, ...]        # extra agents every loop round
 research:
   agents:
     <one entry per Step 5.5 selection:>
@@ -331,6 +385,10 @@ research:
       consult: "<one line: when ticket creation should dispatch it>"
 review:
   agents: [code-reviewer, test-adequacy-reviewer]
+  # plan_advisors: [<name>, ...]   # extra agents dispatched alongside the
+  #   fixed `challenger` at the Step 3 plan gate. Optional, fill in when ready.
+  # advisors: [<name>, ...]        # extra agents dispatched alongside the
+  #   fixed `code-challenger`/`code-simplifier` every loop round. Optional.
 
 # --- Project references (all optional; engine silently skips if missing) -----
 references:
@@ -359,7 +417,9 @@ Show the assembled YAML to the user. Gate via `AskUserQuestion`:
 
 ### Step 7 — apply
 
-1. **Write `.claude/config.yaml`** with the assembled content.
+If Step 5.3 planned a new GitHub Project (title recorded, number pending), create it **first**, before anything else in this step: `gh project create --owner <owner> --title "<title>" --format json -q .number`. Substitute the returned number for `projects.number` in the config content assembled at Step 6 — the file written below must never contain the "(created on Apply)" placeholder. If creation fails (missing `project` scope, bad owner, etc.), stop before writing anything and tell the user why; nothing else has happened yet, so there is nothing to clean up.
+
+1. **Write `.claude/config.yaml`** with the assembled content (project number already resolved above, if applicable).
 
    **Verify `te` is executable** before validating: `[ -x .claude/scripts/te ]`. If it is present but not executable (a bundle copied without exec bits — the shell would otherwise return 126 before `te` runs, giving a confusing error), run `chmod +x .claude/scripts/te` to repair it and note the fix; if it is missing entirely, stop with `"te is missing at .claude/scripts/te — the .claude bundle is incomplete; re-copy it intact."`
 
@@ -369,7 +429,7 @@ Show the assembled YAML to the user. Gate via `AskUserQuestion`:
 
    - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here). Write the **ledger stub** at `<root>/.ledger.yaml` — the machine-owned comment header from ticket-engine § Ledger and an empty map (`{}`); it is the authoritative home of `depends_on`/`related`/`milestone` from the first ticket on.
    - **GitHub**: invoke the `ticket-engine` skill's auto-label creation procedure (see § Auto-label creation rules) for the full set of expected labels: every stage label, plus `type:feature`, `type:bug`, `type:tech`, `type:spike`, plus `prio:P0`–`prio:P3`, plus `effort:S`, `effort:M`, `effort:L`, `effort:XL`, plus `risk:low`, `risk:med`, `risk:high`. Create the `prio:`/`effort:`/`risk:` families even when Projects is enabled — there they are the engine's fallback home when a board write fails. Skip stage labels whose stage uses `close_issue: true` (the `terminal` stage on GH uses the native close, not a label).
-   - **GitHub Project** (only if `projects.enabled: true`): verify access with `gh project view <number> --owner <owner>`. If it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope. Then create each board field Step 5.6 found missing: `gh project field-create <number> --owner <owner> --name "<Field>" --data-type SINGLE_SELECT --single-select-options "<options>"` (Priority: `P0,P1,P2,P3`; Effort: the `effort.allowed` set; Risk: `low,med,high`). If a field-create fails, warn and continue — the engine's label fallback covers it. No items are added at init — issues join the project as they're created (see `ticket-engine` `create_artifact`).
+   - **GitHub Project** (only if `projects.enabled: true`): for a project that already existed at Step 5, verify access with `gh project view <number> --owner <owner>` — if it fails, stop and tell the user to check the project number/owner and that the token carries the `project` scope; a project just created above is skipped (it obviously exists). Then create every board field Step 5 found (or planned) missing: `Status` (options: this project's own stage `label`s, in lifecycle order — only when Step 5.4 planned it) and `Priority` / `Effort` / `Risk` (options `P0,P1,P2,P3` / the `effort.allowed` set / `low,med,high`), via `gh project field-create <number> --owner <owner> --name "<Field>" --data-type SINGLE_SELECT --single-select-options "<options>"`. If a `Priority`/`Effort`/`Risk` field-create fails, warn and continue — the engine's label fallback covers it; if `Status` fails, warn and continue — a missing Status is a soft warning per ticket-engine § GitHub Projects sync. No items are added at init — issues join the project as they're created (see `ticket-engine` `create_artifact`).
    - **Research agents** (both backends, only for Step 5.5 selections): for each catalog selection, copy its template from `.claude/references/research-agents/` into `.claude/agents/<name>.md` with the fill-ins applied; write each custom agent from the interview answers. Give each one `name`, `description`, and `tools` frontmatter. Never overwrite an existing agent file — skip with a note and keep its `research.agents` entry.
    - **Other assistants** (only if Step 5.7 named any): nothing is written here — Claude Code reads only `.claude/`. Carry the names into the Step 8 report so the user knows to install the `.agents/` bundle for them.
 
@@ -404,10 +464,11 @@ TICKET_TEMPLATE.md written at <root>/TICKET_TEMPLATE.md
 <GitHub only>
 Workflow labels created in <repo>: <count> labels.
 Issue types: <mapped: feature→Feature, bug→Bug | labels only>
-Project: <linked to #<number> <title>, Status synced; fields created: <list> | none>
+Project: <created #<number> "<title>" | linked to #<number> <title>>, Status <created to match your stages | matched to existing options>; other fields created: <list> | none>
 
 Research agents: <N registered — <names> | none (ticket creation reads sources inline)>
 Review agents: code-reviewer, test-adequacy-reviewer (loop cap: <max_loop_rounds> rounds)
+Branch workflow: <enabled — merge: <merge_strategy>, PR: <github | none> | disabled>
 
 Next steps:
 - Fill in `references:` and `verification:` in .claude/config.yaml when you have them.
@@ -421,6 +482,7 @@ Next steps:
 - **Never overwrite an existing agent file.** Step 5.5 registers existing agents; Step 7 writes only new ones. A name collision between a catalog selection and an existing file skips the write and keeps the existing agent.
 - **Init never creates org issue types.** Unmapped config types fall back to `type:` labels; org taxonomy is the org admin's domain.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there. Step 5 is skipped entirely on filesystem.
+- **A new Project is created before anything else in Step 7.** If `gh project create` fails, stop before writing `config.yaml` or any other side effect — nothing has been created yet, so there is nothing to clean up. The written file always carries the real project number, never the Step 6 preview's "(created on Apply)" placeholder.
 - **Never leave an invalid config.** Step 7 runs the engine's `load_and_validate()` on the file right after writing it; if validation fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
 - **Single commit per init.** Folders + config + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.claude/config.yaml` alone.
 - **Never amend.** Never `--no-verify`. Never bypass signing.

@@ -23,7 +23,10 @@ flowchart TD
     Stale -->|none| G1
 
     G1{"Gate: pick a ticket<br/>(top 4 shown, or type an ID)"} --> Claim["claim_atomic(id) —<br/>BEFORE any research/planning"]
-    Claim --> Race{"claim race lost?"}
+    Claim --> BranchCreate{"git.branch_workflow enabled?<br/>(default yes)"}
+    BranchCreate -->|yes| CreateBranch["Create + checkout<br/>ticket branch from base"]
+    CreateBranch --> Race
+    BranchCreate -->|no| Race{"claim race lost?"}
     Race -->|yes| Repick(["Abort cleanly, offer re-pick"])
     Race -->|no| ReadState["Read current ticket state<br/>+ referenced files"]
 
@@ -32,12 +35,13 @@ flowchart TD
     Challenge --> G2{"Plan gate:<br/>Approve / Edit / Abandon"}
     G2 -->|edit| Plan
     G2 -->|abandon| Abandon["transition back to pickable,<br/>append '## Abandoned notes'"]
-    Abandon --> Abandoned(["Claim released"])
+    Abandon --> DiscardBranch["Discard ticket branch<br/>(if git.branch_workflow enabled)"]
+    DiscardBranch --> Abandoned(["Claim released"])
 
-    G2 -->|approve| Loop["Bounded implementation loop<br/>(see below) — cap: max_loop_rounds"]
+    G2 -->|approve| Loop["Bounded implementation loop<br/>(see below) — cap: max_loop_rounds<br/>(commits land on the ticket branch)"]
     Loop -->|done| MoveReview{"review role<br/>configured?"}
-    MoveReview -->|yes| ToReview["transition_artifact(target_role: review)<br/>+ post sign-off report"]
-    MoveReview -->|no| StaysInProgress["Stays in in_progress<br/>+ same report shape"]
+    MoveReview -->|yes| ToReview["transition_artifact(target_role: review)<br/>+ open PR if pr_integration: github<br/>+ post sign-off report"]
+    MoveReview -->|no| StaysInProgress["Stays in in_progress<br/>+ open PR if pr_integration: github<br/>+ same report shape"]
     ToReview --> AwaitClose(["Awaiting /ticket:close or /ticket:reject"])
     StaysInProgress --> AwaitCloseDirect(["Awaiting /ticket:close directly"])
 ```
@@ -77,6 +81,7 @@ flowchart TD
 - **Claims:** `claim_atomic(id)` — happens before any research or planning; from this point, abandoning is an obligation, not an option skipped silently.
 - **Reads:** `read_artifact`, referenced source files.
 - **Writes:** `update_frontmatter` (rewrite stale body, record `## Evidence`), `transition_artifact` (to review, or back to pickable on abandon).
+- **Branch:** when `git.branch_workflow: enabled` (default), creates `<branch_prefix><id>-<slug>` right after the claim and does all implementation work there; ticket-state commits still land on base. Opens a PR at the review/report point when `pr_integration: github`; discards the branch on abandon.
 - **Agents dispatched:** [`challenger`](../agents/challenger.md) (plan stage), [`code-reviewer`](../agents/code-reviewer.md) + [`test-adequacy-reviewer`](../agents/test-adequacy-reviewer.md) (blocking, every round), [`code-challenger`](../agents/code-challenger.md) + [`code-simplifier`](../agents/code-simplifier.md) (advisory, every round).
 
 ## Exit states

@@ -86,6 +86,10 @@ verification.pre_close_command=null
 # --- resolved defaults ---
 claim.stale_after=24h
 verification.max_loop_rounds=3
+git.branch_workflow=enabled
+git.branch_prefix=ticket/
+git.merge_strategy=merge
+git.pr_integration=none
 projects.status_field=Status
 projects.field_map.priority=Priority
 projects.field_map.effort=Effort

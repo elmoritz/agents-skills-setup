@@ -44,17 +44,15 @@ These primitives operate on any artifact type. Today the only live type is `tick
 
 ## § Config: discover, load, validate
 
-Discovery, YAML parsing, and all 18 validation rules are **implemented by the `te` CLI** (`.claude/scripts/te`), not re-applied from prose. The rule list once lived here as 18 numbered checks; it now lives as code with a golden-file test per rule (`scripts/test-te.sh`). This section is the **contract**; `te config validate` is the authority, and there is no prose fallback — a missing or non-executable `te` is a hard fail (see the exec-bit precondition below).
+Discovery, YAML parsing, and all 24 validation rules are **implemented by the `te` CLI** (`.claude/scripts/te`), not re-applied from prose — see it and its goldens (`scripts/test-te.sh`) for the authoritative behavior. This section is the **contract**; `te config validate` is the authority, and there is no prose fallback — a missing or non-executable `te` is a hard fail (see the exec-bit precondition below).
 
 **Operation.** `te config validate [path]` — reads only; never touches the working tree.
 
 - **Discovery.** With no path, `te` walks up from `cwd` for `.claude/config.yaml` (first match wins; stops at `/`). Not found → the failure shape with `where=discovery` and `"No .claude/config.yaml found between <cwd> and /."` A path may be passed explicitly (`/ticket:init` step 7 passes the file it just wrote).
 - **Parse.** The YAML subset `/ticket:init` generates: 2-space-indented block maps and lists, `key: value` scalars (bare / `"double"` / `'single'` quoted), inline flow lists (`roles: [pickable]`, `effort.allowed: [S, M]`), and `#` comments. Anything outside the subset — tabs in indentation, anchors/aliases (`& *`), tags (`!`), block scalars (`|`/`>`), flow maps (`{}`), nested flow (`[[`) — is a **hard parse error** (`where=parse`) with `"Could not parse <path>: <reason> at line <n>"`. A hand-edited config that drifts out of subset dies pointed, never as a silent misparse.
-- **Validate.** All 18 § Config rules, in order, each stopping at the first failure with the exact spec message. Rules cover: `version`; `backend.type` and its block; `lifecycle.stages` shape, unique keys, and exactly-one-of the required roles `[pickable, in_progress, terminal]` (with `inbox`/`review` optional, at most one each); `types` and each type's `required_body_sections` (a list that **may be empty** — empty is not absent); `effort.allowed` / `pickable_allowed` subset rules; `milestones.strategy` and its backend conditionals (`trackers` filesystem-only, `native` github-only); `projects` linkage (github-only; `number`/`owner` required when enabled; `status_map` keys ⊆ roles; `field_map` keys ⊆ `{priority, effort, risk}`); `claim.stale_after` duration; `backend.github.type_map` (github-only, keys ⊆ types); `research.agents` / `review.agents` name resolution; and `verification.max_loop_rounds`. Defaults the code injects when a key is absent: `claim.stale_after`→`24h`, `verification.max_loop_rounds`→`3`, and (projects enabled) `projects.status_field`→`Status`, `field_map`→`Priority`/`Effort`/`Risk`. The authoritative rule text and message strings are the code and its goldens.
+- **Validate.** All 24 § Config rules, in order, each stopping at the first failure with the exact spec message — the rule text and message strings are the code and its goldens, not restated here. Defaults the code injects when a key is absent: `claim.stale_after`→`24h`, `verification.max_loop_rounds`→`3`, and (projects enabled) `projects.status_field`→`Status`, `field_map`→`Priority`/`Effort`/`Risk`.
 
 **Output.** Flat `key=value` lines on stdout: the resolved config in document order, then the injected defaults, then the derived `roles.<role>=<stage.key>` map. Exit `0` on success; `1` on a discovery/parse/validation failure (the `ok=false` / `where` / `failed` / `recovery` shape on stdout); `2` on internal error.
-
-**Agent resolution.** The agent-name rules are checked against the agents directory beside the config (`<dir-of-config>/agents/`). Awk cannot stat the filesystem, so the shell half of `te` globs that directory (suffix-agnostic across `.md` / `.agent.md`) and feeds `te` the set of existing agent basenames.
 
 **Exec-bit precondition.** If `te` itself lacks the exec bit, the shell returns `126` **before** `te` runs — it cannot report on its own missing bit. Every caller (`load_and_validate()`, `/ticket:init` step 7) MUST check `[ -x .claude/scripts/te ]` first and, if it fails, emit `"te is present but not executable at .claude/scripts/te — run 'chmod +x .claude/scripts/te'; a bundle copied without exec bits is the usual cause."` The test harness asserts that only `te` is executable, so a bad copy also fails CI.
 
@@ -76,7 +74,7 @@ Implemented by **`te id next [--count N]`** — see it (and its goldens) for the
 
 ## § Slug generation (filesystem)
 
-Implemented by **`te slug "<title>"`**: lowercase, keep `[a-z0-9 ]` (everything else becomes a separator), collapse whitespace, take the first 6 words, join with `-`. Example: `"Add bee hive node for honey production"` → `"add-bee-hive-node-for-honey"`.
+Implemented by **`te slug "<title>"`** — see it (and its goldens) for the exact algorithm.
 
 ## § Field storage contract
 
@@ -115,7 +113,7 @@ IV-002:
 - **Authoritative, not derived.** For `depends_on`, `related`, `milestone`, the ledger *is* the ticket's data. Ticket frontmatter never carries these fields; if a stray copy appears in a ticket file, the ledger wins and the stray is reported as drift.
 - **Same-commit writes.** Any event that changes a ticket's ledger entry stages the `.ledger.yaml` edit in that event's commit (per Hard rules). Transitions that don't touch ledger fields (claim, review, close…) leave the ledger alone — entries are keyed by ID, not path, so `git mv` never requires a ledger edit.
 - **Entries persist through closure.** A terminal ticket keeps its entry — milestone rollups and dependency history read it. Nothing is ever pruned.
-- **Validated on load** by **`te ledger validate`** (filesystem): unparseable YAML (reusing the config parser's line-pointed error), an entry whose ID resolves to no ticket file, a `depends_on`/`related` ID that resolves to no ticket file and no ledger entry, or a `depends_on` cycle (reported as the full chain, e.g. `IV-007 → IV-012 → IV-007`) → hard fail with a pointed message (hand-edit damage is the expected cause). A ticket file with no ledger entry is valid — it simply has no deps/related/milestone. This is a **standalone** subcommand, not folded into `te config validate`; `load_and_validate()` runs `te config validate` and then, on the filesystem backend, `te ledger validate` — one call from the caller's point of view.
+- **Validated on load** by **`te ledger validate`** (filesystem) — see it (and its goldens) for the exact failure conditions and message shapes; hand-edit damage is the expected cause of any failure here. A ticket file with no ledger entry is valid — it simply has no deps/related/milestone. This is a **standalone** subcommand, not folded into `te config validate`; `load_and_validate()` runs `te config validate` and then, on the filesystem backend, `te ledger validate` — one call from the caller's point of view.
 - **Missing ledger.** No `.ledger.yaml` at the root → `te ledger validate` returns a soft warning and exit 0 (`/ticket:init` creates the stub; a legacy project may predate it).
 
 ## § Transition primitives
@@ -126,6 +124,7 @@ A transition moves an artifact from a source role to a target role. The engine i
 
 Order matters — invariant. For a transition from stage `<src>` to stage `<dst>` with field updates `<fields>`:
 
+0. **Branch bracketing** (only when `git.branch_workflow: enabled` and the artifact has an active ticket branch — § Git branch workflow): if the ticket branch is currently checked out, `git checkout <base>` first. Run steps 1–5 there — every ticket-file commit lands on base, never on the ticket branch, so ticket state stays immediately visible without waiting for a merge. Afterward, `git checkout` back to the ticket branch, unless this transition is the terminal close (which deletes the branch instead — § Git branch workflow).
 1. `git mv <root>/<src.folder>/<file>.md <root>/<dst.folder>/<file>.md`.
 2. Edit the moved file's frontmatter: apply `<fields>` (typically `claimed_by`, `closed_as`). If `<fields>` touches a ledger-resident field (`depends_on`, `related`, `milestone`), edit the ticket's `.ledger.yaml` entry instead of the frontmatter and stage the ledger file too.
 3. Stage the moved file: `git add <root>/<dst.folder>/<file>.md`.
@@ -168,7 +167,7 @@ The exact colors are not load-bearing — they exist so newly-created labels loo
 
 Active only when `backend.type: github` **and** `projects.enabled: true`. Keeps a Project (v2) board mirroring the workflow: each issue is added to the project on creation, and its `status_field` (default `Status`) follows the stage on every transition. Filesystem tickets are never synced — they aren't issues.
 
-**Read side (scripted).** `te projects resolve` resolves the project node ID, the status field's ID + option map, and each `field_map` entry's field ID + option map from one `gh project field-list`; it degrades to a **soft warning** (never an error) when the status field is absent, the project is deleted, or the `project` scope is missing, and is a clean no-op when `projects.enabled: false` or on a filesystem backend. The dual-homed board reads (`priority`/`effort`/`risk`) are performed by `te read`/`te list` per § Field storage contract. The **write** side below stays prose (the mutation tier). The read mapping is offline-tested against recorded fixtures; the Projects field/option **resolution against a live board is manually verified** (see the ticket's manual checklist).
+**Read side (scripted).** `te projects resolve` resolves the project node ID, the status field's ID + option map, and each `field_map` entry's field ID + option map; it degrades to a **soft warning** (never an error) when the status field is absent, the project is deleted, or the `project` scope is missing, and is a clean no-op when `projects.enabled: false` or on a filesystem backend. The dual-homed board reads (`priority`/`effort`/`risk`) are performed by `te read`/`te list` per § Field storage contract. The **write** side below stays prose (the mutation tier).
 
 **ID resolution (session-cached, resolved once per engine invocation).** Project items are edited by node ID, not number, so resolve these up front and cache them:
 
@@ -187,11 +186,33 @@ gh project item-edit --id <item-id> --project-id <project-node-id> \
 
 - If the role has no `status_map` entry, or the mapped option name has no match on the board, **skip the Status set** (no error) — the item is still in the project; only the column is left untouched.
 
-**Set the dual-home fields (on creation only).** When creating an issue with `projects.enabled: true`, after the item-add: set each of `priority` / `effort` / `risk` on the board via the same `gh project item-edit` shape, resolving the value to an option ID case-insensitively (e.g. effort `M` → option "M"; priority `P1` → option "P1"). These fields are set at creation and by `update_frontmatter` when the caller changes them — stage transitions never touch them. **Fallback:** if a board write fails or the field/option is missing, write the corresponding `prio:` / `effort:` / `risk:` label instead and append a soft warning — the field must land somewhere (per Hard rules). Reads resolve board first, label second.
+**Set the dual-home fields (on creation only).** When creating an issue with `projects.enabled: true`, after the item-add: set each of `priority` / `effort` / `risk` on the board via the same `gh project item-edit` shape, resolving the value to an option ID case-insensitively (e.g. effort `M` → option "M"; priority `P1` → option "P1"). These fields are set at creation and by `update_frontmatter` when the caller changes them — stage transitions never touch them. **Fallback:** if a board write fails or the field/option is missing, write the corresponding `prio:` / `effort:` / `risk:` label instead and append a soft warning — the field must land somewhere (per Hard rules). **Reconciliation:** whenever a dual-homed field's board write *succeeds*, remove that field's `prio:`/`effort:`/`risk:` label from the issue if present, in the same `gh issue edit` call — a label only survives once a fallback wrote it, and a later successful board write must not leave it behind. Reads resolve board first, label second.
 
 **Best-effort, never authoritative — for stage state.** Status sync always runs *after* the issue's labels/state have been mutated (the source of truth for the workflow stage). Any failure there — missing `project` scope, deleted project, renamed option, network error — is **non-fatal**: the transition (or creation) still succeeds, and the engine appends a soft warning to `steps_taken` such as `"project sync skipped: <reason>; set Status manually or re-run after fixing the project."` The engine never reverses a transition, never fails a command, and never retries silently because of a project-sync error. The dual-home fields are the one exception to "mirror only": there the board is the *primary* home and the failure path is the label fallback above, not a bare warning.
 
 **Silent.** Project sync edits the board only — it posts no issue comment, on any event.
+
+## § Git branch workflow
+
+Governed by `git.branch_workflow` (`enabled` default / `disabled`). When `disabled`, nothing below applies — every transition and every command behaves exactly as described elsewhere in this file, unchanged.
+
+When `enabled`:
+
+- **Branch identity.** A ticket's branch name is deterministic — `<git.branch_prefix><id>-<slug>` (slug from § Slug generation on the title; default prefix `ticket/`), e.g. `ticket/IV-042-add-bee-hive-node`. No branch-name state is stored anywhere; any caller reconstructs it from the ticket ID and title.
+- **Creation.** Immediately after `claim_atomic` completes (filesystem: after the claim commit lands on base; github: after the assignee swap), create and check out the branch from the current base HEAD: `git checkout -b <branch>`. All implementation-loop edits from this point land on the branch.
+- **Filesystem backend — state stays on base.** Every Filesystem transition (§ Transition primitives) brackets itself around the ticket branch (see step 0 there): the claim, any `update_frontmatter` write, the review transition, and the close transition all commit the ticket file on base, never on the ticket branch. This is what keeps ticket state — including the atomic claim's race protection — behaving exactly as it does with `git.branch_workflow: disabled`; the branch adds isolation for code, not for ticket state.
+- **GitHub backend — no bracketing needed.** Ticket state is already API-driven and branch-independent; the branch holds only code commits. § Transition primitives' GitHub transition is unaffected.
+- **Merge (closure only — `close_artifact(id, "shipped")`).** Before the terminal transition runs, merge the ticket branch's commits into base per `git.merge_strategy`:
+  - `merge` (default) — `git merge --no-ff <branch>`.
+  - `squash` — `git merge --squash <branch>`, then one commit.
+  - `ff_only` — `git merge --ff-only <branch>`; fails if base has moved past the branch's fork point.
+  - When `git.pr_integration: github` (github backend only): push the branch if not already pushed, and merge via `gh pr merge --delete-branch` with the flag matching `merge_strategy` (`--merge` / `--squash` / `--rebase` — `gh pr merge` has no plain fast-forward mode, so `ff_only` maps to `--rebase`, its closest equivalent).
+  - A merge conflict is a hard fail per Hard rules: stop before the terminal transition runs, and report the half-state (`where: "branch merge"`, `failed: <conflict output>`, `recovery: "resolve the conflict on <branch>, then re-run /ticket:close"`).
+  - After a successful local merge, delete the branch (`git branch -d <branch>`); `gh pr merge --delete-branch` deletes both the remote and local branch when PR integration is active.
+- **Review-stage PR (optional, `git.pr_integration: github`, github backend only; default `none`).** When the artifact reaches the point `/ticket:pick` posts its sign-off report (whether or not that also moves it to a `review` stage), push the ticket branch and `gh pr create` referencing the issue — the PR becomes the review surface. With `pr_integration: none`, nothing is pushed and review happens the way it does today.
+- **Abandon.** The Abandon transition (pickable ← in_progress) discards the branch: after the abandon commit lands on base, delete the branch (`git branch -D <branch>` — force, since the work is intentionally discarded) and check out base. Note the discarded commit count in the `## Abandoned notes` payload; the commits are recoverable via reflog until garbage-collected.
+- **Non-shipped closure.** `close_artifact(id, "wontfix" | "duplicate")` discards the branch the same way Abandon does (delete without merging), after the terminal transition commits.
+- **Reject.** No branch action — the ticket returns to `in_progress` and the same branch keeps accumulating commits across another implementation pass.
 
 ## § Message formatting
 
@@ -271,7 +292,7 @@ Implemented by **`te effort-cap --effort <e> --role <r>`**: when a ticket is wri
 Enforced whenever a `depends_on` list is written, and before a fold closes a ticket another ticket may still need. Implemented by **`te deps check <id> --depends-on <ids> [--slate <ids>]`** on both backends, feeding the *same* cycle walk:
 
 - **Existence.** Every proposed dependency must resolve to a ticket file or a ledger entry (filesystem), or to an issue in the graph (github). Exemption: IDs on the `--slate` list — in-flight siblings not yet written. Failure: `depends_on references <id>, which does not exist`.
-- **No cycles.** A depth-first walk from `<id>` over the `depends_on` edges (ledger on filesystem; one `gh issue list --state all` rendering `number<TAB>blockedBy` on github, closed issues included) plus the proposed edges; a node recurring on the current path is reported as the full chain (e.g. `IV-007 → IV-012 → IV-007`). Never follows `related`. The walk lives in `lib/deps.awk` and consumes a flat `id<TAB>dep` edge list — implemented exactly once, only the graph source differs. On github, `gh` < 2.94 (no `blockedBy`) hard-fails with a pointed version message rather than a silent empty. Failure: `depends_on cycle: <chain>`.
+- **No cycles.** A depth-first walk from `<id>` over the `depends_on` edges (ledger on filesystem; one `gh issue list --state all` rendering `number<TAB>blockedBy` on github, closed issues included) plus the proposed edges; a node recurring on the current path is reported as the full chain (e.g. `IV-007 → IV-012 → IV-007`). Never follows `related`. On github, `gh` < 2.94 (no `blockedBy`) hard-fails with a pointed version message rather than a silent empty. Failure: `depends_on cycle: <chain>`.
 - **Fold containment.** Before `fold_artifact` closes a source as a duplicate, run the same walk from the *target*: if the source's ID appears anywhere in the target's transitive `depends_on` chain, block the fold — it would close a ticket the target still needs.
 
 Runs inside `create_artifact` (when `spec.depends_on` is non-empty), `update_frontmatter` (when `fields` touches `depends_on`), and `fold_artifact` (containment check).
@@ -445,12 +466,14 @@ Used by the move-only transitions: `claim` (pickable → in_progress), `review` 
   - **GH**: the assignee swap carries both fields — `claimed_by` is the assignee, `claimed_at` is the assignment event it mints (nothing else written). § Transition primitives' verification-read step catches lost races; reverse and return.
 - **Returns**: claimed artifact; or `{ ok: false, reason: "race lost — claimed by <other>" }`.
 
+When `git.branch_workflow: enabled`, a successful claim is immediately followed by branch creation (§ Git branch workflow) — the claim itself is unaffected either way.
+
 ### `update_frontmatter(id, fields)`
 
 - **Input**: artifact ID, field updates. (The name is historical — it updates **logical fields** wherever they live, per § Field storage contract; body updates ride the same operation.)
 - **Procedure**: in-place edit without stage change. If `fields` touches `depends_on`, run § depends_on integrity first; refuse the write on a missing ID or a cycle.
   - **FS**: edit the file at its current path; ledger-resident fields edit the ticket's `.ledger.yaml` entry instead; `git add` everything touched; one commit with `commits.update`.
-  - **GH**: route each field to its home — `gh issue edit` for native fields (`--add-blocked-by`/`--remove-blocked-by` for `depends_on` deltas, milestone, native type), board field or label for the dual-homed three, body edit for the `Related:` line and prose sections; comment per § Message formatting (`update` is content-bearing on GH).
+  - **GH**: route each field to its home — `gh issue edit` for native fields (`--add-blocked-by`/`--remove-blocked-by` for `depends_on` deltas, milestone, native type), board field for the dual-homed three per § GitHub Projects sync (with label fallback, and label removal on a successful board write — see Reconciliation there), body edit for the `Related:` line and prose sections; comment per § Message formatting (`update` is content-bearing on GH).
 - **Returns**: updated artifact.
 
 Used by `/ticket:pick` step 2 (stale-ticket update before claim), and by `/ticket:refine` when an inbox entry gets re-saved as inbox after deeper analysis.
@@ -464,6 +487,8 @@ Used by `/ticket:pick` step 2 (stale-ticket update before claim), and by `/ticke
 - **Returns**: closed artifact.
 
 Note: closure source stage is `review` if a review stage exists; otherwise `in_progress`. Engine derives the source via `resolve_role("review") ?? resolve_role("in_progress")`.
+
+When `git.branch_workflow: enabled`: `closed_as: shipped` merges the artifact's ticket branch into base per § Git branch workflow *before* the terminal transition above runs; `wontfix`/`duplicate` discard the branch (no merge) *after* the terminal transition commits.
 
 ### `fold_artifact(source_id, target_id)`
 

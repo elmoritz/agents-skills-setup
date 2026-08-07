@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=review.plan_advisors: 'challenger' already runs unconditionally every plan gate; remove it from the list.
+recovery=fix tests/fixtures/config/r25-plan-advisor-collides-fixed/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1
