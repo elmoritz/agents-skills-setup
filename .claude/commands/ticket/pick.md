@@ -1,6 +1,6 @@
 ---
 description: Pick the next ticket from the pickable stage and implement it through to review (or directly to closure-ready, depending on whether a review stage exists).
-argument-hint: [optional ticket ID to pick directly; otherwise top 4 are surfaced]
+argument-hint: "[optional ticket ID to pick directly; otherwise top 4 are surfaced]"
 ---
 
 # /ticket:pick

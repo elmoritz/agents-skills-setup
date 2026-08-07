@@ -10,6 +10,6 @@ Read `.agents/skills/ticket-reject/SKILL.md` and follow it exactly, start to fin
 
 - That skill is the single source of truth for this workflow. This file only
   routes to it — never re-implement, summarise, or shortcut a step from memory.
-- Whatever the user typed after `/ticket-reject` is the skill's starting input ([optional ticket ID; otherwise list in-review tickets and pick]).
+- Whatever the user typed after `/ticket-reject` is the skill's starting input ("[optional ticket ID; otherwise list in-review tickets and pick]").
 - The skill's gates are numbered lists: print the options and wait for the
   user's number. Never pick an option for them.

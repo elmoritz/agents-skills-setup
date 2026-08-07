@@ -1,6 +1,6 @@
 ---
 description: Create one or more tickets. Aborts at any gate save to inbox (if an inbox stage is configured); full completion lands in the pickable stage.
-argument-hint: [optional starting description; otherwise the user is prompted]
+argument-hint: "[optional starting description; otherwise the user is prompted]"
 ---
 
 # /ticket:new

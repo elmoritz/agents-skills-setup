@@ -1,6 +1,6 @@
 ---
 description: Print a verification guide for a ticket in the review stage. Read-only — does not modify or commit. Requires a stage with the `review` role.
-argument-hint: [optional ticket ID; otherwise auto-pick the oldest in-review ticket]
+argument-hint: "[optional ticket ID; otherwise auto-pick the oldest in-review ticket]"
 ---
 
 # /ticket:review

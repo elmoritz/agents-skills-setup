@@ -39,6 +39,48 @@ done
 
 echo "skills: $(echo "$SKILLS" | wc -w | tr -d ' ') ($(echo "$PUBLIC" | wc -w | tr -d ' ') user-invocable) · review agents: $(echo "$AGENTS" | wc -w | tr -d ' ')"
 
+# --- Frontmatter validity: real YAML types, not the naive fm() extractor -----
+# fm() above is a single-line substring grab, not a parser — it happily returns
+# a value a real YAML engine would reject or mistype. `argument-hint: [foo]`
+# parses to a one-element array, not a string; an unquoted ": " inside a plain
+# scalar (e.g. a description with "evidence: hidden coupling") is invalid YAML
+# outright. Both shipped silently past every check above because none of them
+# parse YAML — they just substring-match. This is what tripped GitHub Copilot's
+# stricter loader ("argument-hint must be a string") on a bundle that looked
+# clean to this script. Ruby's YAML lib ships on both CI images (ubuntu-latest,
+# macos-latest) with no install step, so use a real parser here instead of
+# teaching fm() to fake one.
+while IFS= read -r line; do
+  chk
+  case "$line" in
+    BAD:*) BAD "frontmatter" "${line#BAD:}" ;;
+  esac
+done < <(find .agents .claude .gemini .github -name '*.md' 2>/dev/null | ruby -ryaml -e '
+  STDIN.each_line do |f|
+    f = f.chomp
+    content = File.read(f)
+    next unless content.start_with?("---")
+    fm = content.split(/^---\s*$/, 3)[1]
+    next unless fm
+    begin
+      parsed = YAML.safe_load(fm)
+      raise "does not parse to a mapping" unless parsed.is_a?(Hash)
+      puts "OK"
+      %w[name description argument-hint].each do |key|
+        next unless parsed.key?(key)
+        v = parsed[key]
+        if v.is_a?(String)
+          puts "OK"
+        else
+          puts "BAD:#{f}: #{key} must be a string (real YAML parses it as #{v.class}) -- quote the value or remove any bare colon"
+        end
+      end
+    rescue => e
+      puts "BAD:#{f}: frontmatter is not valid YAML (#{e.message.lines.first.strip})"
+    end
+  end
+')
+
 # --- Agent Skills standard: every provider reads the same shape --------------
 # A skill is <dir>/SKILL.md with `name` + `description`; Gemini CLI and Codex
 # both refuse anything nested deeper than one directory.

@@ -1,6 +1,6 @@
 ---
 name: code-challenger
-description: Devil's advocate against a ticket's implementation as built — run every round of the pick loop, not once. Attacks the code that now exists with evidence: hidden coupling it introduced, a cheaper route it should have taken, an irreversible or load-bearing step, or a route the plan got wrong. Read-only; returns a verdict the session weighs in its round evaluation (no user gate). Invoke in /ticket-pick step 5.5 alongside code-reviewer, or standalone on any diff.
+description: Devil's advocate against a ticket's implementation as built — run every round of the pick loop, not once. Attacks the code that now exists with evidence — hidden coupling it introduced, a cheaper route it should have taken, an irreversible or load-bearing step, or a route the plan got wrong. Read-only; returns a verdict the session weighs in its round evaluation (no user gate). Invoke in /ticket-pick step 5.5 alongside code-reviewer, or standalone on any diff.
 tools: ["read", "search", "execute"]
 ---
 

@@ -1,6 +1,6 @@
 ---
 description: Close a ticket as shipped. Closes from the review stage if one exists, otherwise from in_progress. Trusts the user has verified the work.
-argument-hint: [optional ticket ID; otherwise list closable tickets and pick]
+argument-hint: "[optional ticket ID; otherwise list closable tickets and pick]"
 ---
 
 # /ticket:close

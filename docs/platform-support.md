@@ -180,13 +180,17 @@ what they prove:
 1. **`scripts/gen-adapters.sh --check`** (every commit, via the sync gate) — the
    per-platform entry points are generated, so they cannot be hand-edited into
    drift; they can only go stale, and this catches that.
-2. **`scripts/test-adapters.sh`** (every commit + CI, free, offline) — ~290
+2. **`scripts/test-adapters.sh`** (every commit + CI, free, offline) — ~480
    assertions, each encoding a documented vendor requirement from §1: skill
    depth and frontmatter, Codex's TOML keys and its no-auto-delegation rule,
    Antigravity's `subagent: true` and 12,000-character cap, Gemini's `prompt` /
    `{{args}}` / `context.fileName`, Copilot's `.agent.md` shape, Claude's
-   counterpart surface, and a hard limit on router size so no router can grow
-   logic. A failure names the provider it breaks. Mutation-tested: renaming a
+   counterpart surface, a hard limit on router size so no router can grow
+   logic, and every frontmatter block re-parsed through a real YAML engine
+   (not the script's own naive substring extractor) so a value a strict loader
+   would reject — an unquoted `[hint]`, a bare `key: ` inside a description —
+   fails here instead of on a user's machine. A failure names the provider it
+   breaks. Mutation-tested: renaming a
    skill, deleting a router, dropping `subagent: true`, dropping `{{args}}`, or
    growing a workflow past the cap each turn it red.
 3. **`scripts/live-provider-check.sh --go [--functional]`** (by hand, costs

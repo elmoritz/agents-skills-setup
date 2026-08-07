@@ -10,6 +10,6 @@ Read `.agents/skills/ticket-review/SKILL.md` and follow it exactly, start to fin
 
 - That skill is the single source of truth for this workflow. This file only
   routes to it — never re-implement, summarise, or shortcut a step from memory.
-- Whatever the user typed after `/ticket-review` is the skill's starting input ([optional ticket ID; otherwise auto-pick the oldest in-review ticket]).
+- Whatever the user typed after `/ticket-review` is the skill's starting input ("[optional ticket ID; otherwise auto-pick the oldest in-review ticket]").
 - The skill's gates are numbered lists: print the options and wait for the
   user's number. Never pick an option for them.

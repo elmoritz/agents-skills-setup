@@ -10,6 +10,6 @@ Read `.agents/skills/grill-me/SKILL.md` and follow it exactly, start to finish.
 
 - That skill is the single source of truth for this workflow. This file only
   routes to it — never re-implement, summarise, or shortcut a step from memory.
-- Whatever the user typed after `/grill-me` is the skill's starting input ([the plan, design, or decision to stress-test]).
+- Whatever the user typed after `/grill-me` is the skill's starting input ("[the plan, design, or decision to stress-test]").
 - The skill's gates are numbered lists: print the options and wait for the
   user's number. Never pick an option for them.

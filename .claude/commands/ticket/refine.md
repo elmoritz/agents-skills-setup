@@ -1,6 +1,6 @@
 ---
 description: Resume an inbox entry through to backlog (or close as fold/wontfix). Requires a stage with the `inbox` role.
-argument-hint: [optional inbox ticket ID]
+argument-hint: "[optional inbox ticket ID]"
 ---
 
 # /ticket:refine

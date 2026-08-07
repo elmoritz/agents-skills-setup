@@ -1,7 +1,7 @@
 ---
 name: ticket-reject
 description: Send a ticket in review back to in_progress with a recorded rejection reason. The counterpart to /ticket-close when verification fails. Requires a stage with the `review` role.
-argument-hint: [optional ticket ID; otherwise list in-review tickets and pick]
+argument-hint: "[optional ticket ID; otherwise list in-review tickets and pick]"
 ---
 
 # /ticket-reject
