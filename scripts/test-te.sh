@@ -143,6 +143,22 @@ run_deps_standalone() {
   count=$((count + 1))
 }
 
+# board.awk standalone. The gh/ cases CANNOT reach it: TE_GH_FIXTURE
+# short-circuits inside _gh_project_items, which is upstream of the awk, so every
+# project-items.txt fixture bypasses the reshape entirely. Name-keyed selection
+# under a field_map rename is only covered here. Rendered through `cat -v` so the
+# US separators are legible in the golden.
+run_board_standalone() {
+  local items=tests/fixtures/board/items.txt got rc
+  [ -f "$items" ] || return 0
+  set +e
+  got=$(awk -f .claude/scripts/lib/board.awk -v prio=Prio -v eff=Effort -v risk=Risk "$items" | cat -v)
+  rc=$?
+  set -e
+  check_golden "tests/golden/misc/board-standalone.out" "$got"$'\n'"--- exit: $rc" "misc/board-standalone"
+  count=$((count + 1))
+}
+
 check_exec_bits
 if [ ! -x "$TE" ]; then echo "Cannot run: $TE is not executable." >&2; exit 1; fi
 
@@ -164,6 +180,7 @@ for dir in tests/fixtures/gh/*/; do
 done
 run_msg_newline
 run_deps_standalone
+run_board_standalone
 
 if [ "$UPDATE" -eq 1 ]; then echo "goldens updated."; exit 0; fi
 if [ "$fail" -ne 0 ]; then echo "test-te: FAIL" >&2; exit 1; fi

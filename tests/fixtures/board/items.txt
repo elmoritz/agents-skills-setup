@@ -1,0 +1,4 @@
+https://x/1	PrioP0	EffortL	Riskhigh	StatusDone
+https://x/2	Risklow	PrioP2	Effort
+https://x/3	StatusBacklog
+https://x/4	EffortM	PriorityP1

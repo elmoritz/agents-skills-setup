@@ -72,7 +72,12 @@ if [ "$MODE" = cleanup ]; then
   . "$STATE"
   : "${LGC_REPO:?state file missing LGC_REPO}" "${LGC_SENTINEL:?state file missing LGC_SENTINEL}"
   echo "Verifying $LGC_REPO carries this tool's sentinel before deleting..."
-  desc=$(gh repo view "$LGC_REPO" --json description -q .description 2>/dev/null || true)
+  # REST, not `gh repo view --json` (GraphQL): the safety check must not be able
+  # to fail *open into a refusal* just because the graphql bucket is spent. It
+  # did exactly that — a run that measured board costs exhausted the 5000-point
+  # hour, the description came back empty, and cleanup refused to delete its own
+  # throwaway repo. REST bills the separate `core` bucket.
+  desc=$(gh api "repos/$LGC_REPO" -q .description 2>/dev/null || true)
   if [ "$desc" != "$LGC_SENTINEL" ]; then
     die "refusing to delete $LGC_REPO — its description does not match the recorded sentinel (not created by this run, or already gone)"
   fi
@@ -82,12 +87,18 @@ if [ "$MODE" = cleanup ]; then
     # reported at create time doesn't always resolve on delete.
     stamp=${LGC_REPO##*te-live-check-}
     title="te-live-check $stamp"
-    num=$(gh project list --owner "$LGC_OWNER" --format json \
-            -q ".projects[] | select(.title==\"$title\") | .number" 2>/dev/null | head -1)
+    seg=users
+    [ "$(gh api "users/$LGC_OWNER" -q .type 2>/dev/null)" = "Organization" ] && seg=orgs
+    num=$(gh api "$seg/$LGC_OWNER/projectsV2" --paginate \
+            -q ".[] | select(.title==\"$title\") | .number" 2>/dev/null | head -1)
     [ -n "$num" ] || num=$LGC_PROJECT
     echo "Deleting Projects v2 board '$title' (#$num, owner $LGC_OWNER)..."
+    # Deleting a board has no REST route (DELETE .../projectsV2/<n> 404s), so
+    # this one call stays on GraphQL — as does `gh project create`. If the
+    # graphql bucket is spent it will fail; everything else here is REST and
+    # already done by then, so retry the line below after the hour rolls over.
     gh project delete "$num" --owner "$LGC_OWNER" >/dev/null 2>&1 \
-      || echo "  (board delete failed — find + remove it: gh project list --owner $LGC_OWNER ; gh project delete <n> --owner $LGC_OWNER)"
+      || echo "  (board delete failed — GraphQL-only, and the graphql budget may be spent; retry: gh project delete $num --owner $LGC_OWNER)"
   fi
   echo "Deleting repo $LGC_REPO..."
   gh repo delete "$LGC_REPO" --yes || die "repo delete failed — state kept at $STATE for retry"
@@ -173,8 +184,14 @@ fi
 
 # ---------------- scaffold a config pointing at the real repo -----------------
 WORK=$(mktemp -d)
+# The scaffold defaults owner_type to `org`; pass the REAL kind so the config
+# this harness writes matches the board it points at. te detects the kind at
+# runtime rather than trusting the field, but a live check that writes a config
+# it knows to be wrong is not verifying the thing users will actually run.
+OWNERKIND=user
+[ "$(gh api "users/$OWNER" -q .type 2>/dev/null)" = "Organization" ] && OWNERKIND=org
 "$SCAFFOLD" --out "$WORK" --backend gh --milestones auto \
-  $( [ "$PROJECTS" -eq 1 ] && printf -- '--projects --project-number %s --project-owner %s' "$PROJ" "$OWNER") \
+  $( [ "$PROJECTS" -eq 1 ] && printf -- '--projects --project-number %s --project-owner %s --owner-type %s' "$PROJ" "$OWNER" "$OWNERKIND") \
   --repo "$REPO" --no-validate >/dev/null
 run() { echo "--- te $* ---"; ( cd "$WORK" && "$TE" "$@" ) || echo "  (te exited nonzero)"; echo; }
 
