@@ -30,7 +30,7 @@ flowchart TD
     Race -->|yes| Repick(["Abort cleanly, offer re-pick"])
     Race -->|no| ReadState["Read current ticket state<br/>+ referenced files"]
 
-    ReadState --> Plan["Formulate plan:<br/>behavior summary + 5-10 step technical plan"]
+    ReadState --> Plan["Formulate plan:<br/>behavior summary + 5-10 step technical plan<br/>(each step honors the ticket's NFRs)"]
     Plan --> Challenge{{"Dispatch challenger agent<br/>(read-only, stress-tests the plan)"}}
     Challenge --> G2{"Plan gate:<br/>Approve / Edit / Abandon"}
     G2 -->|edit| Plan
@@ -82,7 +82,7 @@ flowchart TD
 - **Reads:** `read_artifact`, referenced source files.
 - **Writes:** `update_frontmatter` (rewrite stale body, record `## Evidence`), `transition_artifact` (to review, or back to pickable on abandon).
 - **Branch:** when `git.branch_workflow: enabled` (default), creates `<branch_prefix><id>-<slug>` right after the claim and does all implementation work there; ticket-state commits still land on base. Opens a PR at the review/report point when `pr_integration: github`; discards the branch on abandon.
-- **Agents dispatched:** [`challenger`](../agents/challenger.md) (plan stage), [`code-reviewer`](../agents/code-reviewer.md) + [`test-adequacy-reviewer`](../agents/test-adequacy-reviewer.md) (blocking, every round), [`code-challenger`](../agents/code-challenger.md) + [`code-simplifier`](../agents/code-simplifier.md) (advisory, every round).
+- **Agents dispatched:** [`challenger`](../agents/challenger.md) (plan stage), [`code-reviewer`](../agents/code-reviewer.md) + [`test-adequacy-reviewer`](../agents/test-adequacy-reviewer.md) (blocking, every round), [`code-challenger`](../agents/code-challenger.md) + [`code-simplifier`](../agents/code-simplifier.md) (advisory, every round). No NFR agent runs here: the ticket's [`## Non-functional requirements`](../agents/nfr-analyst.md) are passed to the checkers as acceptance criteria, so `code-reviewer` judges each against the diff and `test-adequacy-reviewer` fails the round if a requirement's test can't go red.
 
 ## Exit states
 

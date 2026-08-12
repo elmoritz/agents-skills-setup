@@ -83,6 +83,11 @@ review:
   plan_advisors: []   # optional — extra agents alongside the fixed `challenger` at the plan gate
   advisors: []         # optional — extra agents alongside the fixed `code-challenger`/`code-simplifier` every round
 
+nfr:                      # optional — the profile `nfr-analyst` judges against
+  dimensions: [performance, security]        # omit the key to consider all eight
+  budgets:                                   # your numbers; cited instead of a generic standard
+    performance: "p95 under 200ms on the API surface"
+
 references:                # all nullable
   architecture:   null
   conventions:    null

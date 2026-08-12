@@ -26,6 +26,7 @@ This command delegates every read/write to `../ticket-engine/SKILL.md`. Read tha
 - The `effort.pickable_allowed` set used as the size cap.
 - References (`references.architecture`, `references.roadmap`, etc.) — silent-skip if null/missing.
 - `research.agents` — the registered research agents (name + `consult` hint). Empty/absent is fine: every dispatch point below degrades to inline reading.
+- `nfr` — the project's non-functional profile (`nfr.dimensions`, `nfr.budgets`), read by the fixed `nfr-analyst`. Absent is fine: all eight dimensions are considered and no project budget overrides a generic standard.
 
 If the engine reports `"No .agents/config.yaml found"`, stop and tell the user `"Run /ticket-init first."`
 
@@ -63,10 +64,13 @@ Identify and read the files relevant to the described work (the whole scenario �
 
 **Dispatch research agents (routed, parallel).** Before reading beyond the directly-affected files, check `research.agents`: dispatch every agent whose `consult` hint matches the described work — for **any** ticket type (a bug consults precedent/docs/language agents as readily as a feature). Dispatch the relevant ones in parallel as read-only subagents, passing the described work, your open questions, and any files already identified. Each reads its source in its own context and returns distilled findings; fold those into the analysis instead of reading those sources inline. The directly-affected code you still read yourself — agents replace *source-of-information* reading (docs, prior art, external references, stack/language expertise), not your own look at the change site. Irrelevant agents stay undispatched — never blanket-dispatch the whole list. If `research.agents` is empty, read inline as before.
 
+**Dispatch the NFR analyst (always).** Alongside the research agents, dispatch the fixed `nfr-analyst` (`.agents/agents/nfr-analyst.md`) as a read-only subagent — on every ticket, of every type, whether or not any research agent is registered. Pass it the described work, your restated understanding, the files and extension surface identified here, and the best-guess `type`. It returns the non-functional requirements this work carries — each stated measurably with its verification named — plus the dimensions it ruled out and one line on whether any requirement changes the size of the work. It is never configured away and never skipped for being "probably not relevant": `NO NFR SURFACE` is a normal verdict, and the point of asking every time is that omission is the failure being prevented.
+
 Output a 5–10 line summary:
 
 - Files involved.
 - Which extension surface this lands on (project-specific).
+- The non-functional requirements the analyst surfaced (or `none`), flagging any it marked as needing a decision.
 - Which invariants from `references.architecture` apply (skip this line if the reference is null or missing).
 
 End with the gate, asked (numbered list; user replies with the number):
@@ -85,7 +89,7 @@ End with the gate, asked (numbered list; user replies with the number):
 
 **Method — interview the user about this scenario until you reach a shared understanding.** Walk down each branch of the decision tree, resolving dependencies between decisions one at a time. The grilling is scoped to *the work the user described* — enough to bound every ticket it will split into at step 3 — bounded by the constraints below, not an open-ended interrogation of the whole product.
 
-1. **Build the decision tree.** From the user's request + the step 2 analysis, enumerate the open questions whose answers would change *what gets built, how it's typed, what "done" means, or how big it is* — i.e. anything that moves `type`, scope, acceptance criteria / regression test, `effort`, `priority`, `risk`, or the split decision. Order them so a question never depends on one asked later (resolve parents before children).
+1. **Build the decision tree.** From the user's request + the step 2 analysis, enumerate the open questions whose answers would change *what gets built, how it's typed, what "done" means, or how big it is* — i.e. anything that moves `type`, scope, acceptance criteria / regression test, `effort`, `priority`, `risk`, or the split decision. Order them so a question never depends on one asked later (resolve parents before children). The `nfr-analyst`'s **Needs a decision** items enter this tree as ordinary branches — an unresolved non-functional requirement moves scope and effort exactly as a functional one does, and its options and recommended default come pre-drafted.
 
 2. **Answer from the codebase first.** If a question is answerable by exploring the repo, explore and answer it — do **not** ask the user. Where a question falls inside a registered research agent's `consult` hint (a docs constraint, a language capability, a performance characteristic…), dispatch that agent — the step 2 findings often already carry the answer. If it's genuinely new, do quick research first so your recommendation is grounded. Only the residual, genuinely-undecided, material questions reach the user.
 
@@ -195,6 +199,10 @@ Acceptance criteria (for `feature`) and Regression test (for `bug`) are **requir
 
 Append a **`## Decisions & assumptions`** section carrying the running list from step 2.5: every grilled answer (decision + who chose it) and every silent default (assumption). This is the ticket's record of shared understanding — whoever picks the ticket up sees the same reconciled view the user signed off on.
 
+Append a **`## Non-functional requirements`** section carrying every requirement from the step 2 analyst pass that survived grilling. One line each: the requirement stated measurably (a budget, a threshold, or a named mechanism), then `Verified by:` naming the test, measurement, or manual step that proves it. **A requirement with no named verification never lands** — restate it until it is checkable, or drop it and record that in Decisions & assumptions. Close the section with a `Not applicable:` line listing the dimensions the analyst ruled out, so the next reader doesn't re-ask. When the analyst returned `NO NFR SURFACE` the section still appears, reading `_None — no non-functional surface in this work._`
+
+This section is what makes the requirements enforceable later: `/ticket-pick` treats each line as an acceptance criterion, so `code-reviewer` checks it against the diff and `test-adequacy-reviewer` checks its test can actually go red. A requirement recorded without a verification is one nobody will check.
+
 Show the assembled body to the user.
 
 End with the gate, asked (numbered list; user replies with the number):
@@ -240,7 +248,7 @@ Do not run the `verification.pre_close_command` here — that's a closure-time c
 
 Reached when the step 3 decomposition gate resolves as a slate (2+ tickets) and the user picked **Continue**. The slate's *shape* — titles, types, effort estimates, dependency order — was already approved at that gate, and the IDs are reserved. This path drafts the full content of each ticket; the user signs off on the assembled result at the slate gate at the end. **Grilling (step 2.5) has already run**, so each ticket is drafted from reconciled understanding; carry the relevant decisions/assumptions into each sub-ticket's `## Decisions & assumptions` section.
 
-1. **Draft all sub-tickets in one pass.** For each ticket on the slate, run steps 4 (research), 5 (body), 6 (frontmatter) silently — no per-step prompts. Apply the existing rules (license filters, required body sections, full frontmatter fields). When a piece of research or analysis applies to multiple tickets, cite it once and cross-reference (`see <id> Research`) rather than duplicating prose.
+1. **Draft all sub-tickets in one pass.** For each ticket on the slate, run steps 4 (research), 5 (body), 6 (frontmatter) silently — no per-step prompts. Apply the existing rules (license filters, required body sections, full frontmatter fields). When a piece of research or analysis applies to multiple tickets, cite it once and cross-reference (`see <id> Research`) rather than duplicating prose. Non-functional requirements are the exception to that cross-referencing: the step 2 analyst pass covered the whole scenario, so give each sub-ticket the requirements that bind *it*, repeating a slate-wide requirement in full on every ticket it binds. A requirement parked on one sibling is one the others ship without.
 2. **Wire the dependency chain.** Each ticket's `depends_on` lists the prior sibling(s) it needs done first, referenced by their slate identifier — the real reserved ID on filesystem, the provisional `NEW-k` handle on GitHub; `related` lists the rest of the slate. Slate siblings are exempt from existence validation (they're created in this same pass, in dependency order, with GitHub handles resolved at creation per step 5); any `depends_on` pointing outside the slate must resolve via `read_artifact` before the slate gate.
 3. **Show the assembled slate** as one block: each ticket's frontmatter + body in order. Keep it scannable.
 4. **Single approval gate**, asked (numbered list; user replies with the number):
@@ -274,6 +282,8 @@ In the compact split path, **Save all to inbox** calls `save_as_inbox` once per 
 - Never silently skip a gate. Each gate prompt requires an explicit user response.
 - Never skip the step 2.5 alignment grilling when material ambiguity exists. Reconcile understanding before scope, type, or split is locked; a ticket committed on an unverified guess is a defect. If genuinely nothing is ambiguous (every open question was answerable from the codebase), say so explicitly — don't manufacture questions, but don't skip the assessment either.
 - Every committed ticket (single or slate) must carry a `## Decisions & assumptions` section recording the grilled answers and silent defaults.
+- Every committed ticket (single or slate) must carry a `## Non-functional requirements` section, even when it reads `_None_`. Every requirement in it names its verification — an unverifiable requirement is restated until it is checkable or dropped, never recorded as-is.
+- The `nfr-analyst` runs on every ticket, of every type, and is never configured away. Like the research agents it is read-only and advisory: it proposes requirements and pre-drafts the open decisions; the command (never the agent) writes the section and puts every decision to the user.
 - Never commit a ticket to a `pickable`-roled stage with `type: unknown` or any unfilled required field. This applies per-ticket in a slate.
 - Never commit an effort value outside `effort.pickable_allowed`. The engine refuses such writes; the command must re-split at step 3 before retrying.
 - Never accept a research candidate with an incompatible license — including candidates returned by a research agent; the command re-checks before presenting.

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=nfr.dimensions: 'latency' is not a known dimension. Valid: performance, security, reliability, accessibility, observability, privacy, compatibility, operability.
+recovery=fix tests/fixtures/config/r27-nfr-unknown-dimension/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

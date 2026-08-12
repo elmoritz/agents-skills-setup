@@ -50,13 +50,13 @@ These primitives operate on any artifact type. Today the only live type is `tick
 
 ## § Config: discover, load, validate
 
-Discovery, YAML parsing, and all 24 validation rules are **implemented by the `te` CLI** (`.agents/scripts/te`), not re-applied from prose — see it and its goldens (`scripts/test-te.sh`) for the authoritative behavior. This section is the **contract**; `te config validate` is the authority, and there is no prose fallback — a missing or non-executable `te` is a hard fail (see the exec-bit precondition below).
+Discovery, YAML parsing, and all 25 validation rules are **implemented by the `te` CLI** (`.agents/scripts/te`), not re-applied from prose — see it and its goldens (`scripts/test-te.sh`) for the authoritative behavior. This section is the **contract**; `te config validate` is the authority, and there is no prose fallback — a missing or non-executable `te` is a hard fail (see the exec-bit precondition below).
 
 **Operation.** `te config validate [path]` — reads only; never touches the working tree.
 
 - **Discovery.** With no path, `te` walks up from `cwd` for `.agents/config.yaml` (first match wins; stops at `/`). Not found → the failure shape with `where=discovery` and `"No .agents/config.yaml found between <cwd> and /."` A path may be passed explicitly (`/ticket-init` step 7 passes the file it just wrote).
 - **Parse.** The YAML subset `/ticket-init` generates: 2-space-indented block maps and lists, `key: value` scalars (bare / `"double"` / `'single'` quoted), inline flow lists (`roles: [pickable]`, `effort.allowed: [S, M]`), and `#` comments. Anything outside the subset — tabs in indentation, anchors/aliases (`& *`), tags (`!`), block scalars (`|`/`>`), flow maps (`{}`), nested flow (`[[`) — is a **hard parse error** (`where=parse`) with `"Could not parse <path>: <reason> at line <n>"`. A hand-edited config that drifts out of subset dies pointed, never as a silent misparse.
-- **Validate.** All 24 § Config rules, in order, each stopping at the first failure with the exact spec message — the rule text and message strings are the code and its goldens, not restated here. Defaults the code injects when a key is absent: `claim.stale_after`→`24h`, `verification.max_loop_rounds`→`3`, and (projects enabled) `projects.status_field`→`Status`, `field_map`→`Priority`/`Effort`/`Risk`.
+- **Validate.** All 25 § Config rules, in order, each stopping at the first failure with the exact spec message — the rule text and message strings are the code and its goldens, not restated here. Defaults the code injects when a key is absent: `claim.stale_after`→`24h`, `verification.max_loop_rounds`→`3`, and (projects enabled) `projects.status_field`→`Status`, `field_map`→`Priority`/`Effort`/`Risk`.
 
 **Output.** Flat `key=value` lines on stdout: the resolved config in document order, then the injected defaults, then the derived `roles.<role>=<stage.key>` map. Exit `0` on success; `1` on a discovery/parse/validation failure (the `ok=false` / `where` / `failed` / `recovery` shape on stdout); `2` on internal error.
 

@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=nfr.budgets: 'accessibility' carries a budget but is not listed in nfr.dimensions — it would never be considered.
+recovery=fix tests/fixtures/config/r28-nfr-budget-not-considered/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

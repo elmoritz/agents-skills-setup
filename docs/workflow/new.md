@@ -23,13 +23,14 @@ flowchart TD
     G1 -->|continue| Analyze
 
     Analyze["Read affected files"] --> Research{{"Dispatch registered<br/>research agents in parallel<br/>(docs / precedent / perf / language)"}}
-    Research --> G2{"Gate: Continue / Edit /<br/>Save as inbox / Abort"}
+    Research --> NFR{{"Dispatch nfr-analyst<br/>(always, every type)"}}
+    NFR --> G2{"Gate: Continue / Edit /<br/>Save as inbox / Abort"}
     G2 -->|edit| Analyze
     G2 -->|save as inbox| Inbox
     G2 -->|abort| Aborted
     G2 -->|continue| Grill
 
-    Grill["Alignment grilling —<br/>AskUserQuestion chain,<br/>walks the decision tree<br/>branch by branch"] --> Decisions["Folds every answer + assumption<br/>into '## Decisions & assumptions'"]
+    Grill["Alignment grilling —<br/>AskUserQuestion chain,<br/>walks the decision tree<br/>branch by branch<br/>(NFR decisions included)"] --> Decisions["Folds every answer + assumption<br/>into '## Decisions & assumptions'<br/>and '## Non-functional requirements'"]
     Decisions --> G3{"Gate: decomposition plan —<br/>Continue / Edit the split /<br/>Save as inbox / Abort"}
     G3 -->|edit| Grill
     G3 -->|save as inbox| Inbox
@@ -44,7 +45,7 @@ flowchart TD
     G4 -->|abort| Aborted
     G4 -->|continue| Body
 
-    Body["Draft body sections<br/>(per-type required + Decisions)"] --> G5{"Gate: Continue / Edit /<br/>Save as inbox"}
+    Body["Draft body sections<br/>(per-type required + Decisions + NFRs)"] --> G5{"Gate: Continue / Edit /<br/>Save as inbox"}
     G5 -->|edit| Body
     G5 -->|save as inbox| Inbox
     G5 -->|continue| Frontmatter
@@ -66,7 +67,7 @@ flowchart TD
 
 ## Reads / writes
 
-- **Reads:** affected source files; registered research agents (parallel dispatch).
+- **Reads:** affected source files; registered research agents (parallel dispatch); the fixed [`nfr-analyst`](../agents/nfr-analyst.md), dispatched on every ticket; the optional `nfr:` config profile.
 - **Writes:** `create_artifact` (filesystem: new ticket file + ledger entry, one commit per ticket; GitHub: `gh issue create` + labels + Project item), or `save_as_inbox` if diverted at any gate.
 
 ## Exit states
@@ -82,3 +83,4 @@ flowchart TD
 
 - [`/ticket:refine`](refine.md) — resumes anything saved to inbox
 - [Configuration reference § Types](../config/reference.md#types) — per-type required body sections and the effort cap
+- [`nfr-analyst`](../agents/nfr-analyst.md) — how the `## Non-functional requirements` section is derived, and why each line names its verification

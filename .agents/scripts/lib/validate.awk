@@ -1,4 +1,4 @@
-# validate.awk — the 22 § Config rules of ticket-engine/SKILL.md, applied in
+# validate.awk — the 25 § Config rules of ticket-engine/SKILL.md, applied in
 # order against config.awk's tagged records plus `A <TAB> name` agent-existence
 # records (emitted by common.sh, which can stat the filesystem where awk cannot).
 #
@@ -20,6 +20,7 @@ BEGIN {
   MS_STRAT = " auto trackers native labels none "
   FIXED_PLAN_ADVISORS = " challenger "
   FIXED_ADVISORS = " code-challenger code-simplifier "
+  NFR_DIMENSIONS = " performance security reliability accessibility observability privacy compatibility operability "
 }
 
 $1 == "V" { key = $2; if (!(key in seen)) { ord[nord++] = key; seen[key] = 1 }
@@ -285,6 +286,36 @@ END {
       ad_seen[nm] = 1
       if (!(nm in agent))
         fail("review.advisors: '" nm "' does not resolve to an agent file in the agents directory")
+    }
+  }
+
+  # ---- Rule 25: nfr ----
+  # The optional project NFR profile the fixed `nfr-analyst` reads at ticket
+  # creation. Absent ⇒ every dimension is considered and no project budget
+  # overrides a generic standard.
+  if (has("nfr.dimensions")) {
+    if (typ["nfr.dimensions"] != "list") fail("nfr.dimensions must be a list.")
+    nnd = listlen("nfr.dimensions")
+    if (nnd == 0) fail("nfr.dimensions must be a non-empty list; omit the key to consider every dimension.")
+    for (i = 0; i < nnd; i++) {
+      nm = val["nfr.dimensions." i]
+      if (!inset(NFR_DIMENSIONS, nm))
+        fail("nfr.dimensions: '" nm "' is not a known dimension. Valid: performance, security, reliability, accessibility, observability, privacy, compatibility, operability.")
+      if (nm in nfr_seen) fail("nfr.dimensions: duplicate dimension '" nm "'.")
+      nfr_seen[nm] = 1
+    }
+  }
+  if (typ["nfr.budgets"] == "map") {
+    for (i = 0; i < nord; i++) {
+      k = ord[i]
+      if (k ~ /^nfr\.budgets\.[^.]+$/) {
+        seg = substr(k, 13)
+        if (!inset(NFR_DIMENSIONS, seg))
+          fail("nfr.budgets: '" seg "' is not a known dimension. Valid: performance, security, reliability, accessibility, observability, privacy, compatibility, operability.")
+        if (val[k] == "") fail("nfr.budgets: '" seg "' must be a non-empty string.")
+        if (has("nfr.dimensions") && !(seg in nfr_seen))
+          fail("nfr.budgets: '" seg "' carries a budget but is not listed in nfr.dimensions — it would never be considered.")
+      }
     }
   }
 

@@ -42,7 +42,17 @@ user): **`ticket-engine`** — the execution layer (config load/validate, ID
 assignment, backend transitions, commit/comment formatting, half-state reporting);
 **`milestone-sync`** — milestone-vs-tickets drift detection and repair.
 
-Five read-only review agents live under `.agents/agents/` and are wired into
+Six read-only agents live under `.agents/agents/`. One is wired into ticket
+**creation**: **`nfr-analyst`** (`/ticket-new` step 2, and `/ticket-refine` on
+resume) — derives the work's non-functional requirements as measurable
+statements that each name their own verification, before scope is locked. Its
+unresolved items become step 2.5 grilling branches; what survives lands in the
+ticket's `## Non-functional requirements` section, and from there the pick loop
+enforces each line as an acceptance criterion. It is fixed — never configured
+away — and reads the optional `nfr:` config block (dimensions + project
+budgets) to cite your numbers instead of generic standards.
+
+The other five are wired into
 `/ticket-pick`: **`challenger`** (step 3 — attacks the drafted plan before the
 Plan gate); **`code-reviewer`** and **`test-adequacy-reviewer`** — the default
 **blocking** checkers in the bounded **implementation loop** (each round: implement

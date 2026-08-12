@@ -84,8 +84,8 @@ existing agents-and-skills bundle to its latest version.
   actually have. If my bundle still lives in `.github/skills/` + `.github/config.yaml`,
   that is the old layout — move it to `.agents/` and tell me what moved.
 - Refresh the SHIPPED files to match the template: the ticket commands, the skills
-  (ticket-engine, milestone-sync, grill-me, …), and the review agents (challenger,
-  code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
+  (ticket-engine, milestone-sync, grill-me, …), and the shipped agents (nfr-analyst,
+  challenger, code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
 - Do NOT overwrite anything I customized: my `config.yaml`, the research agents I
   added under `.claude/agents/` / `.agents/agents/`, and my ticket template. If a
   shipped file and my customized copy have both changed, show me a diff and ask
@@ -103,6 +103,6 @@ Full documentation: **https://elmoritz.github.io/agents-skills-setup/**
 
 - [Workflow](https://elmoritz.github.io/agents-skills-setup/workflow/overview/) — the seven ticket commands, with a flow diagram of every step and gate
 - [Skills](https://elmoritz.github.io/agents-skills-setup/skills/) — the shared execution/milestone/interview machinery
-- [Review agents](https://elmoritz.github.io/agents-skills-setup/agents/) — the five read-only agents wired into `/ticket:pick`
+- [Shipped agents](https://elmoritz.github.io/agents-skills-setup/agents/) — the six read-only agents wired into `/ticket:new` and `/ticket:pick`
 - [Configuration reference](https://elmoritz.github.io/agents-skills-setup/config/reference/) — the full `config.yaml` shape, and 20 example projects
 - [Platform support](https://elmoritz.github.io/agents-skills-setup/platform-support/) — why the bundle split exists, with vendor evidence

@@ -56,6 +56,7 @@ challenger:.claude/agents/challenger.md:.agents/agents/challenger.md
 code-challenger:.claude/agents/code-challenger.md:.agents/agents/code-challenger.md
 code-reviewer:.claude/agents/code-reviewer.md:.agents/agents/code-reviewer.md
 code-simplifier:.claude/agents/code-simplifier.md:.agents/agents/code-simplifier.md
+nfr-analyst:.claude/agents/nfr-analyst.md:.agents/agents/nfr-analyst.md
 test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.agents/agents/test-adequacy-reviewer.md
 tpl-perf-expert:.claude/references/research-agents/perf-expert.md:.agents/references/research-agents/perf-expert.md
 tpl-language-expert:.claude/references/research-agents/language-expert.md:.agents/references/research-agents/language-expert.md
@@ -95,7 +96,7 @@ scripts:.claude/scripts/:.agents/scripts/
 # get the hard equivalence gate. Everything else (commands, skills, the
 # human-facing READMEs) legitimately rephrases invocation/gate mechanics per
 # platform and relies on the pairing check + the advisory `--equiv` instead.
-EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
+EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier nfr-analyst test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
 
 # Canonicalize the documented intentional differences to common tokens so
 # whatever remains is real drift. Reads stdin, writes stdout. The bundle prefix

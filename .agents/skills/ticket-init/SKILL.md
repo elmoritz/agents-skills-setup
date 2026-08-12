@@ -146,7 +146,7 @@ Record the resolved (or **pending**, with its title) `number`, `owner`, `owner_t
 
 Ticket creation (`/ticket-new` steps 2 and 4, and `/ticket-refine` via resume) dispatches **research agents** — read-only subagents, one per source of information, that read their source in an isolated context and return only distilled findings. This step assembles the project's set; the selection lands in the config's `research.agents:` list, and each agent file lands in `.agents/agents/` at Step 7.
 
-1. **Detect existing agents.** Scan `.agents/agents/` for agent files other than the four shipped review agents (`challenger`, `code-reviewer`, `code-simplifier`, `test-adequacy-reviewer`). If any exist, list them and ask (numbered list; the user may reply with several numbers, comma-separated):
+1. **Detect existing agents.** Scan `.agents/agents/` for agent files other than the six shipped ones (`challenger`, `code-challenger`, `code-reviewer`, `code-simplifier`, `nfr-analyst`, `test-adequacy-reviewer`). If any exist, list them and ask (numbered list; the user may reply with several numbers, comma-separated):
    - **question:** "Found existing agents. Which should ticket creation dispatch as research agents?"
    - **header:** "Existing"
    - **options:** one per detected agent (label = name, description = its frontmatter description, truncated). Selected ones are registered in `research.agents` with a `consult:` hint derived from their description (confirm the hint inline if unclear). Never overwrite these files.
@@ -179,6 +179,26 @@ Ticket creation (`/ticket-new` steps 2 and 4, and `/ticket-refine` via resume) d
      - **Add one** — free-text follow-ups: agent name (kebab-case), what the source is, how to access it (path / URL / MCP tool), and when ticket creation should consult it. Generate the agent from the same shape as the catalog templates (read-only tools, input contract, distilled-findings output contract). Re-ask this gate after each addition.
 
 5. **Record the set.** Each agent contributes a `research.agents` entry: `name` plus a one-line `consult` hint (when ticket creation should dispatch it — e.g. `perf-expert: "the work could affect latency, memory, or throughput"`). Selecting nothing is fine: `research.agents` is omitted and ticket creation reads sources inline as before.
+
+### Step 5.6 — non-functional requirements profile (both backends)
+
+`/ticket-new` always dispatches the fixed `nfr-analyst` (Step 2) — it takes no registration. This step records the project's **profile**, so the analyst cites your numbers instead of a generic standard. Skipping is fine: with no `nfr:` block it considers all eight dimensions and marks every figure it proposes `(proposed)` for you to approve per ticket.
+
+1. Ask (numbered list; user replies with the number):
+   - **question:** "Which non-functional dimensions should ticket creation consider?"
+   - **header:** "NFR"
+   - **options:**
+     - **All eight (Recommended)** — performance, security, reliability, accessibility, observability, privacy, compatibility, operability. Omits `nfr.dimensions`; the analyst rules out what a ticket doesn't touch and records why it did.
+     - **A subset** — free-text follow-up naming the dimension keys to keep. Narrows every ticket from here on; the dropped dimensions are never considered again.
+
+2. Ask (numbered list; user replies with the number):
+   - **question:** "Does this project hold work to published numbers on any of those dimensions?"
+   - **header:** "Budgets"
+   - **options:**
+     - **Not yet (Recommended)** — omit `nfr.budgets`. The analyst proposes a figure per ticket, marked `(proposed)`, and you approve it at the gate.
+     - **Yes** — free-text follow-up, one line per dimension (e.g. `performance: "p95 under 200ms on the API surface"`, `accessibility: "WCAG 2.2 AA"`). Each becomes an `nfr.budgets.<dimension>` entry the analyst cites verbatim instead of inventing one.
+
+Every budget must name a dimension the profile still considers — the engine refuses a budget for a dimension left out of `nfr.dimensions`, since nothing would ever read it.
 
 ### Step 5.7 — which assistants read this repo
 
@@ -394,6 +414,17 @@ review:
   # advisors: [<name>, ...]        # extra agents dispatched alongside the
   #   fixed `code-challenger`/`code-simplifier` every loop round. Optional.
 
+# --- Non-functional requirements ----------------------------------------
+# Read by the fixed `nfr-analyst` at ticket creation (/ticket-new step 2).
+# Omit the whole block to consider all eight dimensions with no project
+# budgets. Valid dimensions: performance, security, reliability,
+# accessibility, observability, privacy, compatibility, operability.
+<only if Step 5.6 narrowed the set or supplied budgets; otherwise omit:>
+nfr:
+  dimensions: [<subset>]              # omit the key to consider every dimension
+  budgets:
+    <dimension>: "<the project's own number or standard>"
+
 # --- Project references (all optional; engine silently skips if missing) -----
 references:
   architecture:   null
@@ -452,7 +483,7 @@ If Step 5.3 planned a new GitHub Project (title recorded, number pending), creat
 
      The shipped review agents already have their routers committed in the bundle; `scripts/gen-adapters.sh` in the template repo is what generated them, and the same shapes apply here.
 
-3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
+3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. After the per-type blocks, add the two sections every ticket carries regardless of type — `## Decisions & assumptions` and `## Non-functional requirements` — each with a one-line prompt (the latter noting that every requirement names the verification that proves it). If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
 4. **Single commit** (filesystem) covering the new config, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research agent files, and the template if generated:
 

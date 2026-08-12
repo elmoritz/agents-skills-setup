@@ -48,7 +48,9 @@ flowchart TD
     G7cat --> G7fill["Fill template blanks<br/>(stack, doc paths…)"]
     G7fill --> G7custom{"Gate: add a custom<br/>source agent? (loop)"}
     G7custom -->|add one| G7fill
-    G7custom -->|done| G8
+    G7custom -->|done| G7nfr{"Gate: NFR dimensions<br/>all eight / a subset"}
+    G7nfr --> G7bud{"Gate: project budgets?<br/>(numbers the analyst cites)"}
+    G7bud --> G8
 
     G8{"Gate: which assistants<br/>read this repo?"} --> G8a{"Gate: branch per ticket?<br/>(pick + close manage a<br/>git branch, default yes)"}
     G8a -->|no| G9["Assemble full config.yaml<br/>from all gate answers"]
@@ -76,7 +78,7 @@ flowchart TD
 
 ## Reads / writes
 
-- **Writes:** `config.yaml`, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
+- **Writes:** `config.yaml` (including the optional `nfr:` profile), stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
 - **Branch workflow gate:** decides the `git:` block — `branch_workflow`, `merge_strategy`, and (github backend only) `pr_integration`. Defaults to branch-per-ticket enabled with a `--no-ff` merge and no PR integration.
 - **GitHub side effects:** creates labels, verifies/creates issue-type map, creates the Project itself if none existed (before anything else in the apply step), verifies/creates Project fields (including a `Status` field seeded from the project's own stage labels, when one didn't already exist).
 

@@ -83,13 +83,14 @@ nav:
       - ticket-engine: skills/ticket-engine.md
       - milestone-sync: skills/milestone-sync.md
       - grill-me: skills/grill-me.md
-  - Review agents:
+  - Shipped agents:
       - Overview: agents/index.md
       - challenger: agents/challenger.md
       - code-reviewer: agents/code-reviewer.md
       - code-challenger: agents/code-challenger.md
       - code-simplifier: agents/code-simplifier.md
       - test-adequacy-reviewer: agents/test-adequacy-reviewer.md
+      - nfr-analyst: agents/nfr-analyst.md
   - Configuration:
       - config.yaml reference: config/reference.md
       - Example projects: config/examples.md

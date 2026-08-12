@@ -105,8 +105,9 @@ Produce **two summaries** so the user can judge both the idea and the execution:
    - Names the verification it leaves behind (a unit test if available, or a manual scenario for visual changes).
    - Honors invariants from `references.architecture` (cite if reference is defined and present; skip the line otherwise).
    - Honors `references.conventions` if defined and present (skip line otherwise).
+   - Honors the ticket's `## Non-functional requirements` (skip the line if the section is absent or reads `_None_`). Each recorded requirement is an acceptance criterion: some step must leave behind the verification the ticket names for it. A requirement no plan step accounts for is a plan that will fail review — fix it here, not at round 3.
 
-**Challenge pass.** Dispatch the read-only `challenger` agent (`.claude/agents/challenger.md`) plus every agent in `review.plan_advisors`, each as its own subagent in parallel, passing the ticket ID and full body (including `## Decisions & assumptions`), both summaries, and the diff base. If any report breaks an assumption or offers a rival route you agree with, revise the plan first and note that you did.
+**Challenge pass.** Dispatch the read-only `challenger` agent (`.claude/agents/challenger.md`) plus every agent in `review.plan_advisors`, each as its own subagent in parallel, passing the ticket ID and full body (including `## Decisions & assumptions` and `## Non-functional requirements`), both summaries, and the diff base. If any report breaks an assumption or offers a rival route you agree with, revise the plan first and note that you did.
 
 Present the two summaries and the challenge report(s) together. They share one gate: approving means approving all of it.
 
@@ -163,7 +164,7 @@ Dispatch these read-only subagents **in parallel** — none of them edits:
 - **Blocking checkers** — every agent in `review.agents` (default: `code-reviewer` and `test-adequacy-reviewer`, plus any a project registers). Their findings can block the loop.
 - **Advisory challengers** — `code-challenger` (`.claude/agents/code-challenger.md`) and `code-simplifier` (`.claude/agents/code-simplifier.md`), always dispatched as subagents, every round, plus every agent in `review.advisors` if configured. `code-challenger` attacks the route the code actually took; `code-simplifier` proposes behavior-preserving trims. Their output — and any configured advisor's — is advisory: it informs the evaluation but never blocks on its own.
 
-Pass each: the ticket ID and body (plan + acceptance criteria), the diff base (the claim commit, or `git merge-base HEAD <default branch>`), and `verification.test_commands` where the agent judges tests. On round ≥ 2, also pass the prior findings plus a summary of what changed, so agents verify the fixes instead of re-reviewing from scratch. The agents report; the session decides — no agent gates the user.
+Pass each: the ticket ID and body (plan + acceptance criteria — the `## Non-functional requirements` section counts as acceptance criteria, so each recorded requirement is judged like any other, against the verification the ticket names for it), the diff base (the claim commit, or `git merge-base HEAD <default branch>`), and `verification.test_commands` where the agent judges tests. On round ≥ 2, also pass the prior findings plus a summary of what changed, so agents verify the fixes instead of re-reviewing from scratch. The agents report; the session decides — no agent gates the user.
 
 ### Step 5.7 — evaluate & decide (every round)
 
@@ -258,6 +259,7 @@ Do **not** run `verification.pre_close_command` here — that's the engine's job
 - The advisory agents (`code-challenger`, `code-simplifier`, and any configured `review.plan_advisors`/`review.advisors`) never gate the user: the step 5.7 evaluation decides whether each sound finding becomes a next-round work-list item. What is not applied by the time the loop ends is carried into the sign-off report, never applied silently.
 - The step 5.7 evaluation is autonomous within the loop's bounds: the user is interrupted only by the escalation gate (cap, stall) or a re-plan (plan wrong, including a `code-challenger` `ROUTE-WRONG`). Every round's evaluation is recorded and lands in the sign-off report's loop log.
 - Every behavioral change leaves a verification (test or manual evidence).
+- A recorded non-functional requirement is an acceptance criterion, not a note: reaching review with one unmet is the same as reaching review with a functional criterion unmet — it is fixed, or explicitly waived by the user at the escalation gate, never quietly carried.
 - Invariants in `references.architecture` are not optional **when the reference is defined**. If the ticket appears to require violating one, surface that to the user and stop.
 - The engine, not the command, performs `git mv` / `gh issue edit` / commits. The command runs tests, drives gates, and assembles report text.
 - Never amend an existing commit; always create a new one.

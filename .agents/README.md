@@ -53,7 +53,8 @@ workflow. Neither ships in the bundle — they guard the template.
 │   ├── ticket-engine/            execution layer (internal, not user-invocable)
 │   ├── milestone-sync/           milestone-vs-tickets drift (internal)
 │   └── grill-me/                 relentless decision-tree interview
-├── agents/                       canonical read-only review subagents
+├── agents/                       canonical read-only subagents
+│   ├── nfr-analyst.md            derives non-functional requirements at creation
 │   ├── challenger.md             devil's advocate against a drafted plan
 │   ├── code-challenger.md        devil's advocate against the code, every round
 │   ├── code-reviewer.md          diff review vs plan, invariants, conventions
@@ -120,7 +121,7 @@ you don't have to invoke them by hand.
 
 `agents/` holds read-only **subagents** — focused, single-purpose workers the
 assistant can dispatch or you can invoke by name. Each judges only what's on disk
-and changes nothing; the main session owns any resulting edits. Two kinds live
+and changes nothing; the main session owns any resulting edits. Three kinds live
 here:
 
 **Research agents** (added by `/ticket-init` from the `references/research-agents/`
@@ -130,6 +131,24 @@ information — docs, prior art, API references, design specs, the web, your
 stack's performance characteristics, your language's idioms — in its own context
 and returns only distilled findings. The registered set lives in `config.yaml`
 under `research.agents`, each with a `consult` hint that routes dispatch.
+
+**The NFR analyst** (shipped) is wired into ticket **creation** — `/ticket-new`
+step 2, alongside the research agents, and `/ticket-refine` on its resume path:
+
+- **`nfr-analyst`** — derives the work's non-functional requirements across eight
+  dimensions (performance, security, reliability, accessibility, observability,
+  privacy, compatibility, operability), each stated measurably and each naming the
+  verification that proves it. Unresolved ones become step 2.5 grilling branches;
+  what survives lands in the ticket's `## Non-functional requirements` section.
+  Dimensions it rules out are recorded as such, so the next reader doesn't re-ask.
+
+It runs on every ticket of every type and is never configured away. The optional
+`nfr:` config block (`dimensions`, `budgets`) narrows the set and supplies your
+project's own numbers, so findings cite those instead of a generic standard;
+figures the agent proposes itself are marked `(proposed)` for you to approve.
+Because every recorded requirement names its verification, the pick loop enforces
+them with no extra agent: `code-reviewer` checks each as an acceptance criterion
+and `test-adequacy-reviewer` fails the round if its test can't go red.
 
 **Review agents** (shipped) are wired into `/ticket-pick`:
 
@@ -157,7 +176,8 @@ the evaluation and folds the sound ones into the next round's work-list (no user
 gate); a `code-challenger` "route-wrong" verdict can send the loop back to re-plan.
 Each also works standalone on any plan or diff.
 
-`challenger`, `code-challenger`, and `code-simplifier` are always on — a
+`nfr-analyst`, `challenger`, `code-challenger`, and `code-simplifier` are always
+on — a
 project can't configure them away — but can register **extra** advisors
 alongside them, the same way extra blocking checkers register in
 `review.agents`: `review.plan_advisors` adds agents to the step 3 challenge

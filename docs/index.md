@@ -64,12 +64,13 @@ flowchart LR
     The shared machinery every command runs on: the execution engine, the
     milestone-drift detector, and the standalone alignment interviewer.
 
-- :material-account-check:{ .lg .middle } **[Review agents](agents/index.md)**
+- :material-account-check:{ .lg .middle } **[Shipped agents](agents/index.md)**
 
     ---
 
-    Five read-only subagents that stress-test plans and diffs inside
-    `/ticket:pick`'s implementation loop — and work standalone too.
+    Six read-only subagents: one derives a ticket's non-functional
+    requirements at creation, five stress-test plans and diffs inside
+    `/ticket:pick`'s implementation loop — and all work standalone too.
 
 - :material-cog:{ .lg .middle } **[Configuration](config/reference.md)**
 
