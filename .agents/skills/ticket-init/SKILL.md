@@ -97,10 +97,12 @@ regions, and checked with `te agent check`.
 
 ### Phase 6 — assistants
 
-Read `.agents/references/init/assistants.md` and record which assistants work in
-this repo.
+Read `.agents/references/init/assistants.md`. The assistant running init is
+always served; the user chooses which others the setup serves — detected
+footprints are shown as a hint, never preselected. Check whether each other
+bundle is installed.
 
-**Gate:** the assistant set is recorded.
+**Gate:** the assistant set is recorded, each `served` or `pending-bundle`.
 
 ### Phase 7 — assemble the config
 
@@ -114,8 +116,8 @@ answers, show it, and gate on Apply / Edit / Cancel.
 Read `.agents/references/init/apply.md`: create a pending GitHub Project first,
 write and validate the config, write and validate the setup manifest
 (`.agents/references/init/manifest.md`), run the backend side effects, copy the generated
-agents into place and re-check them (and, where the assistants phase asks for
-them, write their routers), lay down
+agents into place and re-check them, emit for every served assistant (the
+other bundle's config, agents and manifest; routers via `te routers`), lay down
 the starter template, and make the single init commit.
 
 **Gate:** the config and the manifest validate, and the init commit exists.
@@ -145,6 +147,7 @@ Detected: <N facts — <M> corrected by you> · provenance recorded in .agents/s
 Research agents: <N generated — <name (research: done|thin|none)>, …; M registered hand-written | none (ticket creation reads sources inline)>
 Workflow agents: challenger, code-challenger, code-reviewer, code-simplifier, nfr-analyst, test-adequacy-reviewer — regenerated for <stack> (loop cap: <max_loop_rounds> rounds)
 Project reviewers: <generated advisors/checkers and where they are registered | none>
+Assistants: <served — names; routers written for codex/gemini/copilot as served | pending-bundle — names, with the install pointer>
 Branch workflow: <enabled — merge: <merge_strategy>, PR: <github | none> | disabled>
 
 Next steps:

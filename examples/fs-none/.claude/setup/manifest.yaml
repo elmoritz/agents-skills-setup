@@ -29,3 +29,8 @@ decisions:
   - key: lifecycle.inbox
     value: disabled
     provenance: asked
+
+assistants:
+  - name: claude-code
+    status: served
+    provenance: asked

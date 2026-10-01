@@ -1,0 +1,6 @@
+routers
+write
+--root
+.
+--dry-run
+perf-expert

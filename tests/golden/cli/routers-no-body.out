@@ -1,0 +1,5 @@
+ok=false
+where=routers
+failed=no canonical body at .agents/agents/ghost.md
+recovery=write the agent into the .agents bundle first — every router points at it
+--- exit: 1

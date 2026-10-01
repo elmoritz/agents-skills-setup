@@ -218,6 +218,11 @@ decisions:
   - key: lifecycle.inbox
     value: $([ "$INBOX" -eq 1 ] && echo enabled || echo disabled)
     provenance: asked
+
+assistants:
+  - name: claude-code
+    status: served
+    provenance: asked
 EOF
 } > "$CFG/setup/manifest.yaml"
 

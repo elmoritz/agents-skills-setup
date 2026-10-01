@@ -59,6 +59,11 @@ research:                    # from the research phase
       queries:
         - "react 19 performance pitfalls 2026"
 
+assistants:                  # from the assistants phase
+  - name: claude-code        # claude-code | codex | antigravity | gemini-cli | copilot
+    status: served           # served | pending-bundle
+    provenance: asked        # asked | default
+
 agents:                      # from the agent-design phase — generated agents only
   - name: perf-expert
     kind: research           # a kind under .claude/references/agents/kinds/
@@ -84,7 +89,9 @@ subject names its notes file and at least one query; a `done` subject cites at
 least one source. An agent's `kind` must exist in this bundle, its `subjects`
 must be research subjects of this manifest, and it records its region hashes.
 Hand-written agents that init only registered are not listed — init does not
-own them.
+own them. Each assistant appears once, and at least one is `served`. When both
+bundles are served, each bundle carries its own manifest: the same content
+except its own agent paths and hashes.
 
 ## Writing it
 

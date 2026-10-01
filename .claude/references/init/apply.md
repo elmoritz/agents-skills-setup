@@ -27,9 +27,7 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
 
      Note `single_select_options` (not `options`) and that each option is an **object** with a `name` — a bare string array is rejected. If a `Priority`/`Effort`/`Risk` field-create fails, warn and continue — the engine's label fallback covers it; if `Status` fails, warn and continue — a missing Status is a soft warning per the ticket-engine § GitHub Projects sync. No items are added at init — issues join the project as they're created (the ticket-engine's `create_artifact`).
    - **Agents** (both backends): copy every agent the agent-design phase generated and checked from its scratch directory into `.claude/agents/<name>.md` — new research agents, advisors and checkers, and the regenerated workflow agents replacing their default renderings — then run `.claude/scripts/te agent check .claude/agents/<name>.md` once more — the file in the repository is the one that must pass. Never overwrite an existing agent file: a name collision with a hand-written agent was already resolved at design time; if one appears now, stop and report it.
-<!-- sync:divergent -->
-   - **Other assistants** (only if the assistants gate named any): nothing is written here — Claude Code reads only `.claude/`. Carry the names into the report so the user knows to install the `.agents/` bundle for them.
-<!-- sync:end -->
+   - **Every served assistant** — see § Emitting for every served assistant below.
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. After the per-type blocks, add the two sections every ticket carries regardless of type — `## Decisions & assumptions` and `## Non-functional requirements` — each with a one-line prompt (the latter noting that every requirement names the verification that proves it). If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
@@ -44,3 +42,33 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
    ```
    ticket: init — bootstrap workflow for github (<repo>)
    ```
+
+## Emitting for every served assistant
+
+The assistants phase recorded which assistants this setup serves. This bundle's
+own assistant is covered by everything above. For the rest:
+
+1. **The other bundle**, when an assistant it serves was chosen and the bundle
+   is installed (`assistants.md` § Is the other bundle installed?):
+   - write the same `config.yaml` into it — the config names no bundle paths,
+     so one content serves both — and validate it with **that bundle's** `te`;
+   - render every generated agent for it (`.claude/references/agents/anatomy.md`
+     § Rendering for the other bundle) and run that bundle's
+     `te agent check` on each;
+   - copy the research notes into its `setup/research/`;
+   - write its own manifest — same facts, decisions, commands and research, its
+     own agent paths and hashes, the same `assistants:` list — and validate it
+     with that bundle's `te manifest validate`.
+   A `pending-bundle` assistant gets nothing yet; the report says how to install.
+2. **Routers** for every served Codex, Gemini CLI or Copilot:
+   `.agents/scripts/te routers write --assistants <codex,gemini,copilot — the served ones>`.
+   It writes a router per agent in `.agents/agents/` — the generated research
+   agents, advisors and checkers as well as the workflow six — and creates
+   `.gemini/settings.json` when Gemini CLI is served and the file is absent. A
+   `manual=` line means an existing settings file lacks `AGENTS.md`: tell the
+   user exactly what to add; never rewrite their settings. Then run
+   `.agents/scripts/te routers check` with the same assistants — it must print
+   `ok=true`.
+3. Antigravity and Claude Code need nothing beyond their bundle's `agents/`.
+
+All of it lands in the same single init commit.

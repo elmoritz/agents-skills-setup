@@ -73,6 +73,20 @@ description: <one sentence: what it does and when it is invoked; names the proje
   — the notes stay in `.claude/setup/research/` for the agent to open when it
   needs more.
 
+## Rendering for the other bundle
+
+When a setup serves assistants from both bundles, every generated agent exists
+twice — once per bundle — with the same generated content:
+
+1. Take the contract regions from the **other bundle's** kind
+   (`<other bundle>/scripts/te agent contract <kind>`), never by editing this
+   bundle's copy.
+2. Copy the generated regions and the user region, rewriting only bundle paths
+   (`.claude/` ↔ `.agents/`) and command names (`/ticket:x` ↔ `/ticket-x`).
+3. Swap the bundle's agent line: `tools: …` for Claude Code, `subagent: true`
+   for the `.agents` bundle.
+4. Run the other bundle's `te agent check` on the result.
+
 ## Checking a generated agent
 
 Run `.claude/scripts/te agent check <file>` on every agent you write. It

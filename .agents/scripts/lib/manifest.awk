@@ -21,6 +21,9 @@ BEGIN {
   CMD_STATUS = " verified failing unavailable unverified skipped "
   RESEARCH_STATUS = " done thin "
   AGENT_RESEARCH = " done thin none "
+  ASSISTANTS = " claude-code codex antigravity gemini-cli copilot "
+  ASSIST_STATUS = " served pending-bundle "
+  ASSIST_PROV = " asked default "
 }
 
 $1 == "V" { key = $2; if (!(key in seen)) { ord[nord++] = key; seen[key] = 1 }
@@ -145,6 +148,28 @@ END {
     }
   }
 
+  # ---- M9: assistants ----
+  nas = 0
+  if (has("assistants")) {
+    if (typ["assistants"] != "list") fail("manifest: assistants must be a list.")
+    nas = maplistlen("assistants")
+    served = 0
+    for (i = 0; i < nas; i++) {
+      p = "assistants." i "."
+      asn = val[p "name"]
+      if (!inset(ASSISTANTS, asn))
+        fail("manifest: assistants[" i "]: name must be claude-code, codex, antigravity, gemini-cli, or copilot, got '" asn "'.")
+      if (asn in as_seen) fail("manifest: assistants: '" asn "' is listed twice.")
+      as_seen[asn] = 1
+      if (!inset(ASSIST_STATUS, val[p "status"]))
+        fail("manifest: assistants[" i "] (" asn "): status must be served or pending-bundle, got '" val[p "status"] "'.")
+      if (val[p "status"] == "served") served++
+      if (!inset(ASSIST_PROV, val[p "provenance"]))
+        fail("manifest: assistants[" i "] (" asn "): provenance must be asked or default, got '" val[p "provenance"] "'.")
+    }
+    if (served == 0) fail("manifest: assistants: at least one assistant is served — the one that ran init.")
+  }
+
   # ---- M8: generated agents ----
   nag = 0
   if (has("agents")) {
@@ -177,4 +202,5 @@ END {
   print "commands=" ncmd
   print "research_subjects=" nsub
   print "agents=" nag
+  print "assistants=" nas
 }

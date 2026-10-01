@@ -145,7 +145,12 @@ actually run `ticket-review`. Dry by default; `--go` costs tokens.
 `.gemini/commands/`, `.gemini/agents/`, `.codex/agents/`, and `.github/agents/`
 are produced by `scripts/gen-adapters.sh` from the canonical skills and agents.
 Edit the canonical file, re-run the generator, commit both. The sync gate runs
-`gen-adapters.sh --check` and fails on a stale router.
+`gen-adapters.sh --check` and fails on a stale router. The **subagent** routers
+(`.codex/agents/`, `.gemini/agents/`, `.github/agents/`, plus
+`.gemini/settings.json`) come from the bundle's own `te routers`, which
+`gen-adapters.sh` delegates to — the same command `/ticket-init` runs in a target
+project to register the agents it generates with every assistant the user chose
+to serve, so the template and every project share one router implementation.
 
 This is enforced by `scripts/check-bundle-sync.sh`: it fails when a file in a
 mirrored pair changes without its mirror, when a tracked file under either

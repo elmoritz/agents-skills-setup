@@ -1,0 +1,4 @@
+missing=.gemini/agents/perf-expert.md
+missing=.gemini/settings.json
+ok=false
+--- exit: 1

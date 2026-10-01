@@ -1,0 +1,6 @@
+routers
+check
+--root
+.
+--assistants
+claude-code,antigravity,gemini-cli

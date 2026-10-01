@@ -12,7 +12,7 @@ Gates here are asked via the `AskUserQuestion` tool, like every init gate.
 ## What the project owns — never overwritten
 
 - **Decisions the user made.** A manifest decision with provenance `asked` is
-  never re-asked. A config value the user edited by hand since the last run is
+  never re-asked — the assistants gate is the one exception, asked every run. A config value the user edited by hand since the last run is
   adopted as the new decision (provenance `asked`), not reverted.
 - **User regions.** Whatever is between `<!-- user:start -->` and `<!-- user:end -->`.
 - **Edited generated regions.** A region whose hash no longer matches the
@@ -79,6 +79,12 @@ plan in step 4.
 - **New sources.** A fact that would have earned a research agent on a fresh
   init (generation.md §2) but has none — a new datastore, a docs site, a design
   source. Propose the agent.
+- **Assistants.** Ask the assistants gate again (`assistants.md`) — it is the
+  one gate update mode always re-asks, because the team's assistants change.
+  A newly served assistant, or a `pending-bundle` one whose bundle is now
+  installed, gets everything emitted for it; one no longer served keeps its
+  files until the user says to remove them (gate: **Keep the files** /
+  **Remove them**).
 - **Commands.** A command whose source changed (the script now says something
   else), or whose status is `unverified`, `failing` or `unavailable`: offer it
   to the verification-commands gate again.
@@ -122,7 +128,11 @@ In this order, each step following its fresh-init reference:
 
    Every agent passes `.claude/scripts/te agent check <file> --kind <kind>`
    before it leaves the scratch directory.
-4. **Config** — the changes the plan implies (`verification:`, `research.agents`,
+4. **Assistants** — emit for newly served assistants exactly as a fresh init
+   does (`apply.md` § Emitting for every served assistant), and re-run
+   `.agents/scripts/te routers write` / `check` for the served router assistants
+   whenever an agent was added, renamed, or had its description changed.
+5. **Config** — the changes the plan implies (`verification:`, `research.agents`,
    `review.*`, adopted hand edits), shown as a diff before writing.
 
 ## 6. Write and commit

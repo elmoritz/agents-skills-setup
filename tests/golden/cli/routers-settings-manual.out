@@ -1,0 +1,4 @@
+missing=.gemini/agents/perf-expert.md
+manual=.gemini/settings.json: add "AGENTS.md" to context.fileName (te never rewrites an existing settings file)
+ok=false
+--- exit: 1

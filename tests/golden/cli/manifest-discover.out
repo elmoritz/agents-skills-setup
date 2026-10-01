@@ -5,4 +5,5 @@ decisions=2
 commands=0
 research_subjects=0
 agents=0
+assistants=0
 --- exit: 0

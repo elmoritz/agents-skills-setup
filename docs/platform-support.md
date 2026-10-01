@@ -179,7 +179,9 @@ what they prove:
 
 1. **`scripts/gen-adapters.sh --check`** (every commit, via the sync gate) — the
    per-platform entry points are generated, so they cannot be hand-edited into
-   drift; they can only go stale, and this catches that.
+   drift; they can only go stale, and this catches that. The subagent routers
+   are delegated to the bundle's `te routers check`, the same emitter
+   `/ticket:init` uses in a target project.
 2. **`scripts/test-adapters.sh`** (every commit + CI, free, offline) — ~480
    assertions, each encoding a documented vendor requirement from §1: skill
    depth and frontmatter, Codex's TOML keys and its no-auto-delegation rule,

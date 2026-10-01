@@ -95,14 +95,20 @@ Usage:
           [--depends-satisfied] [config]  List ticket summaries at a role's stage.
   te milestone scan [--version V] [config] Milestone state (filesystem + github).
   te projects resolve [config]            Resolve GitHub Project field/option IDs.
+  te routers (check|write) [--root DIR] [--assistants codex,gemini,copilot] [name...]
+                                          Subagent routers into .agents/agents/<name>.md for
+                                          Codex, Gemini CLI, Copilot (+ .gemini/settings.json).
   te --help                               This message.
 
 The read subcommands (read/list/deps check/milestone scan) work on both the
 filesystem and github backends, emitting one uniform field view. The github path
 renders via 'gh --template'; its mapping is offline-testable via TE_GH_FIXTURE.
 
-Working-tree discipline: every subcommand in this build is READ-ONLY — none
-touches the working tree. --dry-run is accepted everywhere and ignored by reads.
+Working-tree discipline: every subcommand is READ-ONLY except `te routers
+write`, which writes only generated router files (.codex/agents/, .gemini/agents/,
+.github/agents/) and creates .gemini/settings.json when absent — never edits an
+existing one. --dry-run is accepted everywhere; reads ignore it, `routers write`
+honours it (lists what it would write).
 
 Exit codes: 0 ok · 1 validation/parse/not-found failure · 2 internal error.
 EOF
@@ -203,6 +209,7 @@ main() {
         *) printf 'te: unknown milestone subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;
+    routers)     cmd_routers "$@" || exit 1 ;;
     projects)
       local sub="${1:-}"; shift || true
       case "$sub" in

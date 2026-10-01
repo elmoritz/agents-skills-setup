@@ -1,0 +1,6 @@
+would-write=.codex/agents/perf-expert.toml
+would-write=.gemini/agents/perf-expert.md
+would-write=.github/agents/perf-expert.agent.md
+would-write=.gemini/settings.json
+ok=true
+--- exit: 0

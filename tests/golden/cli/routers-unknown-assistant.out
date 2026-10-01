@@ -1,0 +1,5 @@
+ok=false
+where=routers
+failed=unknown assistant 'cursor'
+recovery=use codex, gemini, copilot (claude-code and antigravity need no router)
+--- exit: 1

@@ -1,0 +1,6 @@
+missing=.codex/agents/perf-expert.toml
+missing=.gemini/agents/perf-expert.md
+missing=.github/agents/perf-expert.agent.md
+missing=.gemini/settings.json
+ok=false
+--- exit: 1

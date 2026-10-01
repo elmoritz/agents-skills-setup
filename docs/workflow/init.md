@@ -26,7 +26,7 @@ when the phase starts, so the skill stays small and each phase stays focused.
 | 3 — Research | `research.md` | The stack at its locked versions, researched on the web — pitfalls, idioms, security, testing, tooling — one sourced notes file per subject |
 | 4 — Verification commands | `verification-commands.md` | Each candidate test/lint/typecheck/build command: run it now (with consent), record it unverified, or skip it |
 | 5 — Design the agents | `generation.md`, `agents/anatomy.md`, `agents/kinds/` | The research-agent set, designed for this project (one per source); the six workflow agents regenerated for the stack; advisors/checkers only with a reason — all generated from kinds and checked with `te agent check` |
-| 6 — Assistants | `assistants.md` | Which assistants work in the repo |
+| 6 — Assistants | `assistants.md` | Which assistants the setup serves — the running one always; the others are the user's choice (detected ones flagged, never preselected), asked again on every update |
 | 7 — Assemble | `config.md` | The config, previewed, behind an Apply / Edit / Cancel gate |
 | 8 — Apply | `apply.md`, `manifest.md` | Config + manifest written and validated, side effects, agent files, template, one commit |
 | 9 — Report | — | What was set up and what to do next |
@@ -63,6 +63,18 @@ flowchart TD
     SideEffects --> Commit["Single commit:<br/>ticket: init — bootstrap workflow"]
     Commit --> Report(["Report summary + next steps"])
 ```
+
+## Serving several assistants
+
+Claude Code reads the `.claude` bundle; Codex, Antigravity, Gemini CLI and
+GitHub Copilot read the `.agents` bundle. When the user chooses assistants from
+both, init writes the same config into each installed bundle, renders every
+generated agent for each (the other bundle's contract, the same generated
+content), gives each bundle its own manifest, and registers every agent with
+Codex, Gemini CLI and Copilot through `te routers write` — thin routers into
+`.agents/agents/<name>.md`, the same ones the template ships. An assistant whose
+bundle isn't installed yet is recorded `pending-bundle`; the next update emits
+for it once the bundle is there.
 
 ## The setup manifest
 

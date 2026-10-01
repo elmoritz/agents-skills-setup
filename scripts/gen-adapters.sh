@@ -11,6 +11,10 @@
 #   .gemini/agents/<name>.md         Gemini CLI subagents         (markdown)
 #   .codex/agents/<name>.toml        Codex subagents              (TOML: developer_instructions)
 #
+# The three subagent routers (and .gemini/settings.json) are emitted by the
+# bundle's own `te routers`, so a target project gets exactly the same shapes
+# from /ticket:init; this script only owns the command adapters.
+#
 # Codex needs no command adapter: it has no project-level slash commands, and
 # skills in .agents/skills are invoked directly as $ticket-pick.
 #
@@ -108,60 +112,21 @@ The user's starting input${hint:+ ($hint)}: {{args}}
 EOF
 done
 
-# --- Gemini CLI reads GEMINI.md by default; point it at AGENTS.md ------------
+# --- subagent routers (+ Gemini's settings.json): one implementation, in te ---
+# The router shapes live in the bundle's te (`te routers`), because /ticket:init
+# must emit the same routers for the agents it generates in a target project.
+# This script delegates rather than keeping a second copy that could drift.
 
-emit ".gemini/settings.json" <<'EOF'
-{
-  "context": {
-    "fileName": ["AGENTS.md", "GEMINI.md"]
-  }
-}
-EOF
-
-# --- subagent adapters, one per canonical review agent -----------------------
-
-for agent_md in .agents/agents/*.md; do
-  name=$(basename "$agent_md" .md)
-  desc=$(fm_get "$agent_md" description)
-  route="Read \`$agent_md\` and follow it verbatim as your operating instructions."
-  readonly_note="You are read-only: report findings, never modify a file. The invoking session owns every edit."
-
-  # Copilot — .github/agents/<name>.agent.md
-  emit ".github/agents/$name.agent.md" <<EOF
----
-name: $name
-description: $desc
-tools: ["read", "search", "execute"]
----
-
-<!-- $GEN -->
-
-$route $readonly_note
-EOF
-
-  # Gemini CLI — .gemini/agents/<name>.md
-  emit ".gemini/agents/$name.md" <<EOF
----
-name: $name
-description: $desc
----
-
-<!-- $GEN -->
-
-$route $readonly_note
-EOF
-
-  # Codex — .codex/agents/<name>.toml
-  emit ".codex/agents/$name.toml" <<EOF
-# $GEN
-name = "$name"
-description = "$(toml_escape "$desc")"
-sandbox_mode = "read-only"
-developer_instructions = """
-$route $readonly_note
-"""
-EOF
-done
+TE_AGENTS=.agents/scripts/te
+if [ "$CHECK" = 1 ]; then
+  if ! "$TE_AGENTS" routers check > "$TMPROOT/routers.out" 2>&1; then
+    grep -E '^(stale|missing|manual)=' "$TMPROOT/routers.out" \
+      | sed -e 's/^stale=/stale or missing adapter: /' -e 's/^missing=/stale or missing adapter: /' -e 's/^manual=/needs a manual fix: /' >&2
+    STALE=$((STALE + $(grep -cE '^(stale|missing|manual)=' "$TMPROOT/routers.out")))
+  fi
+else
+  "$TE_AGENTS" routers write >/dev/null
+fi
 
 if [ "$CHECK" = 1 ]; then
   if [ "$STALE" -gt 0 ]; then
