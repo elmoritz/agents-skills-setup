@@ -85,6 +85,7 @@ nav:
       - grill-me: skills/grill-me.md
   - Shipped agents:
       - Overview: agents/index.md
+      - Generated agents: agents/generated.md
       - challenger: agents/challenger.md
       - code-reviewer: agents/code-reviewer.md
       - code-challenger: agents/code-challenger.md

@@ -152,6 +152,15 @@ adapters**, not logic: a few lines each, all pointing back into `.agents/`.
 writes only the adapters that are needed, including for research agents it
 generates.
 
+> **As built:** the assistant running init is always served; the user picks
+> the others (detected footprints are flagged, never preselected), and the
+> question is asked again on every update. Routers are written by the bundle's
+> own `te routers write` — the same emitter `scripts/gen-adapters.sh` delegates
+> to. When the other bundle is installed, its config, agents and manifest are
+> emitted too; otherwise the assistant is recorded `pending-bundle` and the next
+> update emits for it. See [`/ticket:init` § Serving several
+> assistants](workflow/init.md#serving-several-assistants).
+
 ### What changes in the sync gate
 
 `check-bundle-sync.sh` keeps its two-column shape; only the right-hand paths
@@ -166,7 +175,7 @@ which is a cheap grep-shaped rule rather than a new mirror.
 | --- | --- |
 | Codex never auto-delegates to subagents | Documented behavior, not a bug. The pick skill's step 5.5 must issue an **explicit** delegation instruction on Codex ("spawn the code-reviewer agent…"), which is also how it reads today. Low impact. |
 | Antigravity's `.agent/` → `.agents/` rename | Docs state `.agents/` is the default with backward support for `.agent/`. Ship `.agents/`; no dual-write. |
-| Gemini CLI needs opt-in to read `AGENTS.md` | It defaults to `GEMINI.md`; `context.fileName` accepts `["AGENTS.md", …]`. Init should offer to write `.gemini/settings.json`, or ship a one-line `GEMINI.md` that points at `AGENTS.md`. |
+| Gemini CLI needs opt-in to read `AGENTS.md` | It defaults to `GEMINI.md`; `context.fileName` accepts `["AGENTS.md", …]`. Init should offer to write `.gemini/settings.json`, or ship a one-line `GEMINI.md` that points at `AGENTS.md`. **Resolved:** `te routers write` creates `.gemini/settings.json` when Gemini CLI is served and the file is absent, and never rewrites an existing one — it prints what to add instead. |
 | Antigravity 12k-char cap | Applies to workflows and rules only; skills are exempt. The stub design already respects it — but no stub may ever inline a step. |
 | Codex TOML subagents are a fourth format | Wrapper-only, ~6 lines each; `developer_instructions` points at the canonical body. |
 | Copilot cloud agent path support | Docs list `.agents/skills` for agent skills generally and name the cloud agent among supported surfaces, but do not map path→surface explicitly. **Open** — the CLI surface is proven end-to-end, cloud and IDE agent mode are not. Remedy if it fails: add generated `.github/skills/` routers (additive, ~8 files). |

@@ -66,6 +66,12 @@ stateDiagram-v2
 - **Every command loads and validates `config.yaml` first**, via the
   [`ticket-engine` skill](../skills/ticket-engine.md). If no config exists,
   the command stops and tells you to run `/ticket:init`.
+- **Every agent reply is checked before it is used.** Research agents, the
+  `nfr-analyst`, and every review/advisory agent reply through a fixed output
+  contract; the calling command runs `te agent reply-check` on each reply (one
+  verdict line with a verdict the agent's kind allows, plus its headings) and
+  re-asks once on failure. What happens after a second failure depends on the
+  agent — see [`/ticket:new`](new.md) and [`/ticket:pick`](pick.md).
 - **Every user-facing decision point is an explicit gate** — the
   `AskUserQuestion` tool, with 2-4 concrete options and a recommended default
   first. Nothing destructive happens between gates.

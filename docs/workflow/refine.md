@@ -46,7 +46,7 @@ flowchart TD
 
 ## Reads / writes
 
-- **Reads:** `read_artifact`, `list_artifacts(role: inbox)`.
+- **Reads:** `read_artifact`, `list_artifacts(role: inbox)`; on the resume path, everything [`/ticket:new`](new.md) reads from its analysis step on — the project's research agents and the `nfr-analyst`, each reply checked with `te agent reply-check`.
 - **Writes:** `create_artifact` (approve path), `fold_artifact` (fold path), `close_artifact` (wontfix path).
 
 ## Exit states

@@ -37,7 +37,7 @@ flowchart LR
     T -->|copy .agents/ + AGENTS.md| G["Codex · Antigravity · Gemini CLI · Copilot<br/>bundle in your repo"]
     C --> I["/ticket:init<br/>·<br/>/ticket-init"]
     G --> I
-    I -->|writes config.yaml,<br/>stages, research agents| R["Ready to work"]
+    I -->|reads the repo, researches the stack,<br/>writes config.yaml + setup manifest,<br/>stages, generated agents| R["Ready to work"]
     R --> N["/ticket:new<br/>capture work"]
     N --> P["/ticket:pick<br/>plan → implement → review"]
     P --> V["/ticket:review<br/>verify"]
@@ -71,12 +71,14 @@ flowchart LR
     Six read-only subagents: one derives a ticket's non-functional
     requirements at creation, five stress-test plans and diffs inside
     `/ticket:pick`'s implementation loop — and all work standalone too.
+    They ship as default renderings that init regenerates for your stack;
+    [Generated agents](agents/generated.md) explains how.
 
 - :material-cog:{ .lg .middle } **[Configuration](config/reference.md)**
 
     ---
 
-    The full shape of `config.yaml`, and a tour of the 18 example projects
+    The full shape of `config.yaml`, and a tour of the 21 example projects
     that exercise every backend × milestone × inbox × project-board
     combination.
 
@@ -89,7 +91,21 @@ flowchart LR
 > only the distilled finding — so the main conversation stays clean and the
 > ticket body carries conclusions, not dumps.
 
-`/ticket:init` walks you through registering **research agents** for your
-project's own sources (docs, API references, prior art, the web) — see
-[Getting started](getting-started.md#step-0-research-agents) — which then get
-dispatched automatically during `/ticket:new`'s analysis and research steps.
+`/ticket:init` **designs and generates a research agent per source** — your
+stack's performance profile, its language idioms, prior art in the repository,
+internal docs, a central library's API, a design source, the web — from what it
+reads in your repository and what it researches about your stack on the web.
+You approve the set at one gate (see
+[Getting started](getting-started.md#step-0-research-agents)); the agents then
+get dispatched automatically during `/ticket:new`'s analysis and research steps,
+and every reply is checked against the agent's output contract before it is used.
+
+## Design principle: init researches, it doesn't remember
+
+`/ticket:init` grounds everything it generates in what is true **now**: it reads
+the repository for facts (each with its source), researches the stack at its
+locked versions on the web, and records every decision with its provenance in a
+setup manifest. A fresh init without web search stops rather than fill the gap
+from memory. Re-running init later is **update mode** — stale research is
+refreshed and agents are regenerated region by region, without overwriting what
+you changed. See [`/ticket:init`](workflow/init.md).

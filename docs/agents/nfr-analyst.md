@@ -4,6 +4,15 @@ Derives a ticket's **non-functional requirements** while it is still being
 written — before scope is locked. The failure it exists to prevent is
 omission: nobody can check a requirement that was never written down.
 
+!!! info "Generated for your project"
+    This page documents the agent's **contract**, which never changes.
+    `/ticket:init` regenerates its `role`, `focus` and `knowledge` regions for
+    your stack — where its non-functional risks concentrate, each with its
+    source; budgets still come only from `nfr.budgets`. It is never dropped: if
+    its reply fails `te agent reply-check` twice, `/ticket:new` derives the
+    requirements inline from its output contract and notes the failure. See
+    [Generated agents](generated.md).
+
 | | |
 | --- | --- |
 | **Triggered by** | [`/ticket:new`](../workflow/new.md) step 2, alongside the research agents, before the step 2.5 grilling — and [`/ticket:refine`](../workflow/refine.md) on its resume path |

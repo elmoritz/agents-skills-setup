@@ -5,6 +5,14 @@ paper stage, before you approve it. Attacks the approach with codebase
 evidence: concrete failure scenarios and cheaper alternatives, never vague
 doubt.
 
+!!! info "Generated for your project"
+    This page documents the agent's **contract**, which never changes.
+    `/ticket:init` regenerates its `role`, `focus` and `knowledge` regions for
+    your stack — here, the attack angles your stack makes worth checking
+    (hidden coupling, irreversible steps such as migrations or persisted
+    formats), each with its source. It is dispatched alongside any
+    `review.plan_advisors`. See [Generated agents](generated.md).
+
 | | |
 | --- | --- |
 | **Triggered by** | [`/ticket:pick`](../workflow/pick.md) step 3, right after the plan is drafted, before the Plan gate — dispatched alongside the plan so you judge both together |

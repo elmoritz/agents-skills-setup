@@ -36,7 +36,8 @@ steps are below.
     1. **Copy the whole `.claude/` directory** into the root of your project.
        Don't cherry-pick — the commands call into the skills, and the skills
        read `.claude/config.yaml`.
-    2. Run **`/ticket:init`** and answer the prompts.
+    2. Run **`/ticket:init`** — from a session with web search — and answer
+       its gates.
     3. Capture your first piece of work with **`/ticket:new`**.
     4. Implement it with **`/ticket:pick`**, then close it out with
        **`/ticket:close`**.
@@ -47,14 +48,16 @@ steps are below.
        project root, plus the entry points your assistant reads:
        `.codex/agents/` (Codex), `.gemini/` (Gemini CLI), `.github/agents/`
        (Copilot). Antigravity needs nothing beyond `.agents/`.
-    2. Run **`/ticket-init`** (Codex: **`$ticket-init`**) and answer the
-       numbered prompts.
+    2. Run **`/ticket-init`** (Codex: **`$ticket-init`**) — from a session
+       with web search — and answer the numbered prompts.
     3. Capture your first piece of work with **`/ticket-new`**.
     4. Implement it with **`/ticket-pick`**, then close it out with
        **`/ticket-close`**.
 
-Init generates `config.yaml` tailored to your backend (filesystem or GitHub)
-and lifecycle. Full step-by-step of what it asks: [`/ticket:init`
+Init reads your repository and researches your stack first, then generates
+`config.yaml` tailored to your backend (filesystem or GitHub) and lifecycle, a
+setup manifest recording where every value came from, sourced research notes,
+and your project's agents. Full phase-by-phase reference: [`/ticket:init`
 reference](workflow/init.md).
 
 ## Step 0: research agents

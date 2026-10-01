@@ -3,10 +3,13 @@
 *Codex: `$ticket-init` · Antigravity / Gemini CLI / Copilot: `/ticket-init`*
 
 Bootstrap — and, re-run, update. Probes what the session can do, reads the repository, asks
-only what the repository can't answer, then generates `config.yaml` and applies
-its side effects (stage folders + ledger, or GitHub labels/Project fields), sets
-up research agents, and writes a starter ticket template — plus a **setup
-manifest** recording where every value came from.
+only what the repository can't answer, researches the stack on the web, then
+generates `config.yaml` and applies its side effects (stage folders + ledger, or
+GitHub labels/Project fields), generates the project's research agents,
+regenerates the six workflow agents for the stack (plus any advisors/checkers),
+registers them with every assistant the setup serves, and writes a starter
+ticket template — plus a **setup manifest** recording where every value came
+from.
 
 **Two modes.** With no `config.yaml`, init bootstraps the project. With one, it
 enters **update mode** (below) — it never runs a fresh init over an existing
@@ -20,7 +23,7 @@ when the phase starts, so the skill stays small and each phase stays focused.
 
 | Phase | Reference | What it settles |
 | --- | --- | --- |
-| 0 — Orient | `environment.md` | Picks the mode (an existing config → update mode); probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed. **No web search, no init:** a fresh init stops and redirects, writing nothing |
+| 0 — Orient | `environment.md` (`update.md` when a config exists) | Picks the mode (an existing config → update mode); probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed. **No web search, no init:** a fresh init stops and redirects, writing nothing |
 | 1 — Discover | `discovery.md` | Languages, frameworks, runtimes, datastores, CI, candidate test/lint/build commands, docs to reference, existing agents and assistant footprints — each with its source; confirmed in one gate |
 | 2 — Interview | `interview.md`, `github-project.md` | Preferences only: backend, prefix, inbox, milestones, Project board, NFR profile, branch workflow — a detected fact leads each gate as the recommended answer |
 | 3 — Research | `research.md` | The stack at its locked versions, researched on the web — pitfalls, idioms, security, testing, tooling — one sourced notes file per subject |
@@ -47,8 +50,8 @@ flowchart TD
     Interview --> StackResearch["Research the stack on the web —<br/>sourced notes per subject"]
     StackResearch --> Cmds{"Gate per command:<br/>run · record · skip"}
     Cmds --> Research{"Gate: proposed<br/>research agents"}
-    Research --> Gen["Generate each from its kind<br/>+ te agent check"]
-    Gen --> Assist["Assistants"]
+    Research --> Gen["Generate research agents,<br/>regenerate the six workflow agents,<br/>propose advisors/checkers (gated) —<br/>each from its kind + te agent check"]
+    Gen --> Assist{"Gate: which other<br/>assistants to serve?"}
     Assist --> Assemble["Assemble config.yaml"]
     Assemble --> G9g{"Gate: Apply / Edit / Cancel"}
     G9g -->|edit| Assemble
@@ -60,7 +63,8 @@ flowchart TD
     Apply --> Valid{"both valid?"}
     Valid -->|no| AbortInvalid["Stop — uncommitted files<br/>left for inspection"]
     Valid -->|yes| SideEffects["Backend side effects,<br/>agent files, template"]
-    SideEffects --> Commit["Single commit:<br/>ticket: init — bootstrap workflow"]
+    SideEffects --> Emit["Emit for served assistants:<br/>other bundle's config/agents/manifest,<br/>routers via te routers write"]
+    Emit --> Commit["Single commit:<br/>ticket: init — bootstrap workflow for &lt;backend&gt;"]
     Commit --> Report(["Report summary + next steps"])
 ```
 
@@ -118,17 +122,19 @@ Re-run init on an initialised project and it updates instead of bootstrapping
    edited by hand (adopted, never reverted), research older than six months or
    behind a version bump, `te agent drift` (missing agents, contracts gone stale
    after a bundle upgrade, regions the project edited), new sources that
-   deserve an agent, commands whose source changed.
+   deserve an agent, commands whose source changed — and the **assistants
+   gate, asked again** on every update.
 4. **One plan, one gate** — Apply all / Choose / Cancel.
 5. **Execute** — re-research, re-check commands, regenerate agents region by
    region: untouched regions are regenerated, **edited regions go through a
    three-way gate** (last generated · yours · regenerated → merge / keep /
-   take), user regions are never touched.
+   take), user regions are never touched, contracts are refreshed from the
+   kind; then emit for newly served assistants and re-run `te routers`.
 6. **One commit** — `ticket: init — update (…)`.
 
 ## Reads / writes
 
-- **Writes:** `config.yaml` (including the optional `nfr:` profile, `references:` filled from confirmed facts, and `verification:` from the commands the user kept), `setup/manifest.yaml`, `setup/research/<subject>.md` per researched subject, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per generated research agent.
+- **Writes:** `config.yaml` (including the optional `nfr:` profile, `references:` filled from confirmed facts, and `verification:` from the commands the user kept), `setup/manifest.yaml`, `setup/research/<subject>.md` per researched subject, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per generated research agent, the regenerated workflow agents and any advisors/checkers (with their `research.agents` / `review.*` config entries), subagent routers (`.codex/agents/`, `.gemini/agents/`, `.github/agents/`, and `.gemini/settings.json` when absent) for served assistants, and — when the other bundle is installed and served — its config, agents, manifest and research notes.
 - **Branch workflow gate:** decides the `git:` block — `branch_workflow`, `merge_strategy`, and (github backend only) `pr_integration`. Defaults to branch-per-ticket enabled with a `--no-ff` merge and no PR integration.
 - **GitHub side effects:** creates labels, verifies/creates issue-type map, creates the Project itself if none existed (before anything else in the apply step), verifies/creates Project fields (including a `Status` field seeded from the project's own stage labels, when one didn't already exist).
 
@@ -139,6 +145,7 @@ Re-run init on an initialised project and it updates instead of bootstrapping
 | Bootstrapped | Config + manifest written, side effects applied, single commit made |
 | Updated | Plan applied, agents/research/config refreshed, manifest rewritten, single commit |
 | Up to date | Update found nothing to change — no commit |
+| Updated without web search | Everything that doesn't need the web applied; research-dependent lines reported as pending |
 | No git repository | Stopped at the orient phase, nothing touched |
 | No web search | Stopped at the orient phase, nothing touched — run init from a session with web search |
 | Invalid config or manifest | Stopped after writing the files, left uncommitted for inspection |

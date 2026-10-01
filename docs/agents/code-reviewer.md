@@ -3,6 +3,14 @@
 Read-only review of a ticket's implementation **diff** against the approved
 plan, architecture invariants, and project conventions.
 
+!!! info "Generated for your project"
+    This page documents the agent's **contract**, which never changes.
+    `/ticket:init` regenerates its `role`, `focus` and `knowledge` regions for
+    your stack — stack-specific review checks such as APIs deprecated in your
+    locked versions and the framework's security pitfalls, each with its source.
+    If its reply fails `te agent reply-check` twice, that counts as an open
+    blocking finding. See [Generated agents](generated.md).
+
 | | |
 | --- | --- |
 | **Triggered by** | [`/ticket:pick`](../workflow/pick.md) step 5.5, every loop round — one of the default **blocking** checkers via `review.agents` (default: `[code-reviewer, test-adequacy-reviewer]`) |

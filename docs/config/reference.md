@@ -75,12 +75,14 @@ commits:                 # one message template per event, {id}/{title}/etc. int
   # ... capture, capture_update, refine, claim, abandon, update, review, reject,
   #     done, fold, wontfix, milestone_flip
 
-research:                 # optional — registered research agents
-  agents: [{ name: perf-expert, consult: "..." }]
+research:                 # optional — the research agents init generated (or you registered);
+  agents:                 #   omitted = ticket creation reads sources inline
+    - name: perf-expert
+      consult: "the work could affect latency, memory, or throughput"
 
 review:
-  agents: [code-reviewer, test-adequacy-reviewer]   # blocking checkers in the pick loop
-  plan_advisors: []   # optional — extra agents alongside the fixed `challenger` at the plan gate
+  agents: [code-reviewer, test-adequacy-reviewer]   # blocking checkers in the pick loop (+ any generated `checker`)
+  plan_advisors: []   # optional — extra agents alongside the fixed `challenger` at the plan gate (generated `advisor`s)
   advisors: []         # optional — extra agents alongside the fixed `code-challenger`/`code-simplifier` every round
 
 nfr:                      # optional — the profile `nfr-analyst` judges against
@@ -88,17 +90,17 @@ nfr:                      # optional — the profile `nfr-analyst` judges agains
   budgets:                                   # your numbers; cited instead of a generic standard
     performance: "p95 under 200ms on the API surface"
 
-references:                # all nullable
+references:                # all nullable — init fills them from what it found in the repository
   architecture:   null
   conventions:    null
   roadmap:        null
   template:       proj/TICKET_TEMPLATE.md
   project_readme: null
 
-verification:
-  test_commands:      []
+verification:              # init fills these from the commands you let it check (or record)
+  test_commands:      []   #   typecheck, lint, test — cheapest first
   build_command:      null
-  pre_close_command:  null
+  pre_close_command:  null # init never guesses a release gate
   max_loop_rounds:    3
 ```
 
@@ -181,7 +183,42 @@ implementation commits move to the ticket's branch.
 | `merge_strategy` | `merge` (default) / `squash` / `ff_only` | How `/ticket:close` folds the branch into base |
 | `pr_integration` | `none` (default) / `github` | github backend only — open/merge a PR instead of a local merge |
 
+## Agents
+
+| Key | What it lists | Default |
+| --- | --- | --- |
+| `research.agents` | Research agents `/ticket:new` and `/ticket:refine` dispatch, each with a one-line `consult` hint that routes it | Absent — sources are read inline |
+| `review.agents` | **Blocking** checkers every `/ticket:pick` loop round | `[code-reviewer, test-adequacy-reviewer]` |
+| `review.plan_advisors` | Advisory agents at the Plan gate, beside the fixed `challenger` | Empty |
+| `review.advisors` | Advisory agents every loop round, beside the fixed `code-challenger` and `code-simplifier` | Empty |
+
+Every name must resolve to an agent file in the bundle's `agents/` directory —
+the engine refuses the config otherwise, and the commands skip a listed agent
+whose file goes missing with a warning. `/ticket:init` fills these lists: one
+research agent per source it designed with you, and a generated `checker` or
+`advisor` only when its research gave a concrete reason. See
+[Generated agents](../agents/generated.md).
+
+## Setup manifest
+
+`/ticket:init` writes `<bundle>/setup/manifest.yaml` beside `config.yaml` and
+commits it with the config. Unlike the config it is **machine-owned** — you don't
+edit it; init rewrites it on every update — and it is validated by
+`te manifest validate`. It records where everything in the config came from:
+
+| Block | Holds |
+| --- | --- |
+| `environment` | The orient-phase probe: `web_search`, `web_fetch`, `subagents`, `git`, `gh` — each `verified` or `unavailable`, never assumed |
+| `facts` | What init read in the repository — language, framework, datastore, commands, docs… — each with the `source` file it came from, `detected` or `asked` (you corrected it) |
+| `decisions` | Every config-relevant answer with its **provenance**: `asked` (you chose), `detected` (from the repository), `default` (you skipped; the recommended option was taken) |
+| `commands` | Each candidate test/lint/typecheck/build command: `verified`, `failing`, `unavailable`, `unverified` or `skipped`, with the baseline when it ran |
+| `research` | When the stack was researched, and per subject the queries run, sources cited, and `done` / `thin` status; the notes live in `setup/research/<subject>.md` |
+| `assistants` | Which assistants the setup serves — `served` or `pending-bundle` (its bundle isn't installed yet) |
+| `agents` | Each generated agent: its kind, the research subjects that fed it, and the hash of every generated and user region — how update mode tells a region you edited from one it may regenerate |
+
 ## See also
 
+- [`/ticket:init`](../workflow/init.md) — how the config and the setup manifest are produced, and update mode
+
 - [`/ticket:init`](../workflow/init.md) — the interactive flow that produces this file
-- [Example projects](examples.md) — 20 fully generated configs covering every valid combination
+- [Example projects](examples.md) — 21 fully generated configs covering every valid combination

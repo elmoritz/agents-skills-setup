@@ -31,7 +31,7 @@ flowchart TD
     Race -->|no| ReadState["Read current ticket state<br/>+ referenced files"]
 
     ReadState --> Plan["Formulate plan:<br/>behavior summary + 5-10 step technical plan<br/>(each step honors the ticket's NFRs)"]
-    Plan --> Challenge{{"Dispatch challenger agent<br/>(read-only, stress-tests the plan)"}}
+    Plan --> Challenge{{"Dispatch challenger<br/>+ any review.plan_advisors<br/>(read-only, replies reply-checked)"}}
     Challenge --> G2{"Plan gate:<br/>Approve / Edit / Abandon"}
     G2 -->|edit| Plan
     G2 -->|abandon| Abandon["transition back to pickable,<br/>append '## Abandoned notes'"]
@@ -61,12 +61,13 @@ flowchart TD
 
     VER --> AC["Step 5.5 — Agent checks (parallel, read-only)"]
     AC --> Blocking["Blocking: review.agents<br/>default code-reviewer + test-adequacy-reviewer<br/>(+ project extras)"]
-    AC --> Advisory["Advisory: code-challenger + code-simplifier<br/>(always on, not configurable)"]
+    AC --> Advisory["Advisory: code-challenger + code-simplifier<br/>(always on) + any review.advisors"]
 
-    Blocking --> EV{"Step 5.7 — Evaluate<br/>(precedence order)"}
-    Advisory --> EV
+    Blocking --> RC["te agent reply-check on every reply<br/>(one re-ask) — a blocking checker failing<br/>twice = open blocking finding;<br/>an advisory one is dropped + recorded"]
+    Advisory --> RC
+    RC --> EV{"Step 5.7 — Evaluate<br/>(precedence order)"}
 
-    EV -->|"1. valid blocking finding,<br/>or code-challenger ROUTE-WRONG"| Replan(["Re-plan → back to Plan step"])
+    EV -->|"1. valid blocking finding,<br/>or a ROUTE-WRONG from code-challenger<br/>or a configured advisor"| Replan(["Re-plan → back to Plan step"])
     EV -->|"2. cap reached with open blockers,<br/>or a finding stalls 2 rounds"| Escalate{"Gate: Fix now /<br/>Waive & proceed / Abandon"}
     EV -->|"3. otherwise, findings remain"| Iterate["Compose next work-list<br/>(folds in sound advisory items)<br/>→ back to Implement"]
     EV -->|"4. clean"| Done(["Done → exit loop"])
@@ -82,7 +83,8 @@ flowchart TD
 - **Reads:** `read_artifact`, referenced source files.
 - **Writes:** `update_frontmatter` (rewrite stale body, record `## Evidence`), `transition_artifact` (to review, or back to pickable on abandon).
 - **Branch:** when `git.branch_workflow: enabled` (default), creates `<branch_prefix><id>-<slug>` right after the claim and does all implementation work there; ticket-state commits still land on base. Opens a PR at the review/report point when `pr_integration: github`; discards the branch on abandon.
-- **Agents dispatched:** [`challenger`](../agents/challenger.md) (plan stage), [`code-reviewer`](../agents/code-reviewer.md) + [`test-adequacy-reviewer`](../agents/test-adequacy-reviewer.md) (blocking, every round), [`code-challenger`](../agents/code-challenger.md) + [`code-simplifier`](../agents/code-simplifier.md) (advisory, every round). No NFR agent runs here: the ticket's [`## Non-functional requirements`](../agents/nfr-analyst.md) are passed to the checkers as acceptance criteria, so `code-reviewer` judges each against the diff and `test-adequacy-reviewer` fails the round if a requirement's test can't go red.
+- **Agents dispatched:** [`challenger`](../agents/challenger.md) + any `review.plan_advisors` (plan stage), [`code-reviewer`](../agents/code-reviewer.md) + [`test-adequacy-reviewer`](../agents/test-adequacy-reviewer.md) + any extra `review.agents` checkers (blocking, every round), [`code-challenger`](../agents/code-challenger.md) + [`code-simplifier`](../agents/code-simplifier.md) + any `review.advisors` (advisory, every round). Init generates project [advisors and checkers](../agents/generated.md#advisors-and-checkers) only when its research gives a concrete reason.
+- **Reply check:** every reply passes `te agent reply-check` before it is weighed — one re-ask on failure. A blocking checker whose reply fails twice is an open blocking finding (`<agent> did not report`): it reaches step 6 only re-run successfully or explicitly waived. An advisory reply that fails twice is dropped, and the drop is recorded in the round's evaluation. No NFR agent runs here: the ticket's [`## Non-functional requirements`](../agents/nfr-analyst.md) are passed to the checkers as acceptance criteria, so `code-reviewer` judges each against the diff and `test-adequacy-reviewer` fails the round if a requirement's test can't go red.
 
 ## Exit states
 
@@ -95,5 +97,6 @@ flowchart TD
 
 ## See also
 
-- [Review agents overview](../agents/index.md) — all five agents, their verdicts, and where each plugs into this loop
+- [Shipped agents overview](../agents/index.md) — the workflow agents, their verdicts, and where each plugs into this loop
+- [Generated agents](../agents/generated.md) — how the agents are built, the reply check, and project advisors/checkers
 - [`milestone-sync` skill](../skills/milestone-sync.md) — the preflight this command runs first

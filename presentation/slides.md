@@ -99,7 +99,7 @@ layout: default
 
 | Command | What it does |
 | --- | --- |
-| **`/ticket:init`** | Bootstrap: write `config.yaml`, create stages, set up research agents |
+| **`/ticket:init`** | Read the repo, research the stack, write config + manifest, generate the agents — re-run to update |
 | **`/ticket:new`** | Capture work — reconciled with you before anything commits |
 | **`/ticket:refine`** | Resolve a captured inbox entry: promote / fold / wontfix |
 | **`/ticket:pick`** | Claim a ticket, plan it, implement it through to review |
@@ -119,7 +119,7 @@ layout: section
 
 # `/ticket:init`
 
-Bootstrap — one time, before anything else works
+Bootstrap first — re-run any time to update
 
 <!--
 Section marker. Keep this fast — the point is "here's what we're about to
@@ -135,17 +135,16 @@ layout: default
 <div grid="~ cols-2 gap-8">
 <div>
 
-**You answer, via gates:**
+**It reads first, then you answer, via gates:**
 
 <v-clicks>
 
-- Backend: filesystem or GitHub Issues
-- Ticket root / repo confirmation
-- ID prefix, inbox stage yes/no
-- Milestones strategy
-- GitHub Project board link (optional)
-- **Research agents** for your project's sources
-- Which assistants read this repo
+- **Confirm what it detected** in the repo (stack, commands, docs)
+- Backend · ID prefix · inbox · milestones · Project board
+- NFR profile · branch-per-ticket
+- **Run each test/lint/build command?** run · record · skip
+- **Approve the agents it designed** for your sources
+- Which other assistants this setup serves
 
 </v-clicks>
 
@@ -156,12 +155,12 @@ layout: default
 
 <v-clicks>
 
-- `config.yaml`
-- Stage folders + ledger <span class="opacity-60">(filesystem)</span>
-- Labels + Project fields <span class="opacity-60">(GitHub)</span>
-- Research agent files
-- `TICKET_TEMPLATE.md`
-- One commit: <code>ticket: init — bootstrap workflow</code>
+- `config.yaml` + `setup/manifest.yaml` <span class="opacity-60">(asked · detected · default)</span>
+- Sourced research notes on your stack
+- Generated research agents + the six workflow agents, tuned to your stack
+- Stage folders + ledger <span class="opacity-60">(filesystem)</span> · labels + Project fields <span class="opacity-60">(GitHub)</span>
+- Routers for every assistant you serve · `TICKET_TEMPLATE.md`
+- One commit: <code>ticket: init — bootstrap workflow for &lt;backend&gt;</code>
 
 </v-clicks>
 
@@ -172,6 +171,8 @@ layout: default
 Research agents is the one concept worth dwelling on: "any source that holds
 information should be a research agent, not inline reading." That's the
 design principle that makes ticket creation not flood the context window.
+And init designs them for you — from what it read in the repo and what it
+researched about the stack on the web — instead of handing you a catalog.
 -->
 
 ---
@@ -182,19 +183,21 @@ layout: default
 
 ```mermaid
 flowchart LR
-    Start(["/ticket:init"]) --> G1{"backend?"}
-    G1 -->|fs| G2["ticket root"]
-    G1 -->|gh| G2b["confirm repo"]
-    G2 --> G3["ID · inbox? ·<br/>milestones"]
-    G2b --> G3
-    G3 --> G4["research<br/>agents"]
-    G4 --> G5{"Apply?"}
-    G5 -->|edit| G3
-    G5 -->|apply| Done(["config.yaml +<br/>commit"])
+    Start(["/ticket:init"]) --> O{"orient:<br/>config? web?"}
+    O -->|config exists| U(["update mode"])
+    O -->|no web| X(["stop — nothing written"])
+    O -->|fresh| D["discover<br/>(facts gate)"]
+    D --> I["interview"]
+    I --> R["research<br/>the stack"]
+    R --> C["commands<br/>run · record · skip"]
+    C --> G["design +<br/>generate agents"]
+    G --> A["assistants"]
+    A --> P{"Apply?"}
+    P -->|apply| Done(["config + manifest +<br/>agents, one commit"])
 ```
 
 <div class="text-sm opacity-60 pt-4">
-Guardrail: refuses to run if <code>config.yaml</code> already exists — no accidental overwrite
+Guardrails: a fresh init <strong>without web search stops</strong> — nothing generated from memory. An existing <code>config.yaml</code> means <strong>update mode</strong>: it re-researches what went stale and regenerates agents region by region, never touching what you edited without a three-way gate.
 </div>
 
 ---
@@ -306,7 +309,7 @@ layout: default
 - Surfaces candidates from the backlog, sorted by priority and effort
 - **Claims atomically before any research or planning** — from here, abandoning is an obligation, not something skipped silently
 - Drafts a plan: behavior summary + a 5–10 step technical plan
-- The **`challenger`** agent stress-tests it — concrete failure scenarios, cheaper routes, never vague doubt
+- The **`challenger`** agent (plus any project plan advisors) stress-tests it — concrete failure scenarios, cheaper routes, never vague doubt
 - **Plan gate**: Approve / Edit / Abandon — you judge the plan *and* the challenge together
 
 </v-clicks>
@@ -340,7 +343,7 @@ flowchart LR
 ```
 
 <div class="text-sm opacity-60 pt-2">
-Blocking checkers are <strong>configurable</strong> (<code>review.agents</code>, default shown) — advisory checkers are <strong>fixed</strong>, always on. Bounded by a round cap (default 3).
+Blocking checkers are <strong>configurable</strong> (<code>review.agents</code>, default shown) — the two advisory checkers are <strong>fixed</strong>, always on, and project advisors can join them. Every reply is checked against the agent's contract before it counts. Bounded by a round cap (default 3).
 </div>
 
 <!--
@@ -350,7 +353,11 @@ happy path first (left to right, done), then the two escape hatches
 call out the blocking/advisory split explicitly: blocking checkers are
 config's review.agents (a project could swap in different ones), advisory
 checkers (code-challenger, code-simplifier) are hardcoded into pick, always
-run, never configurable. A blocking finding beats advisory every time in
+run — a project can add advisors beside them (review.advisors), never remove
+them. Init can generate those advisors, or extra blocking checkers, when its
+stack research gives a reason. Every agent reply goes through te agent
+reply-check; a blocking checker that fails it twice counts as a blocking
+finding, never a silent pass. A blocking finding beats advisory every time in
 the evaluate step.
 -->
 
@@ -407,7 +414,7 @@ stateDiagram-v2
 ```
 
 <div class="pt-4 text-sm opacity-70">
-We covered <strong>init</strong> (sets it up), <strong>new / refine</strong> (backlog → inbox), <strong>pick</strong> (backlog → review), <strong>review</strong> (the checkpoint before close/reject)
+We covered <strong>init</strong> (sets it up), <strong>new / refine</strong> (inbox → backlog), <strong>pick</strong> (backlog → review), <strong>review</strong> (the checkpoint before close/reject)
 </div>
 
 ---
@@ -424,17 +431,24 @@ Watch the gates fire one at a time — nothing commits until the last one
 DEMO RUNBOOK — have this open on a second screen, not projected.
 
 Before the talk:
-- Have a throwaway git repo ready (empty or near-empty), already `git init`'d,
-  clean working tree. Don't run this in a repo you care about — init writes
-  config.yaml + a commit.
+- Run the demo in a session WITH WEB SEARCH — without it, a fresh init stops
+  at its first phase and writes nothing.
+- Have a throwaway copy of a small REAL project ready (a few files, a
+  package.json or similar, a test script), clean working tree. An empty repo
+  gives discovery and research nothing to show. Don't run this in a repo you
+  care about — init writes config.yaml, a manifest, agents and a commit.
 - Decide your answers ahead of time so you're not improvising live:
   backend (filesystem is simplest to demo, no gh auth needed),
-  ticket root folder name, ID prefix, inbox yes/no, milestones strategy.
+  ticket root folder name, ID prefix, inbox yes/no, milestones strategy,
+  NFR profile, branch-per-ticket, and whether to let it run each detected
+  command (each can take up to 10 minutes — "record without running" is
+  the fast path live).
   Filesystem + no GitHub project + labels-or-none milestones is the fastest
   demo path with the fewest gates.
-- Know what you'll say for "research agents" — even a single custom one
-  ("read our internal wiki") makes the point without derailing into the full
-  catalog. Or skip registering any and say so explicitly.
+- Know what you'll do at the research-agent gate: init proposes a set it
+  designed from the repo and the research. "Remove some" or "Add a source"
+  ("read our internal wiki") shows the gate without derailing. Research takes
+  a few minutes — narrate the sourced notes while it runs.
 
 During the demo:
 1. Type /ticket:init and narrate each gate as it appears — call back to the

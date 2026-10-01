@@ -4,6 +4,13 @@ The loop-time sibling of [`challenger`](challenger.md) — attacks the route
 the **code as built** actually took, not the paper plan. Runs every round, on
 whatever the diff has become by then.
 
+!!! info "Generated for your project"
+    This page documents the agent's **contract**, which never changes.
+    `/ticket:init` regenerates its `role`, `focus` and `knowledge` regions for
+    your stack — the coupling, failure scenarios and cheaper routes typical of
+    it, each with its source. It is always on; project advisors
+    (`review.advisors`) can join it every round. See [Generated agents](generated.md).
+
 | | |
 | --- | --- |
 | **Triggered by** | [`/ticket:pick`](../workflow/pick.md) step 5.5, every loop round, alongside `code-reviewer` — advisory, always on, not configurable |

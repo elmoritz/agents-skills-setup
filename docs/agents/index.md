@@ -1,16 +1,18 @@
 # Shipped agents
 
-Six read-only subagents, all `tools: Read, Grep, Glob, Bash` — none of them
+Six read-only subagents — `tools: Read, Grep, Glob, Bash` in the Claude Code
+bundle, `subagent: true` in the `.agents` bundle — none of them
 edit anything, and none of them gate you directly. What ships is each agent's
 **default rendering**: `/ticket:init` regenerates its role, project focus and
 researched knowledge for your stack, while its **contract** — what it is given,
 what it must return, what it may never do — stays exactly as documented on
-these pages (see [`/ticket:init` § Generated agents](../workflow/init.md#generated-agents)). Each returns a verdict
+these pages (see [Generated agents](generated.md)). Each returns a verdict
 that the calling session weighs; only the main session ever acts on a
-finding. Alongside the research agents you register yourself (see [Getting
-started § Step 0](../getting-started.md#step-0-research-agents)), these ship
-with every bundle: one wires into [`/ticket:new`](../workflow/new.md), the
-other five into [`/ticket:pick`](../workflow/pick.md).
+finding. Alongside the research agents init generates for your project (see
+[Getting started § Step 0](../getting-started.md#step-0-research-agents)), these
+ship with every bundle: one wires into [`/ticket:new`](../workflow/new.md) (and
+`/ticket:refine`'s resume path), the other five into
+[`/ticket:pick`](../workflow/pick.md).
 
 | Agent | Stage | Role | Blocking? |
 | --- | --- | --- | --- |
@@ -49,9 +51,15 @@ flowchart TD
 
 `code-reviewer` and `test-adequacy-reviewer` are the **default** blocking
 checkers, configured via `review.agents` in `config.yaml` — projects can
-register extra checkers (a11y, security…) without touching the command.
-`nfr-analyst`, `challenger`, `code-challenger`, and `code-simplifier` are
-fixed, not configurable. Every agent also works **standalone** against any
+register extra checkers (a11y, security…) without touching the command, and init
+can generate one from the `checker` kind when a hard requirement (an
+`nfr.budgets` entry, a compliance rule) calls for it. `nfr-analyst`,
+`challenger`, `code-challenger`, and `code-simplifier` are fixed and always on;
+project **advisors** (the `advisor` kind) can join them through
+`review.plan_advisors` and `review.advisors` — see
+[Advisors and checkers](generated.md#advisors-and-checkers). Every reply is
+checked with `te agent reply-check` before it is weighed
+([The reply check](generated.md#the-reply-check)). Every agent also works **standalone** against any
 described work, plan, or diff, outside the commands.
 
 **Why no NFR agent in the loop.** The non-functional work is front-loaded on

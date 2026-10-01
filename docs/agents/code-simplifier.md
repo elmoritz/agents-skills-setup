@@ -4,6 +4,13 @@ Proposes behavior-preserving simplifications of the diff — speculative
 generality, needless indirection, dead weight, duplication, over-defensive
 code — as ready-to-apply patches.
 
+!!! info "Generated for your project"
+    This page documents the agent's **contract**, which never changes.
+    `/ticket:init` regenerates its `role`, `focus` and `knowledge` regions for
+    your stack — the idioms and library features in your locked versions that
+    replace hand-rolled code, each with its source. It is always on; project
+    advisors (`review.advisors`) can join it every round. See [Generated agents](generated.md).
+
 | | |
 | --- | --- |
 | **Triggered by** | [`/ticket:pick`](../workflow/pick.md) step 5.5, every loop round, alongside `code-reviewer` and `code-challenger` — advisory, always on |
@@ -23,7 +30,7 @@ flowchart LR
 
 ## Output shape
 
-- `N proposals | Clean` header.
+- a `**Result:**` line — `<N> proposal(s)` or `Clean — nothing worth touching` — under `## Simplification pass: <ticket-id>`.
 - Each proposal: a verbatim diff, ordered by lines-removed (biggest win first), tagged with a behavior-risk rating.
 - A `Safe set` line calling out the zero-risk subset — the ones the session can fold in without a second look.
 

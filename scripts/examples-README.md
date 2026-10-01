@@ -31,7 +31,7 @@ cd examples/fs-trackers-inbox
 ../../.claude/scripts/te milestone scan
 ```
 
-**GitHub** flavors carry only `.claude/config.yaml` — issues, workflow labels, and
+**GitHub** flavors carry only `.claude/config.yaml` and its setup manifest — issues, workflow labels, and
 (where enabled) the Projects v2 board live on GitHub, created by `/ticket:init`'s
 side effects and `te`'s write path. Validate the config with:
 
@@ -53,7 +53,7 @@ skills' *write* half (git mv + frontmatter/ledger edits + commits) ships as pros
 
 | Script | What it proves | Runs |
 | --- | --- | --- |
-| `scripts/test-examples.sh` | every flavor's config is valid; the read path returns the right data on the seeded filesystem flavors | offline / CI |
+| `scripts/test-examples.sh` | every flavor's config and setup manifest are valid; the read path returns the right data on the seeded filesystem flavors | offline / CI |
 | `scripts/test-skill-ops.sh` | for every flavor, the `te` operations each skill invokes (id/slug/validate-body/effort-cap/deps/list/read/milestone) behave | offline / CI |
 | `scripts/test-lifecycle.sh` | a whole ticket driven new→refine→claim→review→reject→abandon→close→fold→milestone-flip on a temp git repo — each transition done per § Transition primitives and re-validated with `te` | offline / CI |
 | `scripts/live-gh-check.sh` | the same lifecycle **live** against a throwaway GitHub repo (label flips + assignee + close), plus the manual Projects checklist | needs `gh`; human-run |

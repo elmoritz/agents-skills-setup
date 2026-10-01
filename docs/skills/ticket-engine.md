@@ -52,6 +52,28 @@ flowchart LR
 | `scan_milestone_state` / `apply_milestone_flip` | `milestone-sync` |
 | `emit_event` | commit/comment message formatting, every mutating operation |
 
+## The `te` CLI
+
+The deterministic half of the engine is `te`, a bash 3.2 + POSIX-awk CLI that
+ships in the bundle (`scripts/te`). Output is flat `key=value`; exit codes are
+`0` ok · `1` validation/parse/not-found failure · `2` internal error. Every
+subcommand is **read-only** except `routers write`.
+
+| Subcommand | What it does | Used by |
+| --- | --- | --- |
+| `config validate [path]` | Parse and validate `config.yaml`; print the resolved config and roles→stage map | every command (`load_and_validate`) |
+| `ledger validate [config]` | Validate the filesystem ledger | every command on the filesystem backend |
+| `manifest validate [path]` | Validate `setup/manifest.yaml` — probe states, sourced facts, provenance, commands, research, assistants, agent records | `/ticket:init` |
+| `agent check <file> [--kind K]` | Generated-agent anatomy: contract regions byte-identical to the kind, declared generated regions, user region; prints region hashes | `/ticket:init` |
+| `agent contract <kind>` | Print a kind's contract regions verbatim, to paste into an agent | `/ticket:init` |
+| `agent drift [manifest]` | Per generated agent: `ok` / `missing` / `invalid`; per region: `untouched` / `edited` / `added` / `removed` | `/ticket:init` update mode |
+| `agent reply-check (--kind K \| --agent NAME) <file>` | Check a subagent reply: one verdict line with an allowed verdict, plus the promised headings | `/ticket:new`, `/ticket:refine`, `/ticket:pick` |
+| `routers (check\|write) [--root DIR] [--assistants …] [name…]` | Subagent routers for Codex, Gemini CLI and Copilot into `.agents/agents/<name>.md`, plus `.gemini/settings.json` when absent | `/ticket:init`, `scripts/gen-adapters.sh` |
+| `slug`, `id next`, `deps check`, `effort-cap`, `validate-body`, `msg` | ID, filename, dependency, size and message helpers | `/ticket:new`, transitions |
+| `read`, `list`, `milestone scan`, `projects resolve` | The uniform read path on both backends | `/ticket:pick`, `/ticket:review`, `milestone-sync`, … |
+
+`te --help` prints the full usage.
+
 ## See also
 
 - [Configuration reference](../config/reference.md) — the config shape this skill loads and validates

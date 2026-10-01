@@ -18,10 +18,13 @@ filesystem-only.
 | filesystem | `auto`→trackers / `labels` / `none` | ×{yes, no} | always off | 6 |
 | github | `auto`→native / `labels` / `none` | ×{yes, no} | ×{on, off} | 12 |
 
-Plus two flavors demonstrating features orthogonal to the matrix:
-`fs-trackers-research` (registered research agents) and `gh-native-typemap`
-(`backend.github.type_map` mapping to native org issue types) — 20 directories
-total.
+Plus three flavors demonstrating features orthogonal to the matrix:
+`fs-trackers-research` (registered research agents), `gh-native-typemap`
+(`backend.github.type_map` mapping to native org issue types), and
+`gh-native-proj-user` (a Project board owned by a user, not an org) — 21
+directories total. Every flavor also carries the **setup manifest** init writes
+beside the config (`.claude/setup/manifest.yaml`), validated by
+`te manifest validate`.
 
 ## Folder-name decoding
 
@@ -53,20 +56,21 @@ cd examples/fs-trackers-inbox
 ../../.claude/scripts/te milestone scan
 ```
 
-**GitHub** flavors carry only `.claude/config.yaml` — issues, workflow
+**GitHub** flavors carry only `.claude/config.yaml` and its setup manifest — issues, workflow
 labels, and (where enabled) the Projects v2 board live on GitHub itself,
 created by `/ticket:init`'s side effects. Validate the config offline with:
 
 ```sh
 cd examples/gh-native-proj
 ../../.claude/scripts/te config validate
+../../.claude/scripts/te manifest validate
 ```
 
 ## Automated verification
 
 | Script | What it proves | Runs |
 | --- | --- | --- |
-| `scripts/test-examples.sh` | Every flavor's config is valid; the read path returns correct data on seeded filesystem flavors | offline / CI |
+| `scripts/test-examples.sh` | Every flavor's config and setup manifest are valid; the read path returns correct data on seeded filesystem flavors | offline / CI |
 | `scripts/test-skill-ops.sh` | For every flavor, the `te` operations each skill invokes behave correctly | offline / CI |
 | `scripts/test-lifecycle.sh` | A whole ticket driven new → refine → claim → review → reject → abandon → close → fold → milestone-flip on a temp git repo | offline / CI |
 | `scripts/live-gh-check.sh` | The same lifecycle live against a throwaway GitHub repo, plus the manual Projects checklist | needs `gh` auth; human-run |

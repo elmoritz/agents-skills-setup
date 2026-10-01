@@ -16,10 +16,33 @@ the detailed reference.
 
 > **This is a template, not a library.** Don't depend on it — fork it, copy it,
 > and edit the copied bundle to fit your project. The setup is meant to be
-> shaped: rename stages, adjust ticket types, and — most importantly — set up the
-> **research agents** your project's ticket creation needs. Init guides you
-> through that (see below); thinking about your sources beforehand makes its
-> questions easy to answer.
+> shaped: rename stages, adjust ticket types, and tune the agents. You don't
+> write those agents by hand: **init reads your repository, researches your
+> stack on the web, and generates them for your project** — research agents
+> designed around your sources, and the six workflow agents tuned to your
+> stack. You approve the set at one gate; re-run init later and it updates
+> everything without touching what you changed.
+
+## What init does
+
+`/ticket:init` is not a questionnaire. Before it asks you anything it:
+
+- **probes the session** — web search, subagents, git, gh — and, on a fresh
+  init, **stops without web search**: everything it generates is grounded in
+  current research, never in a model's memory;
+- **reads the repository** — languages and locked versions, frameworks,
+  datastores, CI, test/lint/build commands, docs, existing agents — and confirms
+  what it found in one gate, so the remaining questions are only preferences;
+- **researches your stack on the web** — pitfalls, idioms, deprecations,
+  security, testing — and keeps sourced notes;
+- **runs each detected test/lint/build command** only if you say so, so
+  `verification:` holds commands that are known to work;
+- **generates the agents** from kinds with a locked contract and
+  project-specific knowledge, checked by `te agent check`;
+- **records everything** in a setup manifest — every decision tagged `asked`,
+  `detected` or `default` — so a later **re-run updates** the setup: stale
+  research is refreshed, agents are regenerated region by region, and nothing
+  you edited is overwritten without a three-way gate.
 
 ## Which bundle do I copy?
 
@@ -63,17 +86,19 @@ project with its agents-and-skills bundle.
   Codex — and tell me which one applies to me.
 ```
 
-Then run the init command it points you to and answer the prompts — that's where
-you tailor stages, backend, and your research agents. Prefer to copy by hand, or
+Then run the init command it points you to — **from a session that has web
+search** — and answer its gates: that's where you confirm what it detected,
+tailor stages and backend, and approve the agents it designed for you. Prefer to copy by hand, or
 want the full walkthrough (manual steps, what to think about before init)? See
 [Getting started](https://elmoritz.github.io/agents-skills-setup/getting-started/).
 
 ### Already set up? Update to the latest version
 
-If you copied this bundle a while ago and want the newest commands, skills, and
-review agents, paste this prompt. It refreshes the **shipped** files while leaving
-everything **you** customized — your `config.yaml`, your research agents, your
-ticket template — untouched:
+If you copied this bundle a while ago, paste this prompt. It refreshes the
+**shipped** files (commands, skills, references, scripts) while leaving
+everything **you** customized — your `config.yaml`, your generated agents, your
+setup manifest, your ticket template — untouched, then lets `/ticket:init`'s
+update mode bring your agents up to date:
 
 ```text
 Look at this repo https://github.com/elmoritz/agents-skills-setup and update my
@@ -84,12 +109,19 @@ existing agents-and-skills bundle to its latest version.
   actually have. If my bundle still lives in `.github/skills/` + `.github/config.yaml`,
   that is the old layout — move it to `.agents/` and tell me what moved.
 - Refresh the SHIPPED files to match the template: the ticket commands, the skills
-  (ticket-engine, milestone-sync, grill-me, …), and the shipped agents (nfr-analyst,
-  challenger, code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
-- Do NOT overwrite anything I customized: my `config.yaml`, the research agents I
-  added under `.claude/agents/` / `.agents/agents/`, and my ticket template. If a
-  shipped file and my customized copy have both changed, show me a diff and ask
-  before touching it — never clobber my edits silently.
+  (ticket-engine, milestone-sync, grill-me, …), the `references/` folder (init's
+  phase references and the agent kinds), and the `scripts/` folder (the te CLI).
+- Do NOT replace my agents under `.claude/agents/` / `.agents/agents/` — the six
+  workflow agents and the research agents were generated for my project. Leave them
+  as they are; the next step refreshes them properly.
+- Do NOT overwrite anything else I customized: my `config.yaml`, my
+  `setup/manifest.yaml` and research notes, and my ticket template. If a shipped
+  file and my customized copy have both changed, show me a diff and ask before
+  touching it — never clobber my edits silently.
+- Finally, run `/ticket:init` (`/ticket-init`, `$ticket-init` on Codex). With my
+  config present it runs in update mode: it refreshes agent contracts that the
+  new kinds changed, re-researches stale parts of my stack, and regenerates my
+  agents region by region — asking before it replaces anything I edited.
 - When you're done, give me a short summary of what changed (new commands, renamed
   files, behavior changes) so I know what's new, and flag anything in my
   `config.yaml` that a new template version now expects.
@@ -103,6 +135,7 @@ Full documentation: **https://elmoritz.github.io/agents-skills-setup/**
 
 - [Workflow](https://elmoritz.github.io/agents-skills-setup/workflow/overview/) — the seven ticket commands, with a flow diagram of every step and gate
 - [Skills](https://elmoritz.github.io/agents-skills-setup/skills/) — the shared execution/milestone/interview machinery
-- [Shipped agents](https://elmoritz.github.io/agents-skills-setup/agents/) — the six read-only agents wired into `/ticket:new` and `/ticket:pick`
-- [Configuration reference](https://elmoritz.github.io/agents-skills-setup/config/reference/) — the full `config.yaml` shape, and 20 example projects
+- [`/ticket:init`](https://elmoritz.github.io/agents-skills-setup/workflow/init/) — the phases, the setup manifest, generated agents, and update mode
+- [Shipped agents](https://elmoritz.github.io/agents-skills-setup/agents/) — the six read-only agents wired into `/ticket:new` and `/ticket:pick`, shipped as default renderings that init regenerates for your stack, plus how generated agents are built
+- [Configuration reference](https://elmoritz.github.io/agents-skills-setup/config/reference/) — the full `config.yaml` shape, and 21 example projects
 - [Platform support](https://elmoritz.github.io/agents-skills-setup/platform-support/) — why the bundle split exists, with vendor evidence

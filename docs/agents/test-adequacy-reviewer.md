@@ -5,6 +5,14 @@ behavioral change were reverted or broken. Catches assertion-free tests,
 tests that only exercise mocks, and untested branches — a green test run says
 nothing about whether the tests can go red.
 
+!!! info "Generated for your project"
+    This page documents the agent's **contract**, which never changes.
+    `/ticket:init` regenerates its `role`, `focus` and `knowledge` regions for
+    your stack — your test runner, how to run a single file with it for the
+    revert check, and the ways tests in your stack pass without testing
+    anything, each with its source. If its reply fails `te agent reply-check`
+    twice, that counts as an open blocking finding. See [Generated agents](generated.md).
+
 | | |
 | --- | --- |
 | **Triggered by** | [`/ticket:pick`](../workflow/pick.md) step 5.5, every loop round — the other default **blocking** checker via `review.agents` |
