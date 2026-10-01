@@ -1,0 +1,6 @@
+bundle
+diff
+--template
+../bundle-diff/tpl
+--root
+../bundle-diff/proj

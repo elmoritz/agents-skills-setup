@@ -29,11 +29,12 @@ reference when its phase runs.
 
 **Choose the mode.** Check whether `.agents/config.yaml` exists relative to the project root (walk up from `cwd` to find the nearest `.agents/`).
 
-- **If it exists**: this is an **update**. Read `.agents/references/init/update.md` and follow it **instead of** the phases below — it reuses their references for the parts it re-runs. Never fall through into a fresh init over an existing config.
+- **If it exists**: this is an **update**. Read `.agents/references/init/update.md` and follow it **instead of** the phases below — it reuses their references for the parts it re-runs, and it first refreshes the bundle itself from the template (so there is no separate "update the bundle" step for the user). Never fall through into a fresh init over an existing config.
 - **If it doesn't**: this is a fresh init. If `.agents/` doesn't exist at the repo root, create it (`mkdir -p .claude`). Proceed.
 
 **Probe the environment.** Read `.agents/references/init/environment.md` and
-probe every capability it lists — web search, web fetch, subagents, git, gh —
+probe every capability it lists — web search, web fetch, subagents, git, gh,
+and whether the template repository is reachable —
 recording each as `verified` or `unavailable`. Nothing is recorded from memory.
 
 **Web search is required for a fresh init.** If `web_search` is `unavailable`,
@@ -167,6 +168,7 @@ Next steps:
 - **No web, no fresh init.** A fresh init whose `web_search` probe is `unavailable` stops at the orient phase and writes nothing. Update mode runs without the web but lists what needs it as pending — it never researches or regenerates knowledge from memory.
 - **Commands run only with consent**, one at a time, each behind its own gate.
 - **Every finding has a source.** Research notes never carry a finding without the page it came from; a topic with nothing usable says so instead.
+- **The bundle refresh never touches what the project owns** — `agents/`, `config.yaml`, `setup/` — takes only what the template alone changed, gates every file both sides changed, commits on its own, and is followed by re-reading the refreshed instructions from disk.
 - **Probe, don't remember.** A capability is `verified` only when its probe ran in this session; a fact is recorded only with the file or command it came from.
 - **Never leave an invalid config or manifest.** The apply phase runs the engine's `load_and_validate()` on the file right after writing it, and `te manifest validate` on the manifest; if either fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
 - **Single commit per init.** Folders + config + manifest + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.agents/config.yaml`, the manifest, and any agent files.

@@ -25,7 +25,8 @@ is init's, and update mode refreshes it freely.
 
 ## 1. Load
 
-Run `.agents/scripts/te config validate` and `.agents/scripts/te manifest validate`.
+Run `.agents/scripts/te config validate` and `.agents/scripts/te manifest validate`
+(re-run both after step 3 if it refreshed the bundle).
 An invalid config stops update mode with the engine's message (the user fixes it
 first). Then:
 
@@ -39,6 +40,12 @@ first). Then:
   offer, per agent, **Convert (Recommended)** — regenerate it from the
   `research` kind, keeping its name and `consult` hint — or **Keep as
   hand-written**.
+  Record where the bundle came from exactly as a fresh init does
+  (`.agents/references/init/bundle.md` § On a fresh init) — without it, step 3
+  could never refresh the bundle.
+- **A manifest without a `bundle:` block** (written before init tracked its
+  bundle): offer to record it now, the same way; declining keeps the bundle
+  untracked.
 
 ## 2. Orient again
 
@@ -51,7 +58,16 @@ does need it ("re-research React 19 → 20; regenerate perf-expert's knowledge")
 as **pending: needs a session with web search**. Nothing is researched or
 regenerated from memory to fill the gap.
 
-## 3. Find what changed
+## 3. Refresh the bundle
+
+Follow `.agents/references/init/bundle.md` § In update mode: compare this
+bundle with the template's latest, take what only the template changed, gate
+what both changed, commit the refresh on its own — then **re-read this file and
+the spine from disk** and continue with step 4. Every later step runs against
+the refreshed kinds, references and `te`, which is how a bundle upgrade's new
+contracts reach the project's agents in the same run.
+
+## 4. Find what changed
 
 Collect every finding below as one line — *what · why · which files* — for the
 plan in step 4.
@@ -89,7 +105,7 @@ plan in step 4.
   else), or whose status is `unverified`, `failing` or `unavailable`: offer it
   to the verification-commands gate again.
 
-## 4. The plan
+## 5. The plan
 
 Show the findings as one table and gate (numbered list):
 
@@ -104,7 +120,7 @@ Pending lines that need the web are shown but not offered. A plan with no lines
 ends here: report *"Up to date — nothing changed since <updated_at>."* and stop
 without a commit.
 
-## 5. Execute
+## 6. Execute
 
 In this order, each step following its fresh-init reference:
 
@@ -135,7 +151,7 @@ In this order, each step following its fresh-init reference:
 5. **Config** — the changes the plan implies (`verification:`, `research.agents`,
    `review.*`, adopted hand edits), shown as a diff before writing.
 
-## 6. Write and commit
+## 7. Write and commit
 
 Copy the agents into place and re-check them, write the config and run
 `te config validate`, then rewrite the manifest — `created_at` unchanged,
@@ -143,17 +159,18 @@ Copy the agents into place and re-check them, write the config and run
 hashes) current — and run `te manifest validate`. Any failure stops before the
 commit with the exact message, exactly as on a fresh init.
 
-One commit:
+One commit for the update — after step 3's separate bundle-refresh commit, if there was one:
 
 ```
 ticket: init — update (<n> agents regenerated, <m> subjects researched, <k> config changes)
 ```
 
-## 7. Report
+## 8. Report
 
 ```
 Updated <project> — <updated_at>.
 
+Bundle: <refreshed to <short sha> — <n> files taken, <m> merged, <k> kept | current | not tracked | pending — no network>
 Research: <subjects re-researched / new / retired | unchanged>
 Agents: <regenerated, with regions merged/kept/replaced; contracts refreshed; forgotten | unchanged>
 Commands: <re-checked, with status | unchanged>

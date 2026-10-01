@@ -870,3 +870,90 @@ cmd_routers() {
   if [ "$rc" -eq 0 ]; then echo "ok=true"; else echo "ok=false"; fi
   return "$rc"
 }
+
+# ---- bundle refresh (update mode) --------------------------------------------
+# The files a bundle ships — everything the template keeps for this bundle that
+# the project does not own. Owned (never compared, never refreshed): agents/
+# (generated per project), config.yaml, setup/. Subagent routers are not listed
+# either: `te routers write` regenerates them. For the .agents bundle the shipped
+# set also covers AGENTS.md and the command routers under .gemini/commands/.
+# _shipped_paths <root> — repo-relative paths, one per line, sorted.
+_shipped_paths() {
+  local root=$1 b f rel
+  b=$(basename "$TE_BUNDLE")
+  {
+    if [ -d "$root/$b" ]; then
+      ( cd "$root" && find "$b" -type f ) | while IFS= read -r rel; do
+        case "$rel" in
+          "$b"/agents/*|"$b"/config.yaml|"$b"/setup/*) ;;
+          *) printf '%s\n' "$rel" ;;
+        esac
+      done
+    fi
+    if [ "$b" = .agents ]; then
+      [ -f "$root/AGENTS.md" ] && printf 'AGENTS.md\n'
+      if [ -d "$root/.gemini/commands" ]; then
+        ( cd "$root" && find .gemini/commands -type f )
+      fi
+    fi
+  } | sort -u
+}
+
+# te bundle diff --template DIR [--base DIR] [--root DIR]
+# Compare this project's shipped bundle files with a checkout of the template
+# (DIR = the template repository root at its latest commit). With --base (the
+# template at the commit this project last synced from), every difference is
+# attributed: who changed it — upstream, the project, or both. Read-only.
+#   same               identical to the template
+#   upstream-changed   the project still has the base version → safe to take
+#   local-changed      only the project changed it → keep
+#   both-changed       both changed → needs a decision
+#   differs            differs, and there is no base to attribute it (no --base)
+#   new-upstream       the template added it
+#   deleted-locally    the project deleted a file the template still ships
+#   removed-upstream   the template dropped it, the project never edited it → safe to delete
+#   removed-upstream-edited  the template dropped it, but the project edited it → needs a decision
+#   local-only         only in the project (not in template or base)
+cmd_bundle_diff() {
+  local tpl="" base="" root p t l bb st n_total=0 n_act=0
+  root=$(dirname "$TE_BUNDLE")
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --template) tpl="$2"; shift 2 ;;
+      --base) base="$2"; shift 2 ;;
+      --root) root="$2"; shift 2 ;;
+      --dry-run) shift ;;
+      *) te_emit_fail "bundle" "unknown argument: $1" "te bundle diff --template DIR [--base DIR] [--root DIR]"; return 1 ;;
+    esac
+  done
+  [ -n "$tpl" ] && [ -d "$tpl" ] || { te_emit_fail "bundle" "no template checkout at '${tpl:-<none>}'" "clone the template repository (shallow is fine) and pass its root with --template"; return 1; }
+  [ -d "$tpl/$(basename "$TE_BUNDLE")" ] || { te_emit_fail "bundle" "$tpl has no $(basename "$TE_BUNDLE")/ directory — not a checkout of this template" "check the template source"; return 1; }
+  if [ -n "$base" ] && [ ! -d "$base" ]; then te_emit_fail "bundle" "no base checkout at '$base'" "pass the template at the recorded bundle.commit, or omit --base"; return 1; fi
+  { _shipped_paths "$tpl"; _shipped_paths "$root"; [ -n "$base" ] && _shipped_paths "$base"; } | sort -u >"$TE_TMPD/bpaths"
+  echo "ok=true"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    t=0; l=0; bb=0
+    [ -f "$tpl/$p" ] && t=1
+    [ -f "$root/$p" ] && l=1
+    [ -n "$base" ] && [ -f "$base/$p" ] && bb=1
+    if [ "$t" -eq 1 ] && [ "$l" -eq 1 ]; then
+      if cmp -s "$tpl/$p" "$root/$p"; then st=same
+      elif [ -z "$base" ] || [ "$bb" -eq 0 ]; then st=differs
+      elif cmp -s "$root/$p" "$base/$p"; then st=upstream-changed
+      elif cmp -s "$tpl/$p" "$base/$p"; then st=local-changed
+      else st=both-changed
+      fi
+    elif [ "$t" -eq 1 ]; then
+      if [ "$bb" -eq 1 ]; then st=deleted-locally; else st=new-upstream; fi
+    else
+      if [ "$bb" -eq 1 ]; then
+        if cmp -s "$root/$p" "$base/$p"; then st=removed-upstream; else st=removed-upstream-edited; fi
+      else st=local-only
+      fi
+    fi
+    n_total=$((n_total + 1))
+    [ "$st" = same ] || { printf '%s=%s\n' "$st" "$p"; n_act=$((n_act + 1)); }
+  done <"$TE_TMPD/bpaths"
+  printf 'files=%s\nchanged=%s\n' "$n_total" "$n_act"
+}

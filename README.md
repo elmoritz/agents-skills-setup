@@ -67,7 +67,7 @@ with vendor evidence: [Platform support docs](https://elmoritz.github.io/agents-
 
 You don't have to copy files by hand. Open your project in your coding assistant
 (Claude Code, Codex, Antigravity, Gemini CLI, or Copilot) and paste this prompt —
-it copies the right bundle for your provider and leaves you ready to run init:
+it copies the right bundle for your provider and runs init right after:
 
 ```text
 Look at this repo https://github.com/elmoritz/agents-skills-setup and set up this
@@ -77,54 +77,61 @@ project with its agents-and-skills bundle.
   into my project root — the whole `.claude/` directory for Claude Code, or the
   whole `.agents/` directory plus `AGENTS.md` for every other assistant (Codex,
   Antigravity, Gemini CLI, GitHub Copilot). Copy the folder whole; don't
-  cherry-pick files.
+  cherry-pick files. Copy it from the template's latest commit and tell me
+  which commit that was.
 - With the `.agents/` bundle, also copy the entry points my assistant needs:
   `.gemini/` for Gemini CLI, `.codex/agents/` for Codex, `.github/agents/` for
   Copilot. Antigravity needs nothing beyond `.agents/` itself.
-- Don't run init yet. Just leave me ready to run init — `/ticket:init` on Claude
-  Code, `/ticket-init` on Antigravity, Gemini CLI, and Copilot, `$ticket-init` on
-  Codex — and tell me which one applies to me.
+- Then run init straight away, following the copied bundle's own instructions —
+  `.claude/commands/ticket/init.md` for Claude Code,
+  `.agents/skills/ticket-init/SKILL.md` for everyone else. It reads my
+  repository, researches my stack on the web, and asks me only what it can't
+  detect. It needs web search: if this session has none, stop after copying and
+  tell me to run init (`/ticket:init`, `/ticket-init`, or `$ticket-init` on
+  Codex) from a session that has it.
 ```
 
-Then run the init command it points you to — **from a session that has web
-search** — and answer its gates: that's where you confirm what it detected,
-tailor stages and backend, and approve the agents it designed for you. Prefer to copy by hand, or
+Init needs **a session with web search**; without one, the prompt stops after
+copying and tells you where to run it. Its gates are where you confirm what it
+detected, tailor stages and backend, and approve the agents it designed for you. Prefer to copy by hand, or
 want the full walkthrough (manual steps, what to think about before init)? See
 [Getting started](https://elmoritz.github.io/agents-skills-setup/getting-started/).
 
 ### Already set up? Update to the latest version
 
-If you copied this bundle a while ago, paste this prompt. It refreshes the
-**shipped** files (commands, skills, references, scripts) while leaving
-everything **you** customized — your `config.yaml`, your generated agents, your
-setup manifest, your ticket template — untouched, then lets `/ticket:init`'s
-update mode bring your agents up to date:
+Run init again — `/ticket:init` (Claude Code), `/ticket-init` (Antigravity,
+Gemini CLI, Copilot), `$ticket-init` (Codex). With a config present it runs in
+**update mode**: it first refreshes the bundle itself from the template —
+taking what only the template changed, keeping what only you changed, and
+asking about any file you both changed — then re-researches what went stale and
+regenerates your agents against the new version, never touching your config,
+your manifest, or the parts of your agents you edited without asking. No prompt
+to paste.
+
+**Bundle from before self-updating init?** If your init refuses to run because
+a config exists, or your bundle has no `references/init/bundle.md`, its init
+can't update itself yet. Paste this once to bring it across; from then on,
+re-running init is all it takes:
 
 ```text
-Look at this repo https://github.com/elmoritz/agents-skills-setup and update my
-existing agents-and-skills bundle to its latest version.
+Look at this repo https://github.com/elmoritz/agents-skills-setup — my project
+has an older copy of its agents-and-skills bundle. Bring it up to the version
+whose init can update itself.
 
 - Detect which bundle I have: `.claude/` (Claude Code) or `.agents/` + `AGENTS.md`
-  (Codex, Antigravity, Gemini CLI, GitHub Copilot). Only update the one I
-  actually have. If my bundle still lives in `.github/skills/` + `.github/config.yaml`,
-  that is the old layout — move it to `.agents/` and tell me what moved.
-- Refresh the SHIPPED files to match the template: the ticket commands, the skills
-  (ticket-engine, milestone-sync, grill-me, …), the `references/` folder (init's
-  phase references and the agent kinds), and the `scripts/` folder (the te CLI).
-- Do NOT replace my agents under `.claude/agents/` / `.agents/agents/` — the six
-  workflow agents and the research agents were generated for my project. Leave them
-  as they are; the next step refreshes them properly.
-- Do NOT overwrite anything else I customized: my `config.yaml`, my
-  `setup/manifest.yaml` and research notes, and my ticket template. If a shipped
-  file and my customized copy have both changed, show me a diff and ask before
-  touching it — never clobber my edits silently.
-- Finally, run `/ticket:init` (`/ticket-init`, `$ticket-init` on Codex). With my
-  config present it runs in update mode: it refreshes agent contracts that the
-  new kinds changed, re-researches stale parts of my stack, and regenerates my
-  agents region by region — asking before it replaces anything I edited.
-- When you're done, give me a short summary of what changed (new commands, renamed
-  files, behavior changes) so I know what's new, and flag anything in my
-  `config.yaml` that a new template version now expects.
+  (Codex, Antigravity, Gemini CLI, GitHub Copilot). Only touch the one I have.
+  If it still lives in `.github/skills/` + `.github/config.yaml`, that is the old
+  layout — move it to `.agents/` and tell me what moved.
+- From the template's latest commit, copy only the SHIPPED parts of that bundle:
+  the commands/skills, the `references/` and `scripts/` folders, the bundle's
+  README (and, for `.agents/`, `AGENTS.md` and `.gemini/commands/`). Keep the te
+  script executable.
+- Never replace `agents/`, `config.yaml`, or `setup/` — those are mine. If a
+  shipped file I edited differs from the template, show me the diff and ask.
+- Then run init following the copied bundle's own instructions. With my config
+  present it runs in update mode: it adopts my existing setup, records the
+  template commit, and regenerates my agents — asking before it replaces
+  anything I edited.
 ```
 
 ---

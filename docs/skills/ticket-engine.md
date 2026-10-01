@@ -68,6 +68,7 @@ subcommand is **read-only** except `routers write`.
 | `agent contract <kind>` | Print a kind's contract regions verbatim, to paste into an agent | `/ticket:init` |
 | `agent drift [manifest]` | Per generated agent: `ok` / `missing` / `invalid`; per region: `untouched` / `edited` / `added` / `removed` | `/ticket:init` update mode |
 | `agent reply-check (--kind K \| --agent NAME) <file>` | Check a subagent reply: one verdict line with an allowed verdict, plus the promised headings | `/ticket:new`, `/ticket:refine`, `/ticket:pick` |
+| `bundle diff --template DIR [--base DIR]` | Classify every shipped bundle file against a template checkout and the last-synced base: `upstream-changed`, `local-changed`, `both-changed`, `new-upstream`, … | `/ticket:init` update mode |
 | `routers (check\|write) [--root DIR] [--assistants …] [name…]` | Subagent routers for Codex, Gemini CLI and Copilot into `.agents/agents/<name>.md`, plus `.gemini/settings.json` when absent | `/ticket:init`, `scripts/gen-adapters.sh` |
 | `slug`, `id next`, `deps check`, `effort-cap`, `validate-body`, `msg` | ID, filename, dependency, size and message helpers | `/ticket:new`, transitions |
 | `read`, `list`, `milestone scan`, `projects resolve` | The uniform read path on both backends | `/ticket:pick`, `/ticket:review`, `milestone-sync`, … |

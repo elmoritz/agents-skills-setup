@@ -1,0 +1,5 @@
+ok=false
+where=bundle
+failed=. has no .claude/ directory — not a checkout of this template
+recovery=check the template source
+--- exit: 1

@@ -213,6 +213,7 @@ edit it; init rewrites it on every update — and it is validated by
 | `decisions` | Every config-relevant answer with its **provenance**: `asked` (you chose), `detected` (from the repository), `default` (you skipped; the recommended option was taken) |
 | `commands` | Each candidate test/lint/typecheck/build command: `verified`, `failing`, `unavailable`, `unverified` or `skipped`, with the baseline when it ran |
 | `research` | When the stack was researched, and per subject the queries run, sources cited, and `done` / `thin` status; the notes live in `setup/research/<subject>.md` |
+| `bundle` | The template repository the bundle came from and the commit it matches (`unknown` until an update settles it) — the base for refreshing the bundle in update mode |
 | `assistants` | Which assistants the setup serves — `served` or `pending-bundle` (its bundle isn't installed yet) |
 | `agents` | Each generated agent: its kind, the research subjects that fed it, and the hash of every generated and user region — how update mode tells a region you edited from one it may regenerate |
 

@@ -219,6 +219,11 @@ decisions:
     value: $([ "$INBOX" -eq 1 ] && echo enabled || echo disabled)
     provenance: asked
 
+bundle:
+  source: "https://github.com/elmoritz/agents-skills-setup"
+  commit: unknown
+  checked_at: "2026-01-01T00:00:00Z"
+
 assistants:
   - name: claude-code
     status: served

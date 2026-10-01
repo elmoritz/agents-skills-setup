@@ -82,6 +82,10 @@ Usage:
   te agent reply-check (--kind K | --agent NAME) <reply-file>
                                           Check a subagent reply: one verdict line with
                                           a verdict the kind allows + its headings.
+  te bundle diff --template DIR [--base DIR] [--root DIR]
+                                          Compare the shipped bundle files with a template
+                                          checkout (and the last-synced base): per file
+                                          upstream-changed | local-changed | both-changed | …
   te slug "<title>" [--dry-run]           Kebab-case slug for a filename.
   te id next [--count N] [config]         Next filesystem ID(s), or NEW-k on github.
   te deps check <id> --depends-on <ids> [--slate <ids>] [config]
@@ -210,6 +214,13 @@ main() {
       esac
       ;;
     routers)     cmd_routers "$@" || exit 1 ;;
+    bundle)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        diff) cmd_bundle_diff "$@" || exit 1 ;;
+        *) printf 'te: unknown bundle subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
     projects)
       local sub="${1:-}"; shift || true
       case "$sub" in
