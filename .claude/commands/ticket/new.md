@@ -162,7 +162,7 @@ Type-specific. The engine's § Type-specific gates names which types fire resear
 
 Surface up to **3 candidate approaches** — stop when 2 solid ones exist. Search project precedent first; then external sources.
 
-**Dispatch the external research agents** where registered: the candidates come from the relevant `research.agents` entries (typically `web-researcher` for approaches/tutorials, `api-docs-researcher` for library capabilities, `precedent-researcher` for in-repo patterns), dispatched in parallel; each returns pre-filtered candidates in the report shape below. The command still owns the gate: verify every returned code-import candidate against the license rules before presenting it — an agent finding never bypasses the filter. Without registered agents, run the searches inline (WebSearch / WebFetch).
+**Dispatch the external research agents** where registered: the candidates come from the relevant `research.agents` entries — the project's generated research agents whose `consult` hint covers external approaches, a library's API, or in-repo precedent — dispatched in parallel, each reply checked with `te agent reply-check` as in step 2; fold their findings into candidates in the report shape below. The command still owns the gate: verify every returned code-import candidate against the license rules before presenting it — an agent finding never bypasses the filter. Without registered agents, run the searches inline (WebSearch / WebFetch).
 
 **License rules depend on the source category:**
 

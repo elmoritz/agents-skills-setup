@@ -176,8 +176,18 @@ check_shipped_agents() {
   done
 }
 
+# ---- --help must print cleanly: the usage heredoc is unquoted (it interpolates),
+# so a stray backtick in it runs as a command and garbles the text.
+check_help_clean() {
+  local err
+  err=$("$TE" --help 2>&1 >/dev/null)
+  if [ -n "$err" ]; then echo "FAIL [help]: te --help wrote to stderr: $err"; fail=1; fi
+  count=$((count + 1))
+}
+
 check_exec_bits
 check_shipped_agents
+check_help_clean
 if [ ! -x "$TE" ]; then echo "Cannot run: $TE is not executable." >&2; exit 1; fi
 
 for dir in tests/fixtures/config/*/; do
