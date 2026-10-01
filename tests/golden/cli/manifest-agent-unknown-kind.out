@@ -1,0 +1,5 @@
+ok=false
+where=manifest
+failed=manifest: agents[0] (perf-expert): unknown kind 'oracle' — known kinds: research.
+recovery=the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing
+--- exit: 1

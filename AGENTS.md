@@ -68,10 +68,14 @@ subagents — `.codex/agents/<name>.toml`, `.gemini/agents/<name>.md`,
 `.github/agents/<name>.agent.md`, and, for Antigravity, `.agents/agents/<name>.md`
 directly. All of those are routers into the canonical body.
 
-**Research agents** are project-specific: `/ticket-init`'s research-agent step
-instantiates them from `.agents/references/research-agents/` templates (catalog:
-`perf-expert` and `language-expert` — recommended for every project — plus
-precedent/docs/api-docs/design-spec/web researchers, and custom sources).
+**Research agents** are project-specific and **generated**: there is no fixed
+catalog. `/ticket-init` reads the repository, researches the stack on the web,
+designs one agent per source of information (the stack's performance profile,
+its language idioms, repository precedent, internal docs, a central library's
+API, a design source, the web), and generates each from the `research` kind
+under `.agents/references/agents/kinds/` — researched knowledge and its sources
+in the generated regions, the kind's contract copied verbatim, checked by
+`te agent check` (anatomy: `.agents/references/agents/anatomy.md`).
 `/ticket-new` and `/ticket-refine` dispatch the ones registered under
 `research.agents` in `.agents/config.yaml`, routed by their `consult` hints;
 each returns distilled findings from its source instead of inline reading.

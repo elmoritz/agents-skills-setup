@@ -24,7 +24,7 @@ when the phase starts, so the skill stays small and each phase stays focused.
 | 2 — Interview | `interview.md`, `github-project.md` | Preferences only: backend, prefix, inbox, milestones, Project board, NFR profile, branch workflow — a detected fact leads each gate as the recommended answer |
 | 3 — Research | `research.md` | The stack at its locked versions, researched on the web — pitfalls, idioms, security, testing, tooling — one sourced notes file per subject |
 | 4 — Verification commands | `verification-commands.md` | Each candidate test/lint/typecheck/build command: run it now (with consent), record it unverified, or skip it |
-| 5 — Research agents | `research-agents.md` | The research-agent set ticket creation dispatches |
+| 5 — Design the agents | `generation.md`, `agents/anatomy.md`, `agents/kinds/` | The research-agent set, designed for this project (one per source), generated from the `research` kind and checked with `te agent check` |
 | 6 — Assistants | `assistants.md` | Which assistants work in the repo |
 | 7 — Assemble | `config.md` | The config, previewed, behind an Apply / Edit / Cancel gate |
 | 8 — Apply | `apply.md`, `manifest.md` | Config + manifest written and validated, side effects, agent files, template, one commit |
@@ -45,8 +45,9 @@ flowchart TD
     Confirm -->|yes| Interview["Preference gates,<br/>detected answers first"]
     Interview --> StackResearch["Research the stack on the web —<br/>sourced notes per subject"]
     StackResearch --> Cmds{"Gate per command:<br/>run · record · skip"}
-    Cmds --> Research["Research-agent set"]
-    Research --> Assist["Assistants"]
+    Cmds --> Research{"Gate: proposed<br/>research agents"}
+    Research --> Gen["Generate each from its kind<br/>+ te agent check"]
+    Gen --> Assist["Assistants"]
     Assist --> Assemble["Assemble config.yaml"]
     Assemble --> G9g{"Gate: Apply / Edit / Cancel"}
     G9g -->|edit| Assemble
@@ -72,9 +73,19 @@ skipped and the recommended option was taken). It is machine-owned and
 validated by `te manifest validate`; a reader can always tell which choices were
 deliberate.
 
+## Generated agents
+
+Every agent init writes follows one anatomy (`references/agents/anatomy.md`):
+frontmatter, an `agent-kind` marker, **contract regions** copied verbatim from
+the kind (what the agent is given, what it must return, what it may never do),
+**generated regions** written for this project (role, source, method, and the
+researched knowledge with its sources), and a **user region** init never
+rewrites. `te agent check` enforces the anatomy and prints a hash per region;
+the manifest records them.
+
 ## Reads / writes
 
-- **Writes:** `config.yaml` (including the optional `nfr:` profile, `references:` filled from confirmed facts, and `verification:` from the commands the user kept), `setup/manifest.yaml`, `setup/research/<subject>.md` per researched subject, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
+- **Writes:** `config.yaml` (including the optional `nfr:` profile, `references:` filled from confirmed facts, and `verification:` from the commands the user kept), `setup/manifest.yaml`, `setup/research/<subject>.md` per researched subject, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per generated research agent.
 - **Branch workflow gate:** decides the `git:` block — `branch_workflow`, `merge_strategy`, and (github backend only) `pr_integration`. Defaults to branch-per-ticket enabled with a `--no-ff` merge and no PR integration.
 - **GitHub side effects:** creates labels, verifies/creates issue-type map, creates the Project itself if none existed (before anything else in the apply step), verifies/creates Project fields (including a `Status` field seeded from the project's own stage labels, when one didn't already exist).
 

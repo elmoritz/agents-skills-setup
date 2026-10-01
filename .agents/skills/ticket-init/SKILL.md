@@ -81,12 +81,17 @@ the trusted ones for `verification:`.
 
 **Gate:** every candidate command has a recorded status.
 
-### Phase 5 — research agents
+### Phase 5 — design and generate the agents
 
-Read `.agents/references/init/research-agents.md`: register existing agents,
-offer the catalog, fill in each selection, run the custom-sources loop.
+Read `.agents/references/init/generation.md` and the agent anatomy
+(`.agents/references/agents/anatomy.md`). Register hand-written agents the user
+selects; design this project's research-agent set — one agent per source of
+information — from the facts and the research notes; gate on the set; then
+generate each from its kind into a scratch directory, with the researched
+knowledge and its sources in its generated regions, and check it with
+`te agent check`.
 
-**Gate:** the research-agent set is recorded (an empty set is fine).
+**Gate:** the user approved the set, and every generated agent passes `te agent check`.
 
 ### Phase 6 — assistants
 
@@ -106,8 +111,9 @@ answers, show it, and gate on Apply / Edit / Cancel.
 
 Read `.agents/references/init/apply.md`: create a pending GitHub Project first,
 write and validate the config, write and validate the setup manifest
-(`.agents/references/init/manifest.md`), run the backend side effects, write the research
-agents (and, where the assistants phase asks for them, their routers), lay down
+(`.agents/references/init/manifest.md`), run the backend side effects, copy the generated
+agents into place and re-check them (and, where the assistants phase asks for
+them, write their routers), lay down
 the starter template, and make the single init commit.
 
 **Gate:** the config and the manifest validate, and the init commit exists.
@@ -134,7 +140,7 @@ Project: <created #<number> "<title>" | linked to #<number> <title>>, Status <cr
 Research: <N subjects — <done> done, <thin> thin · notes in .agents/setup/research/>
 Verification: <commands kept, each with its status — e.g. `npm test` verified (412 passed), `npm run lint` unverified | none>
 Detected: <N facts — <M> corrected by you> · provenance recorded in .agents/setup/manifest.yaml
-Research agents: <N registered — <names> | none (ticket creation reads sources inline)>
+Research agents: <N generated — <name (research: done|thin|none)>, …; M registered hand-written | none (ticket creation reads sources inline)>
 Review agents: code-reviewer, test-adequacy-reviewer (loop cap: <max_loop_rounds> rounds)
 Branch workflow: <enabled — merge: <merge_strategy>, PR: <github | none> | disabled>
 
@@ -147,7 +153,8 @@ Next steps:
 
 - **Never overwrite an existing `.agents/config.yaml`.** Phase 0 is non-negotiable. The remove-then-re-run path is the only way to regenerate.
 - **Never overwrite an existing `TICKET_TEMPLATE.md`.** The apply phase skips if the file is already there.
-- **Never overwrite an existing agent file.** The research-agent phase registers existing agents; the apply phase writes only new ones. A name collision between a catalog selection and an existing file skips the write and keeps the existing agent.
+- **Never overwrite a hand-written agent.** The agent-design phase registers existing agents and never names a generated agent after one; the apply phase writes only new files.
+- **Contract regions are copied, never written.** Every generated agent carries its kind's contract regions exactly as `te agent check` expects them; an agent that does not pass is not committed.
 - **Init never creates org issue types.** Unmapped config types fall back to `type:` labels; org taxonomy is the org admin's domain.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there.
 - **A new Project is created before anything else in the apply phase.** If `gh project create` fails, stop before writing `config.yaml` or any other side effect — nothing has been created yet, so there is nothing to clean up. The written file always carries the real project number, never the preview's "(created on Apply)" placeholder.

@@ -20,12 +20,14 @@ BEGIN {
   CMD_ROLES = " test lint typecheck build "
   CMD_STATUS = " verified failing unavailable unverified skipped "
   RESEARCH_STATUS = " done thin "
+  AGENT_RESEARCH = " done thin none "
 }
 
 $1 == "V" { key = $2; if (!(key in seen)) { ord[nord++] = key; seen[key] = 1 }
             val[key] = $3; next }
 $1 == "T" { key = $2; if (!(key in seen)) { ord[nord++] = key; seen[key] = 1 }
             typ[key] = $3; next }
+$1 == "K" { known_kind[$2] = 1; kinds = kinds " " $2; next }
 
 function has(k)     { return (k in val) || (k in typ) }
 function inset(s,x) { return index(s, " " x " ") > 0 }
@@ -143,10 +145,36 @@ END {
     }
   }
 
+  # ---- M8: generated agents ----
+  nag = 0
+  if (has("agents")) {
+    if (typ["agents"] != "list") fail("manifest: agents must be a list.")
+    nag = maplistlen("agents")
+    for (i = 0; i < nag; i++) {
+      p = "agents." i "."
+      an = val[p "name"]
+      if (an == "") fail("manifest: agents[" i "]: missing 'name'.")
+      if (an in ag_seen) fail("manifest: agents: duplicate name '" an "'.")
+      ag_seen[an] = 1
+      if (!(val[p "kind"] in known_kind))
+        fail("manifest: agents[" i "] (" an "): unknown kind '" val[p "kind"] "' — known kinds:" kinds ".")
+      if (val[p "path"] == "") fail("manifest: agents[" i "] (" an "): missing 'path'.")
+      if (val[p "generated_at"] == "") fail("manifest: agents[" i "] (" an "): missing 'generated_at'.")
+      if (!inset(AGENT_RESEARCH, val[p "research"]))
+        fail("manifest: agents[" i "] (" an "): research must be done, thin, or none, got '" val[p "research"] "'.")
+      if (typ[p "hashes"] != "map")
+        fail("manifest: agents[" i "] (" an "): missing 'hashes' — the region hashes `te agent check` printed; update mode needs them to tell edited regions from untouched ones.")
+      for (j = 0; (p "subjects." j) in val; j++)
+        if (!((val[p "subjects." j]) in sub_seen))
+          fail("manifest: agents[" i "] (" an "): subject '" val[p "subjects." j] "' is not a research subject in this manifest.")
+    }
+  }
+
   print "ok=true"
   print "environment=" ncap
   print "facts=" nfacts
   print "decisions=" ndec
   print "commands=" ncmd
   print "research_subjects=" nsub
+  print "agents=" nag
 }

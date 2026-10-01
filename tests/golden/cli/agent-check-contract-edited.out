@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: contract region 'rules' differs from kind 'research' — contract regions are copied verbatim, never edited
+recovery=replace the region with the output of: te agent contract research
+--- exit: 1

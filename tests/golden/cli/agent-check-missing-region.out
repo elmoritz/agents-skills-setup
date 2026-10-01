@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: missing generated region 'knowledge' (kind 'research' declares: role source method knowledge)
+recovery=generate it per the kind's guidance
+--- exit: 1

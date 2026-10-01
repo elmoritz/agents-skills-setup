@@ -30,7 +30,7 @@ Read `.agents/config.yaml` yourself for the `nfr:` block where it is defined:
 
 Consider each exactly once against the described work, and account for each in your output — a dimension you rule out is **recorded as not applicable**, never silently dropped. The ruling-out is half the value: it stops the next reader re-asking.
 
-If `perf-expert` is registered in `research.agents`, defer the performance dimension to it — name it in your output instead of duplicating its judgment.
+If a research agent registered in `research.agents` owns performance — its `consult` hint names latency, memory, throughput, or performance — defer the performance dimension to it: name it in your output instead of duplicating its judgment.
 
 ## Method
 

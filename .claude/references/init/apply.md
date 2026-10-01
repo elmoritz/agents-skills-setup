@@ -26,20 +26,20 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
      ```
 
      Note `single_select_options` (not `options`) and that each option is an **object** with a `name` — a bare string array is rejected. If a `Priority`/`Effort`/`Risk` field-create fails, warn and continue — the engine's label fallback covers it; if `Status` fails, warn and continue — a missing Status is a soft warning per the ticket-engine § GitHub Projects sync. No items are added at init — issues join the project as they're created (the ticket-engine's `create_artifact`).
+   - **Agents** (both backends): copy every agent the agent-design phase generated and checked from its scratch directory into `.claude/agents/<name>.md`, then run `.claude/scripts/te agent check .claude/agents/<name>.md` once more — the file in the repository is the one that must pass. Never overwrite an existing agent file: a name collision with a hand-written agent was already resolved at design time; if one appears now, stop and report it.
 <!-- sync:divergent -->
-   - **Research agents** (both backends, only for the research-agent selections): for each catalog selection, copy its template from `.claude/references/research-agents/` into `.claude/agents/<name>.md` with the fill-ins applied; write each custom agent from the interview answers. Give each one `name`, `description`, and `tools` frontmatter. Never overwrite an existing agent file — skip with a note and keep its `research.agents` entry.
    - **Other assistants** (only if the assistants gate named any): nothing is written here — Claude Code reads only `.claude/`. Carry the names into the report so the user knows to install the `.agents/` bundle for them.
 <!-- sync:end -->
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. After the per-type blocks, add the two sections every ticket carries regardless of type — `## Decisions & assumptions` and `## Non-functional requirements` — each with a one-line prompt (the latter noting that every requirement names the verification that proves it). If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
-4. **Single commit** (filesystem) covering the new config, the setup manifest, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research agent files, and the template if generated:
+4. **Single commit** (filesystem) covering the new config, the setup manifest, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research notes, the generated agent files, and the template if generated:
 
    ```
    ticket: init — bootstrap workflow for <backend>
    ```
 
-   On GitHub backend: commit `.claude/config.yaml`, `.claude/setup/manifest.yaml`, plus the research agent files (label/field creation is GH-side, no local files). One commit:
+   On GitHub backend: commit `.claude/config.yaml`, `.claude/setup/manifest.yaml`, the research notes, plus the generated agent files (label/field creation is GH-side, no local files). One commit:
 
    ```
    ticket: init — bootstrap workflow for github (<repo>)

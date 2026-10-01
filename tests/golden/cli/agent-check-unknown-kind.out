@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: unknown agent kind 'oracle' (no .claude/references/agents/kinds/oracle.md)
+recovery=use one of: research 
+--- exit: 1

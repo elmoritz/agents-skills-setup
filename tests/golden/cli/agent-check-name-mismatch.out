@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: frontmatter name 'perf-guru' must equal the file stem 'perf-expert' — assistants dispatch by name
+recovery=fix the name or rename the file
+--- exit: 1

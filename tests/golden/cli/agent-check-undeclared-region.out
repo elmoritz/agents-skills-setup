@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: generated region 'extras' is not declared by kind 'research' (declares: role source method knowledge)
+recovery=rename it to a declared region, or move project-owned text into the user region
+--- exit: 1

@@ -26,9 +26,9 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
      ```
 
      Note `single_select_options` (not `options`) and that each option is an **object** with a `name` — a bare string array is rejected. If a `Priority`/`Effort`/`Risk` field-create fails, warn and continue — the engine's label fallback covers it; if `Status` fails, warn and continue — a missing Status is a soft warning per the ticket-engine § GitHub Projects sync. No items are added at init — issues join the project as they're created (the ticket-engine's `create_artifact`).
+   - **Agents** (both backends): copy every agent the agent-design phase generated and checked from its scratch directory into `.agents/agents/<name>.md`, then run `.agents/scripts/te agent check .agents/agents/<name>.md` once more — the file in the repository is the one that must pass. Never overwrite an existing agent file: a name collision with a hand-written agent was already resolved at design time; if one appears now, stop and report it.
 <!-- sync:divergent -->
-   - **Research agents** (both backends, only for the research-agent selections): for each catalog selection, copy its template from `.agents/references/research-agents/` into `.agents/agents/<name>.md` with the fill-ins applied; write each custom agent from the interview answers. Give each one `name`, `description`, and `subagent: true` frontmatter. Never overwrite an existing agent file — skip with a note and keep its `research.agents` entry.
-   - **Agent routers** (both backends, only for the assistants named at the assistants gate): for each research agent just written, add the matching router so that assistant can dispatch it. Each router carries the agent's `name` and `description` and a body that says *"Read `.agents/agents/<name>.md` and follow it verbatim as your operating instructions"* — never a copy of the body:
+   - **Agent routers** (both backends, only for the assistants named at the assistants gate): for each agent just written, add the matching router so that assistant can dispatch it. Each router carries the agent's `name` and `description` and a body that says *"Read `.agents/agents/<name>.md` and follow it verbatim as your operating instructions"* — never a copy of the body:
      - Codex → `.codex/agents/<name>.toml` with `name`, `description`, `sandbox_mode = "read-only"`, and the routing line as `developer_instructions`.
      - Gemini CLI → `.gemini/agents/<name>.md` with `name`/`description` frontmatter. Also ensure `.gemini/settings.json` contains `{"context": {"fileName": ["AGENTS.md", "GEMINI.md"]}}` (merge into an existing file; never clobber other keys) so Gemini CLI reads the root `AGENTS.md`.
      - GitHub Copilot → `.github/agents/<name>.agent.md` with `name`/`description`/`tools: ["read", "search", "execute"]`.
@@ -39,13 +39,13 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. After the per-type blocks, add the two sections every ticket carries regardless of type — `## Decisions & assumptions` and `## Non-functional requirements` — each with a one-line prompt (the latter noting that every requirement names the verification that proves it). If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
-4. **Single commit** (filesystem) covering the new config, the setup manifest, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research agent files, and the template if generated:
+4. **Single commit** (filesystem) covering the new config, the setup manifest, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research notes, the generated agent files, and the template if generated:
 
    ```
    ticket: init — bootstrap workflow for <backend>
    ```
 
-   On GitHub backend: commit `.agents/config.yaml`, `.agents/setup/manifest.yaml`, plus the research agent files (label/field creation is GH-side, no local files). One commit:
+   On GitHub backend: commit `.agents/config.yaml`, `.agents/setup/manifest.yaml`, the research notes, plus the generated agent files (label/field creation is GH-side, no local files). One commit:
 
    ```
    ticket: init — bootstrap workflow for github (<repo>)

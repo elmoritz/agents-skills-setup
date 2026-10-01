@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: no <!-- user:start --> … <!-- user:end --> region
+recovery=add the (possibly empty) user region — it is the one place init never rewrites
+--- exit: 1

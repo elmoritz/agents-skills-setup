@@ -58,13 +58,6 @@ code-reviewer:.claude/agents/code-reviewer.md:.agents/agents/code-reviewer.md
 code-simplifier:.claude/agents/code-simplifier.md:.agents/agents/code-simplifier.md
 nfr-analyst:.claude/agents/nfr-analyst.md:.agents/agents/nfr-analyst.md
 test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.agents/agents/test-adequacy-reviewer.md
-tpl-perf-expert:.claude/references/research-agents/perf-expert.md:.agents/references/research-agents/perf-expert.md
-tpl-language-expert:.claude/references/research-agents/language-expert.md:.agents/references/research-agents/language-expert.md
-tpl-precedent-researcher:.claude/references/research-agents/precedent-researcher.md:.agents/references/research-agents/precedent-researcher.md
-tpl-docs-researcher:.claude/references/research-agents/docs-researcher.md:.agents/references/research-agents/docs-researcher.md
-tpl-api-docs-researcher:.claude/references/research-agents/api-docs-researcher.md:.agents/references/research-agents/api-docs-researcher.md
-tpl-design-spec-researcher:.claude/references/research-agents/design-spec-researcher.md:.agents/references/research-agents/design-spec-researcher.md
-tpl-web-researcher:.claude/references/research-agents/web-researcher.md:.agents/references/research-agents/web-researcher.md
 "
 
 # Files that legitimately exist on one side only. Exact paths, or prefixes
@@ -100,6 +93,7 @@ scripts:.claude/scripts/:.agents/scripts/
 # in lockstep without listing every file by hand.
 NDIR_PAIRS="
 ref-init:.claude/references/init/:.agents/references/init/
+ref-agents:.claude/references/agents/:.agents/references/agents/
 "
 
 # Pairs whose two mirrors must be logic-identical (after frontmatter + fence
@@ -108,7 +102,7 @@ ref-init:.claude/references/init/:.agents/references/init/
 # get the hard equivalence gate. Everything else (commands, skills, the
 # human-facing READMEs) legitimately rephrases invocation/gate mechanics per
 # platform and relies on the pairing check + the advisory `--equiv` instead.
-EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier nfr-analyst test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
+EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier nfr-analyst test-adequacy-reviewer"
 
 # Expand NDIR_PAIRS into per-file PAIRS + EQUIV_CHECK entries (union of both
 # sides' tracked files, so a one-sided file still gets an entry and fails).

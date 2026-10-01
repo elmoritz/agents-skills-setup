@@ -76,4 +76,4 @@ decisions; `/ticket:new` writes the section and puts every decision to you.
 ## See also
 
 - [`/ticket:new`](../workflow/new.md) — where it runs, and how its output becomes the ticket's section
-- [`perf-expert`](../getting-started.md#step-0-research-agents) — when registered, the performance dimension is delegated to it
+- A generated stack-performance research agent ([Getting started § Step 0](../getting-started.md#step-0-research-agents)) — when one is registered, the performance dimension is delegated to it

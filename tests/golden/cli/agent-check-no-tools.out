@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: frontmatter lacks a 'tools:' line — the subagent would inherit every tool
+recovery=add the kind's tools line
+--- exit: 1

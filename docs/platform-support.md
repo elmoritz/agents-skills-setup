@@ -135,7 +135,7 @@ AGENTS.md                            root context file — read by Codex,
 ├── workflows/                       Antigravity slash commands — stubs only
 │   └── ticket-pick.md → "follow .agents/skills/ticket-pick/SKILL.md"
 ├── scripts/                         te CLI + lib (moved verbatim)
-└── references/research-agents/      init templates
+└── references/                      init phase references + agent anatomy/kinds
 .gemini/
 ├── commands/ticket-*.toml           Gemini CLI slash commands — stubs
 └── agents/*.md                      wrapper → .agents/agents/<name>.md

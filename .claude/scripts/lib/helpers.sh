@@ -426,6 +426,11 @@ cmd_manifest_validate() {
       "the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing"
     return 1
   fi
+  local k
+  for k in "$(te_kinds_dir)"/*.md; do
+    [ -f "$k" ] || continue
+    k=$(basename "$k"); printf 'K\t%s\n' "${k%.md}"
+  done >>"$TE_TMPD/mflat"
   set +e
   out=$(awk -f "$TE_LIB/manifest.awk" "$TE_TMPD/mflat"); rc=$?
   set -e
@@ -435,4 +440,158 @@ cmd_manifest_validate() {
     return 1
   fi
   printf '%s\n' "$out"
+}
+
+# ---- generated agents (references/agents/anatomy.md) ------------------------
+# The agent kinds live beside te, in the same bundle: <bundle>/references/agents/kinds.
+te_kinds_dir() { printf '%s\n' "$TE_BUNDLE/references/agents/kinds"; }
+
+# _agent_parse <file> <outdir> — agent.awk records to <outdir>/recs; rc 1 + the
+# failure shape on a structural error.
+_agent_parse() {
+  local f=$1 d=$2 rc
+  mkdir -p "$d"
+  set +e
+  awk -f "$TE_LIB/agent.awk" -v outdir="$d" "$f" >"$d/recs"; rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    local msg; msg=$(grep '^E' "$d/recs" | head -1 | cut -f2-)
+    te_emit_fail "agent" "$f: ${msg:-could not parse}" \
+      "regenerate the file from its kind (/ticket:init update mode), or repair the markers by hand — see references/agents/anatomy.md"
+    return 1
+  fi
+}
+
+# _rec <recs> <tag> <field2> — print field 3 of the first matching record.
+_rec() {
+  local line t a b
+  while IFS="$(printf '\t')" read -r t a b; do
+    if [ "$t" = "$2" ] && [ "$a" = "$3" ]; then printf '%s\n' "$b"; return 0; fi
+  done < "$1"
+  return 1
+}
+
+# _regions <recs> <type> — the ids of every region of that type, in order.
+_regions() {
+  local t a b
+  while IFS="$(printf '\t')" read -r t a b; do
+    [ "$t" = "R" ] && [ "$a" = "$2" ] && printf '%s\n' "$b"
+  done < "$1"
+  return 0
+}
+
+_hash() { local c s; read -r c s _ < <(cksum < "$1"); printf '%s-%s\n' "$c" "$s"; }
+
+# te agent check <file> [--kind K] — anatomy + contract conformance. Read-only.
+cmd_agent_check() {
+  local f="" want="" stem name desc kind kf kd ad id gen t a
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind) want="$2"; shift 2 ;;
+      --dry-run) shift ;;
+      *) f="$1"; shift ;;
+    esac
+  done
+  [ -n "$f" ] || { te_emit_fail "agent" "no agent file given" "te agent check <file> [--kind K]"; return 1; }
+  [ -f "$f" ] || { te_emit_fail "agent" "agent file not found: $f" "check the path"; return 1; }
+  ad="$TE_TMPD/agent"; kd="$TE_TMPD/kind"
+  _agent_parse "$f" "$ad" || return 1
+
+  stem=$(basename "$f"); stem=${stem%.agent.md}; stem=${stem%.md}
+  name=$(_rec "$ad/recs" FM name || true)
+  desc=$(_rec "$ad/recs" FM description || true)
+  if [ "$name" != "$stem" ]; then
+    te_emit_fail "agent" "$f: frontmatter name '${name}' must equal the file stem '$stem' — assistants dispatch by name" "fix the name or rename the file"
+    return 1
+  fi
+  if [ -z "$desc" ]; then
+    te_emit_fail "agent" "$f: frontmatter description is empty — it is what an assistant reads to decide when to delegate" "write a one-sentence description naming what the agent does and when it is invoked"
+    return 1
+  fi
+  # the bundle's agent line: Claude Code grants tools from `tools:`; Antigravity
+  # discovers subagents only by `subagent: true`.
+  case "$(basename "$TE_BUNDLE")" in
+    .agents)
+      if [ "$(_rec "$ad/recs" FM subagent || true)" != "true" ]; then
+        te_emit_fail "agent" "$f: frontmatter lacks 'subagent: true' — Antigravity's invoke_subagent will not see it" "add 'subagent: true' to the frontmatter"
+        return 1
+      fi ;;
+    *)
+      if [ -z "$(_rec "$ad/recs" FM tools || true)" ]; then
+        te_emit_fail "agent" "$f: frontmatter lacks a 'tools:' line — the subagent would inherit every tool" "add the kind's tools line"
+        return 1
+      fi ;;
+  esac
+  kind=""
+  while IFS="$(printf '\t')" read -r t a _; do [ "$t" = KIND ] && kind=$a; done < "$ad/recs"
+  if [ -z "$kind" ]; then
+    te_emit_fail "agent" "$f: no <!-- agent-kind: <kind> --> marker after the frontmatter" "add the marker naming the kind the agent was generated from"
+    return 1
+  fi
+  if [ -n "$want" ] && [ "$want" != "$kind" ]; then
+    te_emit_fail "agent" "$f: agent-kind is '$kind', expected '$want'" "regenerate the agent from the '$want' kind"
+    return 1
+  fi
+  kf="$(te_kinds_dir)/$kind.md"
+  if [ ! -f "$kf" ]; then
+    te_emit_fail "agent" "$f: unknown agent kind '$kind' (no $(basename "$TE_BUNDLE")/references/agents/kinds/$kind.md)" "use one of: $(ls "$(te_kinds_dir)" 2>/dev/null | sed 's/\.md$//' | tr '\n' ' ')"
+    return 1
+  fi
+  _agent_parse "$kf" "$kd" || return 1
+
+  # contract regions: exactly the kind's set, byte-identical
+  for id in $(_regions "$kd/recs" contract); do
+    if [ ! -f "$ad/contract.$id" ]; then
+      te_emit_fail "agent" "$f: missing contract region '$id' required by kind '$kind'" "copy it verbatim from: te agent contract $kind"
+      return 1
+    fi
+    if ! cmp -s "$ad/contract.$id" "$kd/contract.$id"; then
+      te_emit_fail "agent" "$f: contract region '$id' differs from kind '$kind' — contract regions are copied verbatim, never edited" "replace the region with the output of: te agent contract $kind"
+      return 1
+    fi
+  done
+  for id in $(_regions "$ad/recs" contract); do
+    if [ ! -f "$kd/contract.$id" ]; then
+      te_emit_fail "agent" "$f: contract region '$id' is not part of kind '$kind'" "remove it — only the kind defines contract regions"
+      return 1
+    fi
+  done
+  # generated regions: exactly the ids the kind declares
+  gen=$(_rec "$kd/recs" FM regions || true)
+  for id in $gen; do
+    if [ ! -f "$ad/generated.$id" ]; then
+      te_emit_fail "agent" "$f: missing generated region '$id' (kind '$kind' declares: $gen)" "generate it per the kind's guidance"
+      return 1
+    fi
+  done
+  for id in $(_regions "$ad/recs" generated); do
+    case " $gen " in *" $id "*) ;; *)
+      te_emit_fail "agent" "$f: generated region '$id' is not declared by kind '$kind' (declares: $gen)" "rename it to a declared region, or move project-owned text into the user region"
+      return 1 ;;
+    esac
+  done
+  if [ ! -f "$ad/user.user" ]; then
+    te_emit_fail "agent" "$f: no <!-- user:start --> … <!-- user:end --> region" "add the (possibly empty) user region — it is the one place init never rewrites"
+    return 1
+  fi
+
+  printf 'ok=true\nname=%s\nkind=%s\n' "$name" "$kind"
+  for id in $(_regions "$ad/recs" generated); do printf 'hash.%s=%s\n' "$id" "$(_hash "$ad/generated.$id")"; done
+  printf 'hash.user=%s\n' "$(_hash "$ad/user.user")"
+}
+
+# te agent contract <kind> — print the kind's contract regions, markers included,
+# exactly as a generated agent must carry them. Read-only.
+cmd_agent_contract() {
+  local kind="${1:-}" kf kd id
+  [ -n "$kind" ] || { te_emit_fail "agent" "no kind given" "te agent contract <kind>"; return 1; }
+  kf="$(te_kinds_dir)/$kind.md"
+  [ -f "$kf" ] || { te_emit_fail "agent" "unknown agent kind '$kind' (no $(basename "$TE_BUNDLE")/references/agents/kinds/$kind.md)" "use one of: $(ls "$(te_kinds_dir)" 2>/dev/null | sed 's/\.md$//' | tr '\n' ' ')"; return 1; }
+  kd="$TE_TMPD/kind"
+  _agent_parse "$kf" "$kd" || return 1
+  for id in $(_regions "$kd/recs" contract); do
+    printf '<!-- contract:start id=%s -->\n' "$id"
+    cat "$kd/contract.$id"
+    printf '<!-- contract:end id=%s -->\n\n' "$id"
+  done
 }

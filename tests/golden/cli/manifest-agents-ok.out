@@ -1,0 +1,8 @@
+ok=true
+environment=4
+facts=2
+decisions=2
+commands=2
+research_subjects=2
+agents=1
+--- exit: 0

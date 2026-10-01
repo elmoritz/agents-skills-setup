@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: line 1 must be '---' — an agent file starts with its frontmatter (no comment or blank line before it)
+recovery=regenerate the file from its kind (/ticket:init update mode), or repair the markers by hand — see references/agents/anatomy.md
+--- exit: 1

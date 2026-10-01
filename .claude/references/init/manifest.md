@@ -58,6 +58,21 @@ research:                    # from the research phase
       sources: 9
       queries:
         - "react 19 performance pitfalls 2026"
+
+agents:                      # from the agent-design phase — generated agents only
+  - name: perf-expert
+    kind: research           # a kind under .claude/references/agents/kinds/
+    path: ".claude/agents/perf-expert.md"
+    generated_at: "<ISO 8601>"
+    research: done           # done | thin | none (reads its source live)
+    subjects:                # research subject ids that fed its knowledge
+      - react-19
+    hashes:                  # exactly as `te agent check` printed them
+      role: "139288793-124"
+      source: "3208442904-101"
+      method: "1539523233-124"
+      knowledge: "3043224741-190"
+      user: "2742867110-83"
 ```
 
 `environment.web_search`, `environment.subagents` and `environment.git` are
@@ -66,13 +81,16 @@ are unique. A command that ran (`verified`, `failing`) carries `baseline` and
 `checked_at`. A `research:` block requires `environment.web_search: verified` —
 research is never recorded from a session that could not search — and every
 subject names its notes file and at least one query; a `done` subject cites at
-least one source.
+least one source. An agent's `kind` must exist in this bundle, its `subjects`
+must be research subjects of this manifest, and it records its region hashes.
+Hand-written agents that init only registered are not listed — init does not
+own them.
 
 ## Writing it
 
 In the apply phase, after `config.yaml` validates:
 
-1. Write the manifest from the recorded probe, facts, decisions, commands and research.
+1. Write the manifest from the recorded probe, facts, decisions, commands, research and generated agents.
 2. Run `.claude/scripts/te manifest validate .claude/setup/manifest.yaml`. A
    failure here is an init bug: surface the exact message and stop before the
    commit, exactly like a config that fails validation.

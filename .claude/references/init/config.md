@@ -152,7 +152,7 @@ commits:
 #     advisors: [<name>, ...]        # extra agents every loop round
 research:
   agents:
-    <one entry per research agent:>
+    <one entry per generated or registered research agent:>
     - name: <agent-name>
       consult: "<one line: when ticket creation should dispatch it>"
 review:

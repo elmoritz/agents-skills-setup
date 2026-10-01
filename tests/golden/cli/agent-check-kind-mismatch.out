@@ -1,0 +1,5 @@
+ok=false
+where=agent
+failed=perf-expert.md: agent-kind is 'research', expected 'code-reviewer'
+recovery=regenerate the agent from the 'code-reviewer' kind
+--- exit: 1

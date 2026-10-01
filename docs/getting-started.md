@@ -62,24 +62,29 @@ reference](workflow/init.md).
 Before you init, think through *which sources you'd otherwise paste into the
 conversation while writing a ticket* — existing code aside, that's usually
 internal docs, API/SDK references, prior art in the repo, or the open web.
-Init's research-agent step walks you through a shipped catalog so each source
-gets read in its **own isolated context**, returning only the distilled
-finding instead of flooding the ticket with raw material:
+Each becomes a **research agent** that reads its source in its **own isolated
+context** and returns only the distilled finding instead of flooding the ticket
+with raw material.
 
-| Catalog entry | Consulted for | Recommended |
-| --- | --- | --- |
-| `perf-expert` | Latency, memory, or throughput impact | Every project |
-| `language-expert` | Language-level design/idiom questions | Every project |
-| `docs-researcher` | Internal docs/wiki | If you have one |
-| `api-docs-researcher` | API/SDK references | If you integrate external APIs |
-| `design-spec-researcher` | Design specs | If you have a design system |
-| `precedent-researcher` | In-repo prior art | Most projects |
-| `web-researcher` | External web research (license rules baked in) | Optional |
+There is no catalog to pick from: init **designs the set for your project**.
+It reads the repository, researches your stack on the web at its locked
+versions, and proposes one agent per source — typically:
 
-Init also loops to generate **custom agents** for anything the catalog
-doesn't cover ("search our Notion", "check crates.io"…), and detects any
-agent you hand-authored under `.claude/agents/` / `.agents/agents/` before
-running init, offering it for registration too.
+| Source | Proposed when |
+| --- | --- |
+| Your stack's performance profile | Almost always — fed by the researched pitfalls |
+| Your language(s) and their idioms | Almost always — fed by the researched idioms and deprecations |
+| Repository precedent and past tickets | The repository has history worth mining |
+| Internal docs, ADRs, runbooks | Init found them |
+| A central library's API at its locked version | Most of the work touches it |
+| A design source | Init found one, or a design MCP server is connected |
+| The open web | Always offered; your call |
+
+You approve, trim, or extend the set ("search our Notion", "check crates.io"…)
+at one gate. Init also detects any agent you hand-authored under
+`.claude/agents/` / `.agents/agents/` before running init, offering it for
+registration — those files are never rewritten. **Init needs web search** for
+this: run it from a session that has it.
 
 Once registered, `/ticket:new` dispatches these agents automatically during
 its analysis and research steps — see [`/ticket:new`](workflow/new.md).

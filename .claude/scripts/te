@@ -71,6 +71,11 @@ Usage:
   te ledger validate [config] [--dry-run] Validate .ledger.yaml (filesystem backend).
   te manifest validate [path] [--dry-run] Validate setup/manifest.yaml (init's record of
                                           environment, detected facts, decision provenance).
+  te agent check <file> [--kind K]        Generated-agent anatomy: frontmatter, kind marker,
+                                          contract regions byte-identical to the kind,
+                                          declared generated regions, user region; prints
+                                          a hash per generated/user region.
+  te agent contract <kind>                Print a kind's contract regions, verbatim.
   te slug "<title>" [--dry-run]           Kebab-case slug for a filename.
   te id next [--count N] [config]         Next filesystem ID(s), or NEW-k on github.
   te deps check <id> --depends-on <ids> [--slate <ids>] [config]
@@ -146,6 +151,14 @@ main() {
       case "$sub" in
         validate) strip_flags "$@"; cmd_ledger_validate "${ARGS[0]:-}" || exit 1 ;;
         *) printf 'te: unknown ledger subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    agent)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        check)    cmd_agent_check "$@" || exit 1 ;;
+        contract) strip_flags "$@"; cmd_agent_contract "${ARGS[0]:-}" || exit 1 ;;
+        *) printf 'te: unknown agent subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;
     manifest)
