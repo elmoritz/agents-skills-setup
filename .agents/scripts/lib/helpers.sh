@@ -450,7 +450,7 @@ te_kinds_dir() { printf '%s\n' "$TE_BUNDLE/references/agents/kinds"; }
 # failure shape on a structural error.
 _agent_parse() {
   local f=$1 d=$2 rc
-  mkdir -p "$d"
+  rm -rf "$d"; mkdir -p "$d"   # never let a previous parse's region files leak in
   set +e
   awk -f "$TE_LIB/agent.awk" -v outdir="$d" "$f" >"$d/recs"; rc=$?
   set -e
@@ -676,4 +676,78 @@ cmd_agent_reply_check() {
   done
   IFS=$IFS_SAVE
   printf 'ok=true\nchecked=true\nkind=%s\nverdict=%s\n' "$kind" "$v"
+}
+
+# te agent drift [manifest] — compare every generated agent the manifest records
+# against the file on disk: region by region, `untouched` (hash unchanged),
+# `edited` (the project changed it), `added`/`removed` (the kind's region set
+# moved); per agent `ok`, `missing` (file deleted), or `invalid` (no longer a
+# valid rendering — most often a contract region gone stale after a bundle
+# upgrade). Read-only; update mode's input.
+cmd_agent_drift() {
+  local mf="" root i name path kind out rc line key val id rid seen_ids
+  while [ $# -gt 0 ]; do case "$1" in --dry-run) shift ;; *) mf="$1"; shift ;; esac; done
+  if [ -z "$mf" ]; then
+    mf=$(te_discover_manifest) || { te_emit_fail "discovery" "No $(basename "$TE_BUNDLE")/setup/manifest.yaml found between $PWD and /." "Run /ticket:init first"; return 1; }
+  fi
+  [ -f "$mf" ] || { te_emit_fail "discovery" "manifest not found: $mf" "check the path"; return 1; }
+  # <root>/<bundle>/setup/manifest.yaml -> <root>
+  root=$(cd "$(dirname "$mf")/../.." && pwd)
+  set +e
+  awk -f "$TE_LIB/config.awk" -v path="$mf" "$mf" >"$TE_TMPD/dflat" 2>"$TE_TMPD/derr"; rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "parse" "$(cat "$TE_TMPD/derr")" "re-run /ticket:init (update mode) to rewrite the manifest"
+    return 1
+  fi
+  # manifest leaves as key=value, for lookups
+  : >"$TE_TMPD/dkv"
+  while IFS="$(printf '\t')" read -r t key val _; do
+    [ "$t" = V ] && printf '%s=%s\n' "$key" "$val" >>"$TE_TMPD/dkv"
+  done <"$TE_TMPD/dflat"
+  _dkv() { local l; while IFS= read -r l; do case "$l" in "$1="*) printf '%s\n' "${l#*=}"; return 0 ;; esac; done <"$TE_TMPD/dkv"; return 1; }
+
+  echo "ok=true"
+  i=0
+  while name=$(_dkv "agents.$i.name"); do
+    path=$(_dkv "agents.$i.path" || true); kind=$(_dkv "agents.$i.kind" || true)
+    if [ ! -f "$root/$path" ]; then
+      printf 'agent.%s=missing\n' "$name"; i=$((i + 1)); continue
+    fi
+    set +e
+    out=$( cd "$root" && TE_TMPD="$TE_TMPD/d$i" && mkdir -p "$TE_TMPD" && cmd_agent_check "$path" --kind "$kind" ); rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+      printf 'agent.%s=invalid\n' "$name"
+      printf '%s\n' "$out" | while IFS= read -r line; do
+        case "$line" in failed=*) printf 'agent.%s.reason=%s\n' "$name" "${line#failed=}" ;; esac
+      done
+      i=$((i + 1)); continue
+    fi
+    printf 'agent.%s=ok\n' "$name"
+    seen_ids=" "
+    while IFS= read -r line; do
+      case "$line" in
+        hash.*=*)
+          id=${line#hash.}; id=${id%%=*}; val=${line#*=}
+          seen_ids="$seen_ids$id "
+          if ! rid=$(_dkv "agents.$i.hashes.$id"); then
+            printf 'region.%s.%s=added\n' "$name" "$id"
+          elif [ "$rid" = "$val" ]; then
+            printf 'region.%s.%s=untouched\n' "$name" "$id"
+          else
+            printf 'region.%s.%s=edited\n' "$name" "$id"
+          fi ;;
+      esac
+    done <<<"$out"
+    while IFS= read -r line; do
+      case "$line" in
+        "agents.$i.hashes."*=*)
+          id=${line#"agents.$i.hashes."}; id=${id%%=*}
+          case "$seen_ids" in *" $id "*) ;; *) printf 'region.%s.%s=removed\n' "$name" "$id" ;; esac ;;
+      esac
+    done <"$TE_TMPD/dkv"
+    i=$((i + 1))
+  done
+  printf 'agents=%s\n' "$i"
 }

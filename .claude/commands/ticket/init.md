@@ -1,11 +1,11 @@
 ---
-description: Bootstrap a project for the /ticket:* workflow. Writes .claude/config.yaml, creates stage folders (with ledger) or workflow labels/fields, guides research-agent setup, and lays down a starter TICKET_TEMPLATE.md.
+description: Bootstrap — or later update — a project for the /ticket:* workflow. Reads the repository, researches its stack on the web, writes .claude/config.yaml and a setup manifest, creates stage folders (with ledger) or workflow labels/fields, generates the project's research and workflow agents, and lays down a starter TICKET_TEMPLATE.md. Re-run it to refresh stale research and agents.
 argument-hint: (no arguments; interactive)
 ---
 
 # /ticket:init
 
-Generate a `.claude/config.yaml` for this project, then apply the side effects that make the rest of the `/ticket:*` workflow usable: stage folders on the filesystem backend, workflow labels (and optional GitHub Project linkage) on the GitHub backend. One-time setup. Refuses to run if a config already exists.
+Generate a `.claude/config.yaml` for this project, then apply the side effects that make the rest of the `/ticket:*` workflow usable: stage folders on the filesystem backend, workflow labels (and optional GitHub Project linkage) on the GitHub backend. Run it once to set a project up; run it again later to **update** — it then re-reads the repository, refreshes stale research, and regenerates agents without touching what the project owns.
 
 <!-- sync:divergent -->
 The user's starting input: $ARGUMENTS (ignored; init is fully interactive)
@@ -26,10 +26,10 @@ reference when its phase runs.
 
 ### Phase 0 — orient
 
-**Guard against re-init.** Check whether `.claude/config.yaml` exists relative to the project root (walk up from `cwd` to find the nearest `.claude/`).
+**Choose the mode.** Check whether `.claude/config.yaml` exists relative to the project root (walk up from `cwd` to find the nearest `.claude/`).
 
-- **If it exists**: report `"A config already exists at .claude/config.yaml. Edit it directly, or remove it first if you want to re-bootstrap."` and **stop**. Do not surface a gate; do not offer to overwrite. The user can `rm` and re-run if they meant to start over.
-- **If `.claude/` doesn't exist** at the repo root: create it (`mkdir -p .claude`). Proceed.
+- **If it exists**: this is an **update**. Read `.claude/references/init/update.md` and follow it **instead of** the phases below — it reuses their references for the parts it re-runs. Never fall through into a fresh init over an existing config.
+- **If it doesn't**: this is a fresh init. If `.claude/` doesn't exist at the repo root, create it (`mkdir -p .claude`). Proceed.
 
 **Probe the environment.** Read `.claude/references/init/environment.md` and
 probe every capability it lists — web search, web fetch, subagents, git, gh —
@@ -41,7 +41,7 @@ what was tried and what failed, and name the kind of session to run init from.
 Everything init generates is grounded in research of this project's stack — an
 init built from memory would look complete while being stale.
 
-**Gate:** no config exists, every capability has a probe result, and web search is `verified`.
+**Gate:** (fresh init) no config exists, every capability has a probe result, and web search is `verified`.
 
 ### Phase 1 — discover
 
@@ -153,14 +153,14 @@ Next steps:
 
 ## Hard rules
 
-- **Never overwrite an existing `.claude/config.yaml`.** Phase 0 is non-negotiable. The remove-then-re-run path is the only way to regenerate.
+- **Never overwrite what the project owns.** An existing config sends init into update mode, never into a fresh init. Update mode never re-asks an `asked` decision, adopts hand edits to the config instead of reverting them, never touches a user region or a hand-written agent, and replaces an edited generated region only through its three-way gate.
 - **Never overwrite an existing `TICKET_TEMPLATE.md`.** The apply phase skips if the file is already there.
 - **Never overwrite a hand-written agent.** The agent-design phase registers existing agents and never names a generated agent after one; the apply phase writes only new files.
 - **Contract regions are copied, never written.** Every generated agent carries its kind's contract regions exactly as `te agent check` expects them; an agent that does not pass is not committed.
 - **Init never creates org issue types.** Unmapped config types fall back to `type:` labels; org taxonomy is the org admin's domain.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there.
 - **A new Project is created before anything else in the apply phase.** If `gh project create` fails, stop before writing `config.yaml` or any other side effect — nothing has been created yet, so there is nothing to clean up. The written file always carries the real project number, never the preview's "(created on Apply)" placeholder.
-- **No web, no fresh init.** A fresh init whose `web_search` probe is `unavailable` stops at the orient phase and writes nothing.
+- **No web, no fresh init.** A fresh init whose `web_search` probe is `unavailable` stops at the orient phase and writes nothing. Update mode runs without the web but lists what needs it as pending — it never researches or regenerates knowledge from memory.
 - **Commands run only with consent**, one at a time, each behind its own gate.
 - **Every finding has a source.** Research notes never carry a finding without the page it came from; a topic with nothing usable says so instead.
 - **Probe, don't remember.** A capability is `verified` only when its probe ran in this session; a fact is recorded only with the file or command it came from.

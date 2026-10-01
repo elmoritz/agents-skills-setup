@@ -33,7 +33,7 @@ other fails loudly.
 ├── settings.json                 project-scoped settings (permissions, etc.)
 ├── commands/
 │   └── ticket/                   the /ticket:* slash commands
-│       ├── init.md               /ticket:init   — one-time bootstrap
+│       ├── init.md               /ticket:init   — bootstrap, then update
 │       ├── new.md                /ticket:new    — create ticket(s)
 │       ├── refine.md             /ticket:refine — promote an inbox entry
 │       ├── pick.md               /ticket:pick   — implement next ticket
@@ -77,7 +77,7 @@ the actual reads, writes, and stage transitions to the **`ticket-engine`** skill
 
 | Command | What it does |
 | --- | --- |
-| `/ticket:init` | Bootstrap a project: write `.claude/config.yaml`, create the stage folders or labels, lay down a starter ticket template. One-time. |
+| `/ticket:init` | Bootstrap a project — read the repo, research its stack, write `.claude/config.yaml` + a setup manifest, create the stage folders or labels, generate the project's agents, lay down a starter ticket template. Re-run it to update. |
 | `/ticket:new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the agent's understanding before anything is committed. |
 | `/ticket:refine` | Resume a captured inbox entry and promote it to the backlog (or close it as fold/wontfix). Only available if an inbox stage is configured. |
 | `/ticket:pick` | Pull the next ticket off the backlog and implement it through to review. |
@@ -185,7 +185,7 @@ to empty; a listed agent whose file is missing is skipped with a warning.
 
 ## What gets created on first use
 
-`/ticket:init` is the one-time bootstrap. The bundle ships **without** these — the
+`/ticket:init` is the bootstrap (and, re-run, the updater). The bundle ships **without** these — the
 init command creates them so the rest of the workflow is usable:
 
 - **`.claude/config.yaml`** — the project-scoped workflow configuration. Defines:
@@ -241,9 +241,12 @@ init command creates them so the rest of the workflow is usable:
 - **`TICKET_TEMPLATE.md`** (filesystem backend) — a starter template covering the
   default ticket types, written at the configured root.
 
-`/ticket:init` refuses to run if a `.claude/config.yaml` already exists, and never
-overwrites an existing `TICKET_TEMPLATE.md`. To re-bootstrap, remove the config and
-re-run.
+Re-running `/ticket:init` on a project that already has `.claude/config.yaml` enters
+**update mode**: it re-reads the repository, re-researches stale stack subjects,
+refreshes agent contracts after a bundle upgrade, and regenerates agents — region
+by region, with a three-way gate for any region you edited, and never touching
+your user regions, your hand-written agents, or an existing `TICKET_TEMPLATE.md`.
+It works without web search too, listing what needs the web as pending.
 
 ## Files you may want to point at (all optional)
 

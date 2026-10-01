@@ -2,14 +2,15 @@
 
 *Codex: `$ticket-init` · Antigravity / Gemini CLI / Copilot: `/ticket-init`*
 
-One-time bootstrap. Probes what the session can do, reads the repository, asks
+Bootstrap — and, re-run, update. Probes what the session can do, reads the repository, asks
 only what the repository can't answer, then generates `config.yaml` and applies
 its side effects (stage folders + ledger, or GitHub labels/Project fields), sets
 up research agents, and writes a starter ticket template — plus a **setup
 manifest** recording where every value came from.
 
-**Precondition:** `config.yaml` must **not** already exist — init refuses to
-run over an existing config, with no overwrite option.
+**Two modes.** With no `config.yaml`, init bootstraps the project. With one, it
+enters **update mode** (below) — it never runs a fresh init over an existing
+config.
 
 ## How it is laid out
 
@@ -19,7 +20,7 @@ when the phase starts, so the skill stays small and each phase stays focused.
 
 | Phase | Reference | What it settles |
 | --- | --- | --- |
-| 0 — Orient | `environment.md` | Refuses re-init; probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed. **No web search, no init:** a fresh init stops and redirects, writing nothing |
+| 0 — Orient | `environment.md` | Picks the mode (an existing config → update mode); probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed. **No web search, no init:** a fresh init stops and redirects, writing nothing |
 | 1 — Discover | `discovery.md` | Languages, frameworks, runtimes, datastores, CI, candidate test/lint/build commands, docs to reference, existing agents and assistant footprints — each with its source; confirmed in one gate |
 | 2 — Interview | `interview.md`, `github-project.md` | Preferences only: backend, prefix, inbox, milestones, Project board, NFR profile, branch workflow — a detected fact leads each gate as the recommended answer |
 | 3 — Research | `research.md` | The stack at its locked versions, researched on the web — pitfalls, idioms, security, testing, tooling — one sourced notes file per subject |
@@ -35,7 +36,7 @@ when the phase starts, so the skill stays small and each phase stays focused.
 ```mermaid
 flowchart TD
     Start(["/ticket:init"]) --> Guard{"config.yaml<br/>already exists?"}
-    Guard -->|yes| Refuse["Stop — refuse to overwrite"]
+    Guard -->|yes| Update["Update mode —<br/>see below"]
     Guard -->|no| Probe["Probe environment<br/>web search · fetch · subagents · git · gh"]
     Probe --> Web{"web search<br/>verified?"}
     Web -->|no| Redirect["Stop — nothing written;<br/>run init from a session with web search"]
@@ -91,6 +92,28 @@ at the Plan gate and/or every loop round) or **checker** (blocking, e.g. one
 that enforces an `nfr.budgets` entry). `/ticket:new` and `/ticket:pick` check
 every agent reply with `te agent reply-check` before using it.
 
+## Update mode
+
+Re-run init on an initialised project and it updates instead of bootstrapping
+(`references/init/update.md`):
+
+1. **Load** the config and manifest. A project initialised before manifests
+   existed is **adopted**: its config values become `asked` decisions, and old
+   template-catalog research agents can be converted to generated ones.
+2. **Orient again.** Without web search, update still runs everything that
+   doesn't need it and lists the rest as *pending*.
+3. **Find what changed** — re-detected facts vs the manifest, config values
+   edited by hand (adopted, never reverted), research older than six months or
+   behind a version bump, `te agent drift` (missing agents, contracts gone stale
+   after a bundle upgrade, regions the project edited), new sources that
+   deserve an agent, commands whose source changed.
+4. **One plan, one gate** — Apply all / Choose / Cancel.
+5. **Execute** — re-research, re-check commands, regenerate agents region by
+   region: untouched regions are regenerated, **edited regions go through a
+   three-way gate** (last generated · yours · regenerated → merge / keep /
+   take), user regions are never touched.
+6. **One commit** — `ticket: init — update (…)`.
+
 ## Reads / writes
 
 - **Writes:** `config.yaml` (including the optional `nfr:` profile, `references:` filled from confirmed facts, and `verification:` from the commands the user kept), `setup/manifest.yaml`, `setup/research/<subject>.md` per researched subject, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per generated research agent.
@@ -102,7 +125,8 @@ every agent reply with `te agent reply-check` before using it.
 | Outcome | Result |
 | --- | --- |
 | Bootstrapped | Config + manifest written, side effects applied, single commit made |
-| Refused re-init | Stopped immediately, nothing touched |
+| Updated | Plan applied, agents/research/config refreshed, manifest rewritten, single commit |
+| Up to date | Update found nothing to change — no commit |
 | No git repository | Stopped at the orient phase, nothing touched |
 | No web search | Stopped at the orient phase, nothing touched — run init from a session with web search |
 | Invalid config or manifest | Stopped after writing the files, left uncommitted for inspection |

@@ -91,9 +91,10 @@ its analysis and research steps — see [`/ticket:new`](workflow/new.md).
 
 ## Already set up? Update to the latest version
 
-Paste this prompt to refresh the **shipped** files (commands, skills, review
-agents) while leaving everything you customized — your `config.yaml`, your
-research agents, your ticket template — untouched:
+Paste this prompt to refresh the **shipped** files (commands, skills,
+references, scripts) while leaving everything you customized — your
+`config.yaml`, your generated agents, your ticket template — untouched, then
+let `/ticket:init`'s update mode bring your agents up to date:
 
 ```text
 Look at this repo https://github.com/elmoritz/agents-skills-setup and update my
@@ -104,12 +105,19 @@ existing agents-and-skills bundle to its latest version.
   actually have. If my bundle still lives in `.github/skills/` + `.github/config.yaml`,
   that is the old layout — move it to `.agents/` and tell me what moved.
 - Refresh the SHIPPED files to match the template: the ticket commands, the skills
-  (ticket-engine, milestone-sync, grill-me, …), and the shipped agents (nfr-analyst,
-  challenger, code-reviewer, test-adequacy-reviewer, code-challenger, code-simplifier).
-- Do NOT overwrite anything I customized: my `config.yaml`, the research agents I
-  added under `.claude/agents/` / `.agents/agents/`, and my ticket template. If a
-  shipped file and my customized copy have both changed, show me a diff and ask
-  before touching it — never clobber my edits silently.
+  (ticket-engine, milestone-sync, grill-me, …), the `references/` folder (init's
+  phase references and the agent kinds), and the `scripts/` folder (the te CLI).
+- Do NOT replace my agents under `.claude/agents/` / `.agents/agents/` — the six
+  workflow agents and the research agents were generated for my project. Leave them
+  as they are; the next step refreshes them properly.
+- Do NOT overwrite anything else I customized: my `config.yaml`, my
+  `setup/manifest.yaml` and research notes, and my ticket template. If a shipped
+  file and my customized copy have both changed, show me a diff and ask before
+  touching it — never clobber my edits silently.
+- Finally, run `/ticket:init` (`/ticket-init`, `$ticket-init` on Codex). With my
+  config present it runs in update mode: it refreshes agent contracts that the
+  new kinds changed, re-researches stale parts of my stack, and regenerates my
+  agents region by region — asking before it replaces anything I edited.
 - When you're done, give me a short summary of what changed (new commands, renamed
   files, behavior changes) so I know what's new, and flag anything in my
   `config.yaml` that a new template version now expects.

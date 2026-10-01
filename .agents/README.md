@@ -43,7 +43,7 @@ workflow. Neither ships in the bundle — they guard the template.
 .agents/
 ├── README.md                     this file
 ├── skills/                       the workflow — one skill per command
-│   ├── ticket-init/              /ticket-init   — one-time bootstrap
+│   ├── ticket-init/              /ticket-init   — bootstrap, then update
 │   ├── ticket-new/               /ticket-new    — create ticket(s)
 │   ├── ticket-refine/            /ticket-refine — promote an inbox entry
 │   ├── ticket-pick/              /ticket-pick   — implement next ticket
@@ -88,7 +88,7 @@ stage transitions to the **`ticket-engine`** skill.
 
 | Skill | What it does |
 | --- | --- |
-| `/ticket-init` | Bootstrap a project: write `.agents/config.yaml`, create the stage folders or labels, lay down a starter ticket template. One-time. |
+| `/ticket-init` | Bootstrap a project — read the repo, research its stack, write `.agents/config.yaml` + a setup manifest, create the stage folders or labels, generate the project's agents, lay down a starter ticket template. Re-run it to update. |
 | `/ticket-new` | Create one ticket — or a small slate of dependent ones — through a gated flow that reconciles your intent with the agent's understanding before anything is committed. |
 | `/ticket-refine` | Resume a captured inbox entry and promote it to the backlog (or close it as fold/wontfix). Only available if an inbox stage is configured. |
 | `/ticket-pick` | Pull the next ticket off the backlog and implement it through to review. |
@@ -203,7 +203,7 @@ follows it inline; the instructions are written to work either way.
 
 ## What gets created on first use
 
-`/ticket-init` is the one-time bootstrap. The bundle ships **without** these — the
+`/ticket-init` is the bootstrap (and, re-run, the updater). The bundle ships **without** these — the
 init skill creates them so the rest of the workflow is usable:
 
 - **`.agents/config.yaml`** — the project-scoped workflow configuration. Defines:
@@ -260,9 +260,12 @@ init skill creates them so the rest of the workflow is usable:
 - **`TICKET_TEMPLATE.md`** (filesystem backend) — a starter template covering the
   default ticket types, written at the configured root.
 
-`/ticket-init` refuses to run if a `.agents/config.yaml` already exists, and never
-overwrites an existing `TICKET_TEMPLATE.md`. To re-bootstrap, remove the config and
-re-run.
+Re-running `/ticket-init` on a project that already has `.agents/config.yaml` enters
+**update mode**: it re-reads the repository, re-researches stale stack subjects,
+refreshes agent contracts after a bundle upgrade, and regenerates agents — region
+by region, with a three-way gate for any region you edited, and never touching
+your user regions, your hand-written agents, or an existing `TICKET_TEMPLATE.md`.
+It works without web search too, listing what needs the web as pending.
 
 ## Files you may want to point at (all optional)
 

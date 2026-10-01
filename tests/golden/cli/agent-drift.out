@@ -1,0 +1,19 @@
+ok=true
+agent.perf-expert=ok
+region.perf-expert.role=untouched
+region.perf-expert.source=untouched
+region.perf-expert.method=untouched
+region.perf-expert.knowledge=untouched
+region.perf-expert.user=untouched
+region.perf-expert.legacy=removed
+agent.perf-edited=ok
+region.perf-edited.role=edited
+region.perf-edited.source=untouched
+region.perf-edited.method=untouched
+region.perf-edited.knowledge=untouched
+region.perf-edited.user=untouched
+agent.perf-stale=invalid
+agent.perf-stale.reason=.claude/agents/perf-stale.md: contract region 'rules' differs from kind 'research' — contract regions are copied verbatim, never edited
+agent.perf-gone=missing
+agents=4
+--- exit: 0

@@ -76,6 +76,9 @@ Usage:
                                           declared generated regions, user region; prints
                                           a hash per generated/user region.
   te agent contract <kind>                Print a kind's contract regions, verbatim.
+  te agent drift [manifest]               Per generated agent the manifest records: ok |
+                                          missing | invalid; per region: untouched |
+                                          edited | added | removed (vs recorded hashes).
   te agent reply-check (--kind K | --agent NAME) <reply-file>
                                           Check a subagent reply: one verdict line with
                                           a verdict the kind allows + its headings.
@@ -162,6 +165,7 @@ main() {
         check)    cmd_agent_check "$@" || exit 1 ;;
         contract) strip_flags "$@"; cmd_agent_contract "${ARGS[0]:-}" || exit 1 ;;
         reply-check) cmd_agent_reply_check "$@" || exit 1 ;;
+        drift)    strip_flags "$@"; cmd_agent_drift "${ARGS[0]:-}" || exit 1 ;;
         *) printf 'te: unknown agent subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;

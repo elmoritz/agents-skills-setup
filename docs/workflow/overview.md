@@ -53,7 +53,7 @@ stateDiagram-v2
 
 | Command | What it does | Details |
 | --- | --- | --- |
-| `/ticket:init` | Bootstrap a project: write `config.yaml`, create stage folders or labels, set up research agents, lay down a starter ticket template. One-time. | [→](init.md) |
+| `/ticket:init` | Bootstrap a project — read the repo, research the stack, write `config.yaml` + a setup manifest, create stage folders or labels, generate the project's agents, lay down a starter ticket template. Re-run it to update. | [→](init.md) |
 | `/ticket:new` | Create one ticket — or a dependency-ordered slate — through a gated flow that reconciles intent with the assistant's understanding before anything commits. | [→](new.md) |
 | `/ticket:refine` | Resume a captured inbox entry: promote to backlog, fold into another ticket, or close as wontfix. | [→](refine.md) |
 | `/ticket:pick` | Claim a backlog ticket and implement it through a bounded plan → implement → verify → evaluate loop, ending at review (or done, if no review stage). | [→](pick.md) |

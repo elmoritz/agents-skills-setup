@@ -28,7 +28,7 @@ A backend-agnostic, in-repo issue tracker. Configuration lives in
 
 | Skill | Invoke as | What it does |
 | --- | --- | --- |
-| `ticket-init` | `/ticket-init` | Bootstrap: write `.agents/config.yaml`, create stage folders (with the `.ledger.yaml`) or labels/board fields, guide research-agent setup, lay down a ticket template. One-time. |
+| `ticket-init` | `/ticket-init` | Bootstrap, then update: read the repo, research its stack on the web, write `.agents/config.yaml` + a setup manifest, create stage folders (with the `.ledger.yaml`) or labels/board fields, generate the project's agents, lay down a ticket template. Re-run to refresh. |
 | `ticket-new` | `/ticket-new` | Create a ticket (or a small slate) through a gated, alignment-checked flow. |
 | `ticket-refine` | `/ticket-refine` | Promote an inbox entry to backlog (or fold/wontfix). |
 | `ticket-pick` | `/ticket-pick` | Implement the next ticket through to review. |
