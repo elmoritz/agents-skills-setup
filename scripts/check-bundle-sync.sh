@@ -74,7 +74,6 @@ tpl-web-researcher:.claude/references/research-agents/web-researcher.md:.agents/
 # are covered by scripts/gen-adapters.sh --check instead.
 IGNORE="
 .claude/settings.json
-.claude/references/
 .claude/config.yaml
 .agents/config.yaml
 .agents/workflows/
@@ -90,6 +89,17 @@ DIR_PAIRS="
 scripts:.claude/scripts/:.agents/scripts/
 "
 
+# name:claude-dir:agents-dir — recursively mirrored PROSE directories. Unlike
+# DIR_PAIRS these are compared after normalization (they say `.claude` vs
+# `.agents`, `/ticket:` vs `/ticket-`, AskUserQuestion vs numbered list), so each
+# tracked file is expanded into its own PAIRS entry (`<name>/<relative path>`)
+# and every one of them is equivalence-gated. A file present on one side only
+# fails [ndir]. This is how the init phase references and the agent kinds stay
+# in lockstep without listing every file by hand.
+NDIR_PAIRS="
+ref-init:.claude/references/init/:.agents/references/init/
+"
+
 # Pairs whose two mirrors must be logic-identical (after frontmatter + fence
 # stripping and normalization). The engine and the review agents carry the
 # densest shared logic and diverge only mechanically between bundles, so they
@@ -97,6 +107,36 @@ scripts:.claude/scripts/:.agents/scripts/
 # human-facing READMEs) legitimately rephrases invocation/gate mechanics per
 # platform and relies on the pairing check + the advisory `--equiv` instead.
 EQUIV_CHECK="engine challenger code-challenger code-reviewer code-simplifier nfr-analyst test-adequacy-reviewer tpl-perf-expert tpl-language-expert tpl-precedent-researcher tpl-docs-researcher tpl-api-docs-researcher tpl-design-spec-researcher tpl-web-researcher"
+
+# Expand NDIR_PAIRS into per-file PAIRS + EQUIV_CHECK entries (union of both
+# sides' tracked files, so a one-sided file still gets an entry and fails).
+NDIR_ORPHANS=""
+for _nd in $NDIR_PAIRS; do
+  IFS=: read -r _nn _ncd _ngd <<<"$_nd"
+  for _rel in $( { git ls-files -- "$_ncd" | sed "s|^$_ncd||"; git ls-files -- "$_ngd" | sed "s|^$_ngd||"; } | sort -u ); do
+    if [ ! -f "$_ncd$_rel" ] || [ ! -f "$_ngd$_rel" ]; then
+      NDIR_ORPHANS="$NDIR_ORPHANS $_ncd$_rel:$_ngd$_rel"
+      continue
+    fi
+    PAIRS="$PAIRS
+$_nn/$_rel:$_ncd$_rel:$_ngd$_rel"
+    EQUIV_CHECK="$EQUIV_CHECK $_nn/$_rel"
+  done
+done
+
+check_ndir_orphans() {
+  local fail=0 o c g
+  for o in $NDIR_ORPHANS; do
+    IFS=: read -r c g <<<"$o"
+    if [ -f "$c" ]; then
+      echo "FAIL [ndir]: $c has no mirror at $g."
+    else
+      echo "FAIL [ndir]: $g has no mirror at $c."
+    fi
+    fail=1
+  done
+  return "$fail"
+}
 
 # Canonicalize the documented intentional differences to common tokens so
 # whatever remains is real drift. Reads stdin, writes stdout. The bundle prefix
@@ -195,7 +235,7 @@ check_coverage() {
       IFS=: read -r _ c g <<<"$entry"
       [ "$f" = "$c" ] || [ "$f" = "$g" ] && continue 2
     done
-    for entry in $DIR_PAIRS; do
+    for entry in $DIR_PAIRS $NDIR_PAIRS; do
       IFS=: read -r _ cd gd <<<"$entry"
       case "$f" in "$cd"*|"$gd"*) continue 2 ;; esac
     done
@@ -295,6 +335,7 @@ canon_unchanged() { # canon_unchanged <path-now> <source>
 mode_check() {
   local source="${1:-}" changed fail=0
   check_coverage || fail=1
+  check_ndir_orphans || fail=1
   check_equiv || fail=1
   check_dir_pairs || fail=1
   check_adapters || fail=1
@@ -360,6 +401,8 @@ Bundle drift (see AGENTS.md "Keeping the bundles in sync"):
                          wrap the intentional difference in a
                          <!-- sync:divergent --> … <!-- sync:end --> fence.
   - FAIL [coverage]      a bundle file has no mirror + PAIRS entry.
+  - FAIL [ndir]          a file under a mirrored reference directory exists
+                         on one side only — add its mirror.
   - FAIL [adapters]      a generated platform entry point is stale — run
                          scripts/gen-adapters.sh and commit the result.
 

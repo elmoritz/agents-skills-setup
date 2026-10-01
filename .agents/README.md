@@ -63,6 +63,7 @@ workflow. Neither ships in the bundle — they guard the template.
 ├── workflows/                    Antigravity slash commands (generated routers)
 ├── scripts/                      the te CLI — deterministic half of the engine
 └── references/
+    ├── init/                     /ticket-init's phase references (read when the phase runs)
     └── research-agents/          templates /ticket-init instantiates into agents/
         ├── perf-expert.md            tech-stack performance expert (recommended)
         ├── language-expert.md        language idioms & pitfalls (recommended)

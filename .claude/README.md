@@ -52,6 +52,7 @@ other fails loudly.
 │   ├── code-simplifier.md        proposes behavior-preserving simplifications
 │   └── test-adequacy-reviewer.md judges whether new tests can actually fail
 └── references/
+    ├── init/                     /ticket:init's phase references (read when the phase runs)
     └── research-agents/          templates /ticket:init instantiates into agents/
         ├── perf-expert.md            tech-stack performance expert (recommended)
         ├── language-expert.md        language idioms & pitfalls (recommended)
