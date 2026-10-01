@@ -63,6 +63,8 @@ Identify and read the files relevant to the described work (the whole scenario �
 
 **Dispatch the NFR analyst (always).** Alongside the research agents, dispatch the fixed `nfr-analyst` (`.claude/agents/nfr-analyst.md`) as a read-only subagent — on every ticket, of every type, whether or not any research agent is registered. Pass it the described work, your restated understanding, the files and extension surface identified here, and the best-guess `type`. It returns the non-functional requirements this work carries — each stated measurably with its verification named — plus the dimensions it ruled out and one line on whether any requirement changes the size of the work. It is never configured away and never skipped for being "probably not relevant": `NO NFR SURFACE` is a normal verdict, and the point of asking every time is that omission is the failure being prevented.
 
+**Check every reply before using it.** Save each agent's reply to a temp file and run `.claude/scripts/te agent reply-check --agent <name> <file>` — it confirms the one verdict line and the headings the agent's output contract promises (a hand-written agent without a contract comes back `checked=false`, which is fine). On `ok=false`, re-ask that agent once, quoting the `failed=` line. If the second reply fails too, proceed without it and say so in the step 2 summary — except the `nfr-analyst`, which is never dropped: derive the requirements inline from its output contract and note that the analyst's reply failed the check.
+
 Output a 5–10 line summary:
 
 - Files involved.
@@ -280,6 +282,7 @@ In the compact split path, **Save all to inbox** calls `save_as_inbox` once per 
 - Never skip the step 2.5 alignment grilling when material ambiguity exists. Reconcile understanding before scope, type, or split is locked; a ticket committed on an unverified guess is a defect. If genuinely nothing is ambiguous (every open question was answerable from the codebase), say so explicitly — don't manufacture questions, but don't skip the assessment either.
 - Every committed ticket (single or slate) must carry a `## Decisions & assumptions` section recording the grilled answers and silent defaults.
 - Every committed ticket (single or slate) must carry a `## Non-functional requirements` section, even when it reads `_None_`. Every requirement in it names its verification — an unverifiable requirement is restated until it is checkable or dropped, never recorded as-is.
+- Agent replies are checked before they are used (`te agent reply-check`): one re-ask on a failed check, then the reply is dropped and the drop is reported — never silently folded in.
 - The `nfr-analyst` runs on every ticket, of every type, and is never configured away. Like the research agents it is read-only and advisory: it proposes requirements and pre-drafts the open decisions; the command (never the agent) writes the section and puts every decision to the user.
 - Never commit a ticket to a `pickable`-roled stage with `type: unknown` or any unfilled required field. This applies per-ticket in a slate.
 - Never commit an effort value outside `effort.pickable_allowed`. The engine refuses such writes; the command must re-split at step 3 before retrying.

@@ -1,0 +1,5 @@
+ok=false
+where=reply
+failed=no line matching '### Plan fidelity' — the reply does not follow the code-reviewer output contract
+recovery=re-ask the agent once, quoting this message and its output contract; on a second failure treat the agent as failed
+--- exit: 1

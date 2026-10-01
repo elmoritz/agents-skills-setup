@@ -1,7 +1,11 @@
 # Shipped agents
 
 Six read-only subagents, all `tools: Read, Grep, Glob, Bash` — none of them
-edit anything, and none of them gate you directly. Each returns a verdict
+edit anything, and none of them gate you directly. What ships is each agent's
+**default rendering**: `/ticket:init` regenerates its role, project focus and
+researched knowledge for your stack, while its **contract** — what it is given,
+what it must return, what it may never do — stays exactly as documented on
+these pages (see [`/ticket:init` § Generated agents](../workflow/init.md#generated-agents)). Each returns a verdict
 that the calling session weighs; only the main session ever acts on a
 finding. Alongside the research agents you register yourself (see [Getting
 started § Step 0](../getting-started.md#step-0-research-agents)), these ship

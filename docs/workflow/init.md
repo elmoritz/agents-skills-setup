@@ -24,7 +24,7 @@ when the phase starts, so the skill stays small and each phase stays focused.
 | 2 — Interview | `interview.md`, `github-project.md` | Preferences only: backend, prefix, inbox, milestones, Project board, NFR profile, branch workflow — a detected fact leads each gate as the recommended answer |
 | 3 — Research | `research.md` | The stack at its locked versions, researched on the web — pitfalls, idioms, security, testing, tooling — one sourced notes file per subject |
 | 4 — Verification commands | `verification-commands.md` | Each candidate test/lint/typecheck/build command: run it now (with consent), record it unverified, or skip it |
-| 5 — Design the agents | `generation.md`, `agents/anatomy.md`, `agents/kinds/` | The research-agent set, designed for this project (one per source), generated from the `research` kind and checked with `te agent check` |
+| 5 — Design the agents | `generation.md`, `agents/anatomy.md`, `agents/kinds/` | The research-agent set, designed for this project (one per source); the six workflow agents regenerated for the stack; advisors/checkers only with a reason — all generated from kinds and checked with `te agent check` |
 | 6 — Assistants | `assistants.md` | Which assistants work in the repo |
 | 7 — Assemble | `config.md` | The config, previewed, behind an Apply / Edit / Cancel gate |
 | 8 — Apply | `apply.md`, `manifest.md` | Config + manifest written and validated, side effects, agent files, template, one commit |
@@ -82,6 +82,14 @@ the kind (what the agent is given, what it must return, what it may never do),
 researched knowledge with its sources), and a **user region** init never
 rewrites. `te agent check` enforces the anatomy and prints a hash per region;
 the manifest records them.
+
+That covers the **six workflow agents** too: the bundle ships their default
+renderings, and init regenerates each one's role, project focus and researched
+knowledge for your stack — their contracts never change. Where the research
+gives a concrete reason, init also proposes a project **advisor** (advisory,
+at the Plan gate and/or every loop round) or **checker** (blocking, e.g. one
+that enforces an `nfr.budgets` entry). `/ticket:new` and `/ticket:pick` check
+every agent reply with `te agent reply-check` before using it.
 
 ## Reads / writes
 

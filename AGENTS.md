@@ -63,6 +63,19 @@ that decides done / iterate / re-plan / escalate; capped by
 session folds into the next round's work-list (no user gate). Each also runs
 standalone.
 
+The six are **generated agents**, like everything init writes: each is a
+rendering of its kind under `.agents/references/agents/kinds/`. The bundle ships
+the default rendering; `/ticket-init` regenerates each one's `role`, `focus` and
+`knowledge` regions for the project's researched stack, while the **contract
+regions** — input, output, hard rules, the method the workflow depends on — stay
+byte-identical to the kind (`te agent check` enforces it, and
+`scripts/test-te.sh` checks every shipped rendering). Callers check every
+reply with `te agent reply-check` (one verdict line with a verdict the kind
+allows, plus its headings) before weighing it; a blocking checker whose reply
+fails twice is an open blocking finding. Init may also generate project
+**advisors** (kind `advisor`) and **checkers** (kind `checker`) when the
+research gives a concrete reason.
+
 Each review agent is registered with every assistant that supports custom
 subagents — `.codex/agents/<name>.toml`, `.gemini/agents/<name>.md`,
 `.github/agents/<name>.agent.md`, and, for Antigravity, `.agents/agents/<name>.md`

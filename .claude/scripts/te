@@ -76,6 +76,9 @@ Usage:
                                           declared generated regions, user region; prints
                                           a hash per generated/user region.
   te agent contract <kind>                Print a kind's contract regions, verbatim.
+  te agent reply-check (--kind K | --agent NAME) <reply-file>
+                                          Check a subagent reply: one verdict line with
+                                          a verdict the kind allows + its headings.
   te slug "<title>" [--dry-run]           Kebab-case slug for a filename.
   te id next [--count N] [config]         Next filesystem ID(s), or NEW-k on github.
   te deps check <id> --depends-on <ids> [--slate <ids>] [config]
@@ -158,6 +161,7 @@ main() {
       case "$sub" in
         check)    cmd_agent_check "$@" || exit 1 ;;
         contract) strip_flags "$@"; cmd_agent_contract "${ARGS[0]:-}" || exit 1 ;;
+        reply-check) cmd_agent_reply_check "$@" || exit 1 ;;
         *) printf 'te: unknown agent subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;

@@ -156,7 +156,9 @@ research:
     - name: <agent-name>
       consult: "<one line: when ticket creation should dispatch it>"
 review:
-  agents: [code-reviewer, test-adequacy-reviewer]
+  agents: [code-reviewer, test-adequacy-reviewer<, any generated checker>]
+  <plan_advisors: [<generated advisors for the Plan gate>] — or keep the comment below>
+  <advisors: [<generated advisors for every loop round>] — or keep the comment below>
   # plan_advisors: [<name>, ...]   # extra agents dispatched alongside the
   #   fixed `challenger` at the step 3 plan gate. Optional, fill in when ready.
   # advisors: [<name>, ...]        # extra agents dispatched alongside the

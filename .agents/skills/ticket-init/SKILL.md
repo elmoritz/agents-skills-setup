@@ -86,12 +86,14 @@ the trusted ones for `verification:`.
 Read `.agents/references/init/generation.md` and the agent anatomy
 (`.agents/references/agents/anatomy.md`). Register hand-written agents the user
 selects; design this project's research-agent set — one agent per source of
-information — from the facts and the research notes; gate on the set; then
-generate each from its kind into a scratch directory, with the researched
-knowledge and its sources in its generated regions, and check it with
-`te agent check`.
+information — from the facts and the research notes, and gate on it; regenerate
+the six workflow agents' role, focus and knowledge for this stack (their
+contracts never change); propose a project advisor or checker only where the
+research gives a concrete reason. Every agent is generated from its kind into a
+scratch directory, with researched knowledge and its sources in its generated
+regions, and checked with `te agent check`.
 
-**Gate:** the user approved the set, and every generated agent passes `te agent check`.
+**Gate:** the user approved the sets, and every generated agent passes `te agent check`.
 
 ### Phase 6 — assistants
 
@@ -141,7 +143,8 @@ Research: <N subjects — <done> done, <thin> thin · notes in .agents/setup/res
 Verification: <commands kept, each with its status — e.g. `npm test` verified (412 passed), `npm run lint` unverified | none>
 Detected: <N facts — <M> corrected by you> · provenance recorded in .agents/setup/manifest.yaml
 Research agents: <N generated — <name (research: done|thin|none)>, …; M registered hand-written | none (ticket creation reads sources inline)>
-Review agents: code-reviewer, test-adequacy-reviewer (loop cap: <max_loop_rounds> rounds)
+Workflow agents: challenger, code-challenger, code-reviewer, code-simplifier, nfr-analyst, test-adequacy-reviewer — regenerated for <stack> (loop cap: <max_loop_rounds> rounds)
+Project reviewers: <generated advisors/checkers and where they are registered | none>
 Branch workflow: <enabled — merge: <merge_strategy>, PR: <github | none> | disabled>
 
 Next steps:

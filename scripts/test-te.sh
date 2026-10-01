@@ -159,7 +159,25 @@ run_board_standalone() {
   count=$((count + 1))
 }
 
+# ---- structural assertion: every shipped agent is a valid rendering of its kind
+# (anatomy, contract regions byte-identical to the kind, declared generated
+# regions, user region), checked by each bundle's own te.
+check_shipped_agents() {
+  local bundle f out
+  for bundle in .claude .agents; do
+    for f in "$bundle"/agents/*.md; do
+      [ -f "$f" ] || continue
+      if ! out=$("$bundle/scripts/te" agent check "$f" 2>&1); then
+        echo "FAIL [agents]: $f is not a valid rendering of its kind:"; printf '%s\n' "$out" | sed 's/^/    /'
+        fail=1
+      fi
+      count=$((count + 1))
+    done
+  done
+}
+
 check_exec_bits
+check_shipped_agents
 if [ ! -x "$TE" ]; then echo "Cannot run: $TE is not executable." >&2; exit 1; fi
 
 for dir in tests/fixtures/config/*/; do

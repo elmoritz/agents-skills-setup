@@ -2,6 +2,9 @@
 kind: research
 regions: role source method knowledge
 tools: Read, Grep, Glob, Bash  (add WebSearch, WebFetch only when the source is on the web)
+reply_label: Verdict
+reply_verdicts: "ANSWERED; PARTIAL; SILENT"
+reply_headings: "## Research findings: *; ### Findings; ### Constraints for the ticket; ### Risks"
 ---
 <!-- agent-kind: research -->
 

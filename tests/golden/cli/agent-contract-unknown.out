@@ -1,5 +1,5 @@
 ok=false
 where=agent
 failed=unknown agent kind 'oracle' (no .claude/references/agents/kinds/oracle.md)
-recovery=use one of: research 
+recovery=use one of: advisor challenger checker code-challenger code-reviewer code-simplifier nfr-analyst research test-adequacy-reviewer 
 --- exit: 1

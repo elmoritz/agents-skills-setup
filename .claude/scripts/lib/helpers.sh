@@ -595,3 +595,85 @@ cmd_agent_contract() {
     printf '<!-- contract:end id=%s -->\n\n' "$id"
   done
 }
+
+# te agent reply-check (--kind K | --agent NAME) <reply-file> — the light check a
+# caller runs on a subagent's reply before trusting it: exactly one
+# `**<label>:** <value>` line whose value matches one of the kind's verdicts
+# (glob patterns, `; `-separated), and a line matching each required heading.
+# A hand-written agent (no agent-kind marker) has no contract: ok, unchecked.
+cmd_agent_reply_check() {
+  local kind="" agent="" rf="" af kf kd label verdicts headings n v pat matched line IFS_SAVE
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind) kind="$2"; shift 2 ;;
+      --agent) agent="$2"; shift 2 ;;
+      --dry-run) shift ;;
+      *) rf="$1"; shift ;;
+    esac
+  done
+  [ -n "$rf" ] && [ -f "$rf" ] || { te_emit_fail "reply" "reply file not found: ${rf:-<none>}" "save the agent's reply to a file and pass its path"; return 1; }
+  if [ -z "$kind" ]; then
+    [ -n "$agent" ] || { te_emit_fail "reply" "pass --kind K or --agent NAME" "te agent reply-check --agent code-reviewer reply.md"; return 1; }
+    af="$TE_BUNDLE/agents/$agent.md"
+    [ -f "$af" ] || { te_emit_fail "reply" "no agent file for '$agent' in $(basename "$TE_BUNDLE")/agents/" "check the name"; return 1; }
+    _agent_parse "$af" "$TE_TMPD/ragent" || return 1
+    while IFS="$(printf '\t')" read -r t a _; do [ "$t" = KIND ] && kind=$a; done < "$TE_TMPD/ragent/recs"
+    if [ -z "$kind" ]; then
+      printf 'ok=true\nchecked=false\nnote=%s is hand-written (no agent-kind marker); its reply has no contract to check\n' "$agent"
+      return 0
+    fi
+  fi
+  kf="$(te_kinds_dir)/$kind.md"
+  [ -f "$kf" ] || { te_emit_fail "reply" "unknown agent kind '$kind' (no $(basename "$TE_BUNDLE")/references/agents/kinds/$kind.md)" "check the kind"; return 1; }
+  kd="$TE_TMPD/rkind"
+  _agent_parse "$kf" "$kd" || return 1
+  label=$(_rec "$kd/recs" FM reply_label || true)
+  verdicts=$(_rec "$kd/recs" FM reply_verdicts || true)
+  headings=$(_rec "$kd/recs" FM reply_headings || true)
+  [ -n "$label" ] && [ -n "$verdicts" ] || { te_emit_fail "reply" "kind '$kind' declares no reply_label/reply_verdicts" "add them to the kind's frontmatter"; return 1; }
+
+  n=0; v=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      "**$label:** "*) n=$((n + 1)); v=${line#"**$label:** "} ;;
+    esac
+  done < "$rf"
+  v=$(printf '%s' "$v" | sed -e 's/[[:space:]]*$//')
+  if [ "$n" -ne 1 ]; then
+    te_emit_fail "reply" "expected exactly one '**$label:** <verdict>' line, found $n" \
+      "re-ask the agent once, quoting this message and its output contract; on a second failure treat the agent as failed"
+    return 1
+  fi
+  matched=0
+  IFS_SAVE=$IFS; IFS=';'
+  for pat in $verdicts; do
+    pat=${pat# }; pat=${pat% }
+    # shellcheck disable=SC2254
+    case "$v" in $pat) matched=1 ;; esac
+  done
+  IFS=$IFS_SAVE
+  if [ "$matched" -ne 1 ]; then
+    te_emit_fail "reply" "'**$label:** $v' is not one of: $verdicts" \
+      "re-ask the agent once, quoting this message and its output contract; on a second failure treat the agent as failed"
+    return 1
+  fi
+  IFS=';'
+  for pat in $headings; do
+    IFS=$IFS_SAVE
+    pat=${pat# }; pat=${pat% }
+    [ -n "$pat" ] || continue
+    matched=0
+    while IFS= read -r line || [ -n "$line" ]; do
+      # shellcheck disable=SC2254
+      case "$line" in $pat) matched=1; break ;; esac
+    done < "$rf"
+    if [ "$matched" -ne 1 ]; then
+      te_emit_fail "reply" "no line matching '$pat' — the reply does not follow the $kind output contract" \
+        "re-ask the agent once, quoting this message and its output contract; on a second failure treat the agent as failed"
+      return 1
+    fi
+    IFS=';'
+  done
+  IFS=$IFS_SAVE
+  printf 'ok=true\nchecked=true\nkind=%s\nverdict=%s\n' "$kind" "$v"
+}

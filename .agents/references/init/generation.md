@@ -1,11 +1,20 @@
 # Init — designing and generating the agents
 
-Read by `/ticket-init` in its agent-design phase. There is no fixed catalog of
-research agents: the set is **designed for this project** from what the
-discover phase found and what the research phase learned, then each agent is
-**generated** from a kind (`.agents/references/agents/kinds/`) following the
-anatomy in `.agents/references/agents/anatomy.md`. Read the anatomy before
-writing the first agent.
+Read by `/ticket-init` in its agent-design phase. Every agent the workflow
+dispatches is **generated for this project** from a kind
+(`.agents/references/agents/kinds/`) following the anatomy in
+`.agents/references/agents/anatomy.md` — read the anatomy before writing the
+first agent. Three groups come out of this phase:
+
+1. **Research agents** — there is no fixed catalog: the set is designed from
+   what the discover phase found and what the research phase learned
+   (sections 1–4).
+2. **The six workflow agents** — `challenger`, `code-challenger`,
+   `code-reviewer`, `code-simplifier`, `nfr-analyst`, `test-adequacy-reviewer`.
+   Their contracts are the workflow's and never change; their role, focus and
+   knowledge are regenerated for this stack (section 5).
+3. **Project advisors and checkers** — only when the research gives a concrete
+   reason (section 6).
 
 <!-- sync:divergent -->
 Gates here are numbered lists; the user replies with the number.
@@ -88,12 +97,74 @@ description — and run `te agent check` on each result yourself.
 - **Config:** each generated or registered agent becomes a `research.agents`
   entry — `name` plus a one-line `consult` hint (when ticket creation should
   dispatch it, e.g. `"the work could affect latency, memory, or throughput"`).
-- **Manifest:** each *generated* agent gets an `agents:` entry
+- **Config:** generated checkers join `review.agents`; generated advisors join
+  `review.plan_advisors` and/or `review.advisors`.
+- **Manifest:** each *generated* agent — the six workflow agents included — gets an `agents:` entry
   (`.agents/references/init/manifest.md`) — name, kind, path, `generated_at`,
   `research` (`done` when its knowledge came from `done` subjects, `thin` when
   any feeding subject was thin, `none` when it reads its source live), the
   research subject ids that fed it, and the region hashes `te agent check`
   printed.
 
-**Gate:** every agent in the approved set passed `te agent check` in the
-scratch directory.
+## 5. Regenerate the workflow agents
+
+The bundle ships a **default rendering** of each workflow agent in
+`.agents/agents/<name>.md`: its kind's contract, the stance in its `role`, and
+`focus` / `knowledge` regions that still read *"No project-specific focus yet
+…"* / *"None yet."*. Regenerate each one for this project, into the scratch
+directory:
+
+1. Copy the current file. Keep its contract regions and its user region exactly
+   as they are.
+2. Rewrite `role`, `focus` and `knowledge` per the guidance in
+   `.agents/references/agents/kinds/<name>.md`, from the research notes — each
+   kind says which topics it draws on (the reviewers lean on `idioms` and
+   `security`, `test-adequacy-reviewer` on `testing`, `nfr-analyst` and the
+   challengers on `pitfalls`). Every item keeps its source.
+3. Run `.agents/scripts/te agent check <file> --kind <name>` until `ok=true`.
+
+**Edited before init?** If a workflow agent's `focus` or `knowledge` no longer
+reads the shipped default, the project changed it by hand. Show the current
+region beside the regenerated one and gate (numbered list):
+
+- **question:** "`<name>` has hand-edited <focus/knowledge>. Which version should it keep?"
+- **header:** "<name>"
+- **options:**
+  - **Merge (Recommended)** — keep every hand-written item and add the researched ones beneath it.
+  - **Keep mine** — leave the region exactly as it is.
+  - **Take the regenerated one** — replace it.
+
+Thin research for every subject is not a reason to skip this: say so in each
+`focus` and keep the default method — the contract still applies.
+
+## 6. Project advisors and checkers — only with a reason
+
+Most projects need none. Propose one only when a fact or a research finding
+names a concrete, recurring risk that the six workflow agents do not specialise
+in, and say which:
+
+- an **advisor** (kind `advisor`) — an advisory specialty pass, e.g. a
+  migration reviewer for a datastore whose migrations the research flags as
+  irreversible, or an accessibility advisor for a UI framework with a published
+  `accessibility` budget. Registered under `review.plan_advisors` (Plan gate),
+  `review.advisors` (every loop round), or both.
+- a **checker** (kind `checker`) — a **blocking** check for a hard requirement
+  the project cannot ship without: a budget in `nfr.budgets`, a compliance rule
+  the docs name. Registered in `review.agents` beside `code-reviewer` and
+  `test-adequacy-reviewer`.
+
+Show each proposal with its reason and where it would be registered, then gate
+(numbered list):
+
+- **question:** "Add these project-specific reviewers?"
+- **header:** "Reviewers"
+- **options:**
+  - **None for now (Recommended)** — the six workflow agents cover the review loop.
+  - **Add them** — generate each from its kind into the scratch directory and check it.
+  - **Choose** — free-text follow-up naming which to keep.
+
+Recommend **Add them** instead when a checker enforces an existing
+`nfr.budgets` entry — a budget nothing checks is a budget that drifts.
+
+**Gate:** every agent — research agents, the six workflow agents, and any
+advisor or checker — passed `te agent check` in the scratch directory.

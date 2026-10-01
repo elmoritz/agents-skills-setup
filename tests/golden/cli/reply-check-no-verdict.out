@@ -1,0 +1,5 @@
+ok=false
+where=reply
+failed=expected exactly one '**Verdict:** <verdict>' line, found 0
+recovery=re-ask the agent once, quoting this message and its output contract; on a second failure treat the agent as failed
+--- exit: 1

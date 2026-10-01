@@ -67,7 +67,11 @@ workflow. Neither ships in the bundle — they guard the template.
     └── agents/                   how init generates agents
         ├── anatomy.md                the one skeleton every generated agent follows
         └── kinds/                    per-kind contract + generation guidance
-            └── research.md           a research agent: one source, distilled findings
+            ├── research.md           a research agent: one source, distilled findings
+            ├── advisor.md            a project-specific advisory reviewer
+            ├── checker.md            a project-specific blocking checker
+            └── <six workflow kinds>  challenger, code-challenger, code-reviewer,
+                                      code-simplifier, nfr-analyst, test-adequacy-reviewer
 ```
 
 Everything above ships in the bundle. Anything **not** in this tree —

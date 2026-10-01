@@ -1,0 +1,5 @@
+ok=false
+where=reply
+failed='**Verdict:** PASS | PASS WITH SUGGESTIONS | BLOCKED' is not one of: PASS; PASS WITH SUGGESTIONS; BLOCKED
+recovery=re-ask the agent once, quoting this message and its output contract; on a second failure treat the agent as failed
+--- exit: 1
