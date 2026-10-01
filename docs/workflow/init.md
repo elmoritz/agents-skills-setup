@@ -2,12 +2,31 @@
 
 *Codex: `$ticket-init` · Antigravity / Gemini CLI / Copilot: `/ticket-init`*
 
-One-time bootstrap. Interactively generates `config.yaml`, applies its side
-effects (stage folders + ledger, or GitHub labels/Project fields), sets up
-research agents, and writes a starter ticket template.
+One-time bootstrap. Probes what the session can do, reads the repository, asks
+only what the repository can't answer, then generates `config.yaml` and applies
+its side effects (stage folders + ledger, or GitHub labels/Project fields), sets
+up research agents, and writes a starter ticket template — plus a **setup
+manifest** recording where every value came from.
 
 **Precondition:** `config.yaml` must **not** already exist — init refuses to
 run over an existing config, with no overwrite option.
+
+## How it is laid out
+
+The skill is a **spine** of phases, each ending in a gate. The substance of
+each phase lives in a reference file under `references/init/` that is read only
+when the phase starts, so the skill stays small and each phase stays focused.
+
+| Phase | Reference | What it settles |
+| --- | --- | --- |
+| 0 — Orient | `environment.md` | Refuses re-init; probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed |
+| 1 — Discover | `discovery.md` | Languages, frameworks, runtimes, datastores, CI, candidate test/lint/build commands, docs to reference, existing agents and assistant footprints — each with its source; confirmed in one gate |
+| 2 — Interview | `interview.md`, `github-project.md` | Preferences only: backend, prefix, inbox, milestones, Project board, NFR profile, branch workflow — a detected fact leads each gate as the recommended answer |
+| 3 — Research agents | `research-agents.md` | The research-agent set ticket creation dispatches |
+| 4 — Assistants | `assistants.md` | Which assistants work in the repo |
+| 5 — Assemble | `config.md` | The config, previewed, behind an Apply / Edit / Cancel gate |
+| 6 — Apply | `apply.md`, `manifest.md` | Config + manifest written and validated, side effects, agent files, template, one commit |
+| 7 — Report | — | What was set up and what to do next |
 
 ## Flow
 
@@ -15,70 +34,41 @@ run over an existing config, with no overwrite option.
 flowchart TD
     Start(["/ticket:init"]) --> Guard{"config.yaml<br/>already exists?"}
     Guard -->|yes| Refuse["Stop — refuse to overwrite"]
-    Guard -->|no| G1{"Gate: backend<br/>filesystem or GitHub?"}
-
-    G1 -->|filesystem| G2fs{"Gate: ticket root<br/>docs/project/, tickets/, .tickets/"}
-    G1 -->|github| Detect["Detect repo via gh repo view"]
-    Detect --> G2gh{"Gate: confirm repo"}
-    G2gh --> DetectTypes["Detect org issue types"]
-    DetectTypes --> G2map{"Gate: map type_map<br/>proposed / edit / labels-only"}
-
-    G2fs --> G3
-    G2map --> G3
-
-    G3{"Gate: ticket ID prefix"} --> G4{"Gate: include inbox stage?"}
-    G4 --> G5{"Gate: milestones strategy<br/>Auto / Labels / None"}
-
-    G5 --> G6{"backend == github?"}
-    G6 -->|no| G7
-    G6 -->|yes| G6a{"Gate: link a GitHub<br/>Project v2 board?"}
-    G6a -->|no| G7
-    G6a -->|yes| ProjSetup["Resolve owner, list projects"]
-    ProjSetup --> G6b{"Gate: pick a project,<br/>or Create a new Project<br/>(default if none exist)"}
-    G6b -->|existing| ProjFields["Read Status field,<br/>build status_map,<br/>plan Priority/Effort/Risk fields"]
-    G6b -->|create new| ProjPending["Record title, mark project pending —<br/>nothing created yet"]
-    ProjPending --> ProjPlan["Plan Status from stage labels +<br/>Priority/Effort/Risk fields<br/>(all missing by construction)"]
-    ProjFields --> G7
-    ProjPlan --> G7
-
-    G7["Detect existing hand-authored<br/>research agents"] --> G7a{"found any?"}
-    G7a -->|yes| G7g{"Gate: register which ones"}
-    G7a -->|no| G7cat
-    G7g --> G7cat{"Gate: pick from catalog<br/>(multiSelect)<br/>perf-expert · language-expert ·<br/>docs-researcher · api-docs-researcher ·<br/>design-spec-researcher · precedent-researcher ·<br/>web-researcher"}
-    G7cat --> G7fill["Fill template blanks<br/>(stack, doc paths…)"]
-    G7fill --> G7custom{"Gate: add a custom<br/>source agent? (loop)"}
-    G7custom -->|add one| G7fill
-    G7custom -->|done| G7nfr{"Gate: NFR dimensions<br/>all eight / a subset"}
-    G7nfr --> G7bud{"Gate: project budgets?<br/>(numbers the analyst cites)"}
-    G7bud --> G8
-
-    G8{"Gate: which assistants<br/>read this repo?"} --> G8a{"Gate: branch per ticket?<br/>(pick + close manage a<br/>git branch, default yes)"}
-    G8a -->|no| G9["Assemble full config.yaml<br/>from all gate answers"]
-    G8a -->|yes| G8b{"Gate: merge strategy<br/>merge / squash / ff_only"}
-    G8b --> G8c{"backend == github?"}
-    G8c -->|no| G9
-    G8c -->|yes| G8d{"Gate: local merge or<br/>GitHub PR?"}
-    G8d --> G9
-    G9 --> G9g{"Gate: Apply / Edit / Cancel"}
-    G9g -->|edit| G9
+    Guard -->|no| Probe["Probe environment<br/>web search · fetch · subagents · git · gh"]
+    Probe --> Discover["Read the repository —<br/>facts with sources"]
+    Discover --> Confirm{"Gate: detected facts<br/>look right?"}
+    Confirm -->|correct some| Discover
+    Confirm -->|yes| Interview["Preference gates,<br/>detected answers first"]
+    Interview --> Research["Research-agent set"]
+    Research --> Assist["Assistants"]
+    Assist --> Assemble["Assemble config.yaml"]
+    Assemble --> G9g{"Gate: Apply / Edit / Cancel"}
+    G9g -->|edit| Assemble
     G9g -->|cancel| Cancelled["Nothing written"]
-    G9g -->|apply| CreateProject{"project was<br/>pending?"}
-    CreateProject -->|yes| DoCreateProject["gh project create —<br/>resolve real project number"]
-    DoCreateProject --> Apply["Write config.yaml, verify/chmod te,<br/>load_and_validate()"]
-    CreateProject -->|no| Apply
-
-    Apply --> Valid{"config valid?"}
-    Valid -->|no| AbortInvalid["Stop — uncommitted file<br/>left for inspection"]
-    Valid -->|yes| SideEffects["Create backend side effects:<br/>FS stage folders + ledger stub, or<br/>GH labels + Project fields"]
-    SideEffects --> WriteAgents["Write research agent files<br/>(never overwrite existing)"]
-    WriteAgents --> Template["Write TICKET_TEMPLATE.md<br/>(FS only, skip if exists)"]
-    Template --> Commit["Single commit:<br/>ticket: init — bootstrap workflow"]
+    G9g -->|apply| CreateProject{"Project<br/>pending?"}
+    CreateProject -->|yes| DoCreateProject["gh project create"]
+    DoCreateProject --> Apply
+    CreateProject -->|no| Apply["Write + validate config.yaml<br/>and setup/manifest.yaml"]
+    Apply --> Valid{"both valid?"}
+    Valid -->|no| AbortInvalid["Stop — uncommitted files<br/>left for inspection"]
+    Valid -->|yes| SideEffects["Backend side effects,<br/>agent files, template"]
+    SideEffects --> Commit["Single commit:<br/>ticket: init — bootstrap workflow"]
     Commit --> Report(["Report summary + next steps"])
 ```
 
+## The setup manifest
+
+`setup/manifest.yaml` sits beside `config.yaml` and is committed with it. It
+records the environment probe, every detected fact with the file it came from,
+and every decision with its **provenance** — `asked` (the user chose),
+`detected` (read from the repository and confirmed), or `default` (the user
+skipped and the recommended option was taken). It is machine-owned and
+validated by `te manifest validate`; a reader can always tell which choices were
+deliberate.
+
 ## Reads / writes
 
-- **Writes:** `config.yaml` (including the optional `nfr:` profile), stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
+- **Writes:** `config.yaml` (including the optional `nfr:` profile and `references:` filled from confirmed facts), `setup/manifest.yaml`, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
 - **Branch workflow gate:** decides the `git:` block — `branch_workflow`, `merge_strategy`, and (github backend only) `pr_integration`. Defaults to branch-per-ticket enabled with a `--no-ff` merge and no PR integration.
 - **GitHub side effects:** creates labels, verifies/creates issue-type map, creates the Project itself if none existed (before anything else in the apply step), verifies/creates Project fields (including a `Status` field seeded from the project's own stage labels, when one didn't already exist).
 
@@ -86,9 +76,10 @@ flowchart TD
 
 | Outcome | Result |
 | --- | --- |
-| Bootstrapped | Config written, side effects applied, single commit made |
+| Bootstrapped | Config + manifest written, side effects applied, single commit made |
 | Refused re-init | Stopped immediately, nothing touched |
-| Invalid config | Stopped after writing the file, left uncommitted for inspection |
+| No git repository | Stopped at the orient phase, nothing touched |
+| Invalid config or manifest | Stopped after writing the files, left uncommitted for inspection |
 | Cancelled at final gate | Nothing written |
 
 ## See also

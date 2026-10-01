@@ -2,8 +2,8 @@
 # te-scaffold.sh — headless, non-interactive equivalent of /ticket:init: generate
 # a complete, VALID project for one config flavor so the workflow can be
 # exercised (dry-runs, examples, E2E tests) without walking init's gates. The
-# generated config mirrors /ticket:init step 6's skeleton; the side effects
-# mirror step 7. NOT shipped in the bundle — this is template/test infrastructure
+# generated config mirrors /ticket:init's assemble-phase skeleton; the side
+# effects (and the setup manifest) mirror its apply phase. NOT shipped in the bundle — this is template/test infrastructure
 # (repo-root scripts/), like tests/.
 #
 # Usage:
@@ -180,7 +180,48 @@ for a in code-reviewer test-adequacy-reviewer $(printf '%s' "$RESEARCH" | tr ','
   printf -- '---\nname: %s\ndescription: stub for the scaffolded example\n---\nstub\n' "$a" > "$CFG/agents/$a.md"
 done
 
-# ---- side effects (step 7) ----------------------------------------------------
+# ---- setup manifest (init's apply phase writes it beside the config) ----------
+# A fixed timestamp keeps the committed examples byte-stable across regenerations.
+mkdir -p "$CFG/setup"
+{
+  cat <<'EOF'
+# Machine-owned by /ticket:init. Validate: .claude/scripts/te manifest validate
+version: 1
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+
+environment:
+  web_search: verified
+  web_fetch: verified
+  subagents: verified
+  git: verified
+EOF
+  printf '  gh: %s\n' "$([ "$BACKEND" = github ] && echo verified || echo unavailable)"
+  cat <<EOF
+
+facts:
+  - key: project.name
+    value: "$(basename "$OUT")"
+    source: "repository folder name"
+    provenance: detected
+
+decisions:
+  - key: backend.type
+    value: $BACKEND
+    provenance: asked
+  - key: ticket_id.prefix
+    value: $PREFIX
+    provenance: default
+  - key: milestones.strategy
+    value: $MILESTONES
+    provenance: asked
+  - key: lifecycle.inbox
+    value: $([ "$INBOX" -eq 1 ] && echo enabled || echo disabled)
+    provenance: asked
+EOF
+} > "$CFG/setup/manifest.yaml"
+
+# ---- side effects (the apply phase) -------------------------------------------
 if [ "$BACKEND" = filesystem ]; then
   for s in $([ "$INBOX" -eq 1 ] && echo inbox) backlog in-progress in-review done; do
     mkdir -p "$OUT/$ROOT/$s"; : > "$OUT/$ROOT/$s/.gitkeep"
@@ -272,6 +313,7 @@ fi
 # backend.filesystem.root resolves relative to the config, exactly as at runtime.
 if [ "$VALIDATE" -eq 1 ]; then
   ( cd "$OUT" && "$TE" config validate >/dev/null ) || { echo "te-scaffold: config validation FAILED for $OUT" >&2; exit 1; }
+  ( cd "$OUT" && "$TE" manifest validate >/dev/null ) || { echo "te-scaffold: manifest validation FAILED for $OUT" >&2; exit 1; }
   if [ "$BACKEND" = filesystem ]; then
     ( cd "$OUT" && "$TE" ledger validate >/dev/null ) || { echo "te-scaffold: ledger validation FAILED for $OUT" >&2; exit 1; }
   fi

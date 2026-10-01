@@ -12,6 +12,8 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
 
    Then run the ticket-engine's `load_and_validate()` operation (`.claude/skills/ticket-engine/SKILL.md`) against the written file — it runs `te config validate` — to confirm it parses and passes schema validation. If it fails, surface the exact error and **stop before any side effects or commit** — init assembled the YAML, so a failure here is an init bug worth showing, not user error. The invalid file is left uncommitted for the user to inspect or remove.
 
+   **Write the setup manifest** per `.claude/references/init/manifest.md` — the environment probe, the confirmed facts, and every decision with its provenance — then run `.claude/scripts/te manifest validate .claude/setup/manifest.yaml`. A failure is an init bug, handled exactly like a config that fails validation: surface the exact message and stop before any side effect or commit.
+
 2. **Backend side effects.**
 
    - **Filesystem**: create the stage folders under `backend.filesystem.root`. For each stage in the config, run `mkdir -p <root>/<stage.filesystem.folder>`. If the resolved milestones strategy is `trackers`, also create `<root>/<milestones.trackers.planned_active_folder>/` and ensure `<root>/<milestones.trackers.shipped_folder>/` exists (the milestone tracker may end up here). Write the **ledger stub** at `<root>/.ledger.yaml` — the machine-owned comment header from the ticket-engine § Ledger and an empty map (`{}`); it is the authoritative home of `depends_on`/`related`/`milestone` from the first ticket on.
@@ -31,13 +33,13 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
 
 3. **Starter `TICKET_TEMPLATE.md`** (filesystem only, only if `references.template` is non-null). Write a minimal template covering the four default types: a per-type `##` heading block listing each `required_body_sections` entry as its own `###` heading with a one-line prompt explaining what goes there. After the per-type blocks, add the two sections every ticket carries regardless of type — `## Decisions & assumptions` and `## Non-functional requirements` — each with a one-line prompt (the latter noting that every requirement names the verification that proves it). If the user already has a TICKET_TEMPLATE.md at the target path, do not overwrite — skip with a note.
 
-4. **Single commit** (filesystem) covering the new config, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research agent files, and the template if generated:
+4. **Single commit** (filesystem) covering the new config, the setup manifest, the stage folders (with `.gitkeep` placeholders so empty folders survive), the ledger stub, the research agent files, and the template if generated:
 
    ```
    ticket: init — bootstrap workflow for <backend>
    ```
 
-   On GitHub backend: commit `.claude/config.yaml` plus the research agent files (label/field creation is GH-side, no local files). One commit:
+   On GitHub backend: commit `.claude/config.yaml`, `.claude/setup/manifest.yaml`, plus the research agent files (label/field creation is GH-side, no local files). One commit:
 
    ```
    ticket: init — bootstrap workflow for github (<repo>)

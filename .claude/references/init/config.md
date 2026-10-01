@@ -174,12 +174,12 @@ nfr:
     <dimension>: "<the project's own number or standard>"
 
 # --- Project references (all optional; engine silently skips if missing) -----
-references:
-  architecture:   null
-  conventions:    null
-  roadmap:        null
+references:                 # confirmed discover-phase facts; null where none was found
+  architecture:   <references.architecture fact, or null>
+  conventions:    <references.conventions fact, or null>
+  roadmap:        <references.roadmap fact, or null>
   template:       <root>/TICKET_TEMPLATE.md   # filesystem only; null on github
-  project_readme: null
+  project_readme: <references.project_readme fact, or null>
 
 # --- Verification -----------------------------------------------------
 verification:

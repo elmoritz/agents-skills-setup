@@ -383,3 +383,56 @@ cmd_msg() {
   TE_MSG_status="$status" TE_MSG_version="$version" TE_MSG_reason="$reason" \
     awk -f "$TE_LIB/msg.awk"
 }
+
+# ---- setup manifest (<bundle>/setup/manifest.yaml) ---------------------------
+# Walk up from cwd for <bundle>/setup/manifest.yaml. Prints the path, or rc 1.
+te_discover_manifest() {
+  local bundle_name dir
+  bundle_name=$(basename "$TE_BUNDLE")
+  dir=$PWD
+  while :; do
+    if [ -f "$dir/$bundle_name/setup/manifest.yaml" ]; then
+      printf '%s\n' "$dir/$bundle_name/setup/manifest.yaml"
+      return 0
+    fi
+    [ "$dir" = "/" ] && break
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
+
+# te manifest validate [path] — parse with config.awk (same YAML subset), then
+# apply manifest.awk's rules. Read-only.
+cmd_manifest_validate() {
+  local mf="" bundle rc out
+  while [ $# -gt 0 ]; do case "$1" in --dry-run) shift ;; *) mf="$1"; shift ;; esac; done
+  bundle=$(basename "$TE_BUNDLE")
+  if [ -z "$mf" ]; then
+    if ! mf=$(te_discover_manifest); then
+      te_emit_fail "discovery" "No $bundle/setup/manifest.yaml found between $PWD and /." \
+        "Run /ticket:init — it writes the manifest beside config.yaml — or pass the path explicitly."
+      return 1
+    fi
+  fi
+  if [ ! -f "$mf" ]; then
+    te_emit_fail "discovery" "manifest not found: $mf" "check the path, or run /ticket:init"
+    return 1
+  fi
+  set +e
+  awk -f "$TE_LIB/config.awk" -v path="$mf" "$mf" >"$TE_TMPD/mflat" 2>"$TE_TMPD/merr"; rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "parse" "$(cat "$TE_TMPD/merr")" \
+      "the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing"
+    return 1
+  fi
+  set +e
+  out=$(awk -f "$TE_LIB/manifest.awk" "$TE_TMPD/mflat"); rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    te_emit_fail "manifest" "$out" \
+      "the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing"
+    return 1
+  fi
+  printf '%s\n' "$out"
+}

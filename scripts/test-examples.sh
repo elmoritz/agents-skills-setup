@@ -28,6 +28,7 @@ for dir in examples/*/; do
   (
     cd "$dir"
     "$TE" config validate >/dev/null 2>&1 || { echo "FAIL [$name]: config validate"; exit 3; }
+    "$TE" manifest validate >/dev/null 2>&1 || { echo "FAIL [$name]: manifest validate"; exit 3; }
     if [ "$backend" = filesystem ]; then
       "$TE" ledger validate >/dev/null 2>&1 || { echo "FAIL [$name]: ledger validate"; exit 3; }
       # seeded flavors carry TE-001/002 (backlog) + TE-003 (done). Assert the

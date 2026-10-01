@@ -13,7 +13,14 @@ follow-ups remain plain inline questions.
 <!-- sync:end -->
 
 Record each answer with its provenance — `asked` when the user chose, `default`
-when they skipped and the recommended option was taken — for the apply phase.
+when they skipped and the recommended option was taken — for the manifest the
+apply phase writes (`.agents/references/init/manifest.md`).
+
+**Detected facts lead.** Where the discover phase confirmed a fact that answers
+part of a gate — an existing ticket folder, the GitHub remote, the project name
+behind the prefix — put that answer first as the **(Recommended)** option and
+say where it came from. The question becomes a confirmation, and an answer the
+user accepts that way is recorded `detected`, not `asked`.
 
 ## Backend
 

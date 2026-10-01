@@ -69,6 +69,8 @@ Usage:
   te config validate [path] [--dry-run]   Validate config.yaml (§ Config, 22 rules);
                                           print resolved config + roles->stage map.
   te ledger validate [config] [--dry-run] Validate .ledger.yaml (filesystem backend).
+  te manifest validate [path] [--dry-run] Validate setup/manifest.yaml (init's record of
+                                          environment, detected facts, decision provenance).
   te slug "<title>" [--dry-run]           Kebab-case slug for a filename.
   te id next [--count N] [config]         Next filesystem ID(s), or NEW-k on github.
   te deps check <id> --depends-on <ids> [--slate <ids>] [config]
@@ -144,6 +146,13 @@ main() {
       case "$sub" in
         validate) strip_flags "$@"; cmd_ledger_validate "${ARGS[0]:-}" || exit 1 ;;
         *) printf 'te: unknown ledger subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
+      esac
+      ;;
+    manifest)
+      local sub="${1:-}"; shift || true
+      case "$sub" in
+        validate) strip_flags "$@"; cmd_manifest_validate "${ARGS[0]:-}" || exit 1 ;;
+        *) printf 'te: unknown manifest subcommand: %s\n' "${sub:-<none>}" >&2; usage >&2; exit 2 ;;
       esac
       ;;
     slug)        strip_flags "$@"; cmd_slug "${ARGS[0]:-}" || exit 1 ;;

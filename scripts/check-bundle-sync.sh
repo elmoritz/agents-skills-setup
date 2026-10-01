@@ -76,6 +76,8 @@ IGNORE="
 .claude/settings.json
 .claude/config.yaml
 .agents/config.yaml
+.claude/setup/
+.agents/setup/
 .agents/workflows/
 "
 

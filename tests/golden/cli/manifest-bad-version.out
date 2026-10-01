@@ -1,0 +1,5 @@
+ok=false
+where=manifest
+failed=manifest: unsupported version 2; this engine expects 1.
+recovery=the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing
+--- exit: 1

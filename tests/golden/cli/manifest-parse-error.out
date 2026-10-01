@@ -1,0 +1,5 @@
+ok=false
+where=parse
+failed=Could not parse manifest.yaml: flow mappings ({}) are out of subset at line 2
+recovery=the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing
+--- exit: 1

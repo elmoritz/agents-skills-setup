@@ -24,18 +24,31 @@ reference when its phase runs.
 
 ## Workflow
 
-### Phase 0 — guard against re-init
+### Phase 0 — orient
 
-Check whether `.claude/config.yaml` exists relative to the project root (walk up from `cwd` to find the nearest `.claude/`).
+**Guard against re-init.** Check whether `.claude/config.yaml` exists relative to the project root (walk up from `cwd` to find the nearest `.claude/`).
 
 - **If it exists**: report `"A config already exists at .claude/config.yaml. Edit it directly, or remove it first if you want to re-bootstrap."` and **stop**. Do not surface a gate; do not offer to overwrite. The user can `rm` and re-run if they meant to start over.
 - **If `.claude/` doesn't exist** at the repo root: create it (`mkdir -p .claude`). Proceed.
 
-**Gate:** no config exists.
+**Probe the environment.** Read `.claude/references/init/environment.md` and
+probe every capability it lists — web search, web fetch, subagents, git, gh —
+recording each as `verified` or `unavailable`. Nothing is recorded from memory.
 
-### Phase 1 — interview
+**Gate:** no config exists, and every capability has a probe result.
 
-Read `.claude/references/init/interview.md` and run its gates in order: backend
+### Phase 1 — discover
+
+Read `.claude/references/init/discovery.md`. Read the repository — manifests,
+lockfiles, CI, docs, existing agents and assistant footprints — and record each
+finding as a fact with its source. Show the facts and confirm them in one gate.
+
+**Gate:** the user confirmed (or corrected) the detected facts.
+
+### Phase 2 — interview
+
+Read `.claude/references/init/interview.md` and run its gates in order, leading
+each with the answer a confirmed fact already supplies: backend
 (and the filesystem root, or the GitHub repo and issue-type map), ticket ID
 prefix, inbox stage, milestones, the GitHub Project board (github only —
 `.claude/references/init/github-project.md`), the non-functional requirements
@@ -43,37 +56,38 @@ profile, and the git branch workflow.
 
 **Gate:** every preference has a recorded answer.
 
-### Phase 2 — research agents
+### Phase 3 — research agents
 
 Read `.claude/references/init/research-agents.md`: register existing agents,
 offer the catalog, fill in each selection, run the custom-sources loop.
 
 **Gate:** the research-agent set is recorded (an empty set is fine).
 
-### Phase 3 — assistants
+### Phase 4 — assistants
 
 Read `.claude/references/init/assistants.md` and record which assistants work in
 this repo.
 
 **Gate:** the assistant set is recorded.
 
-### Phase 4 — assemble the config
+### Phase 5 — assemble the config
 
 Read `.claude/references/init/config.md`, build the config from the recorded
 answers, show it, and gate on Apply / Edit / Cancel.
 
 **Gate:** the user chose Apply. On Cancel, nothing has been written — stop.
 
-### Phase 5 — apply
+### Phase 6 — apply
 
 Read `.claude/references/init/apply.md`: create a pending GitHub Project first,
-write and validate the config, run the backend side effects, write the research
+write and validate the config, write and validate the setup manifest
+(`.claude/references/init/manifest.md`), run the backend side effects, write the research
 agents (and, where the assistants phase asks for them, their routers), lay down
 the starter template, and make the single init commit.
 
-**Gate:** the config validates and the init commit exists.
+**Gate:** the config and the manifest validate, and the init commit exists.
 
-### Phase 6 — report
+### Phase 7 — report
 
 Print a concise summary so the user knows what to do next:
 
@@ -92,6 +106,7 @@ Workflow labels created in <repo>: <count> labels.
 Issue types: <mapped: feature→Feature, bug→Bug | labels only>
 Project: <created #<number> "<title>" | linked to #<number> <title>>, Status <created to match your stages | matched to existing options>; other fields created: <list> | none>
 
+Detected: <N facts — <M> corrected by you> · provenance recorded in .claude/setup/manifest.yaml
 Research agents: <N registered — <names> | none (ticket creation reads sources inline)>
 Review agents: code-reviewer, test-adequacy-reviewer (loop cap: <max_loop_rounds> rounds)
 Branch workflow: <enabled — merge: <merge_strategy>, PR: <github | none> | disabled>
@@ -109,8 +124,9 @@ Next steps:
 - **Init never creates org issue types.** Unmapped config types fall back to `type:` labels; org taxonomy is the org admin's domain.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there.
 - **A new Project is created before anything else in the apply phase.** If `gh project create` fails, stop before writing `config.yaml` or any other side effect — nothing has been created yet, so there is nothing to clean up. The written file always carries the real project number, never the preview's "(created on Apply)" placeholder.
-- **Never leave an invalid config.** The apply phase runs the engine's `load_and_validate()` on the file right after writing it; if validation fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
-- **Single commit per init.** Folders + config + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.claude/config.yaml` alone.
+- **Probe, don't remember.** A capability is `verified` only when its probe ran in this session; a fact is recorded only with the file or command it came from.
+- **Never leave an invalid config or manifest.** The apply phase runs the engine's `load_and_validate()` on the file right after writing it, and `te manifest validate` on the manifest; if either fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
+- **Single commit per init.** Folders + config + manifest + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.claude/config.yaml`, the manifest, and any agent files.
 - **Never amend.** Never `--no-verify`. Never bypass signing.
 - **No user gates inside the engine.** Init does its own gates; it does not delegate to the engine for those.
 - **References are read when their phase runs**, never preloaded and never paraphrased from memory — they are the source of truth for their phase.

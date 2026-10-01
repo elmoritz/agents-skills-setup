@@ -1,0 +1,56 @@
+# Init — the setup manifest
+
+`.agents/setup/manifest.yaml` is init's memory: what this session could do,
+what it found in the repository, and where every decision came from. The apply
+phase writes it in the same commit as `config.yaml`; update mode reads it to
+tell what changed since. It is **machine-owned** — hand edits are detected, not
+preserved — and it is validated by `te manifest validate`.
+
+## Rules
+
+- **Timestamps** are ISO 8601 with a timezone, quoted.
+- **Provenance** on every decision: `asked` (the user chose), `detected` (derived from the repository and confirmed or unchallenged), or `default` (the user skipped, so the recommended option was taken). Facts carry `detected` or `asked`.
+- **Capabilities** are `verified` or `unavailable` — nothing else.
+- **No secrets.** Never a token, a password, or a credential value — not in a fact, not in a detail line.
+- **Same YAML subset as `config.yaml`** — block maps and lists, quoted or bare scalars, `#` comments; no flow maps, anchors, or block scalars. `te` parses both with the same parser.
+
+## Schema
+
+```yaml
+# Machine-owned by /ticket-init. Validate: .agents/scripts/te manifest validate
+version: 1
+created_at: "<ISO 8601>"
+updated_at: "<ISO 8601>"     # changes on every write
+
+environment:                 # from the orient phase's probe
+  web_search: verified       # verified | unavailable
+  web_fetch: verified
+  subagents: verified
+  git: verified
+  gh: unavailable
+
+facts:                       # from the discover phase, after the confirmation gate
+  - key: language
+    value: "TypeScript 5.6"
+    source: "package.json"
+    provenance: detected     # detected | asked
+
+decisions:                   # one per config-relevant answer
+  - key: backend.type        # the config key the decision fills
+    value: filesystem
+    provenance: asked        # asked | detected | default
+```
+
+`environment.web_search`, `environment.subagents` and `environment.git` are
+required; other capability keys are recorded as they are probed. Decision keys
+are unique.
+
+## Writing it
+
+In the apply phase, after `config.yaml` validates:
+
+1. Write the manifest from the recorded probe, facts and decisions.
+2. Run `.agents/scripts/te manifest validate .agents/setup/manifest.yaml`. A
+   failure here is an init bug: surface the exact message and stop before the
+   commit, exactly like a config that fails validation.
+3. Include it in the single init commit.
