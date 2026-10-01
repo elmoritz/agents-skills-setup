@@ -12,6 +12,8 @@ If the board gate planned a new GitHub Project (title recorded, number pending),
 
    Then run the ticket-engine's `load_and_validate()` operation (`.claude/skills/ticket-engine/SKILL.md`) against the written file — it runs `te config validate` — to confirm it parses and passes schema validation. If it fails, surface the exact error and **stop before any side effects or commit** — init assembled the YAML, so a failure here is an init bug worth showing, not user error. The invalid file is left uncommitted for the user to inspect or remove.
 
+   **Record where the bundle came from** per `.claude/references/init/bundle.md` § On a fresh init — it becomes the manifest's `bundle:` block.
+
    **Write the setup manifest** per `.claude/references/init/manifest.md` — the environment probe, the confirmed facts, and every decision with its provenance — then run `.claude/scripts/te manifest validate .claude/setup/manifest.yaml`. A failure is an init bug, handled exactly like a config that fails validation: surface the exact message and stop before any side effect or commit.
 
 2. **Backend side effects.**

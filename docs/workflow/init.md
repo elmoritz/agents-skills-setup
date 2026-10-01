@@ -80,6 +80,14 @@ Codex, Gemini CLI and Copilot through `te routers write` — thin routers into
 bundle isn't installed yet is recorded `pending-bundle`; the next update emits
 for it once the bundle is there.
 
+## Where the bundle came from
+
+A fresh init records the template repository and commit its bundle matches
+(`bundle:` in the manifest; a fork records the fork). That record is what lets
+update mode refresh the bundle safely later — it is the base that tells "the
+template changed this file" from "you changed it". There is no separate
+"update the bundle" prompt to run: re-running init does it.
+
 ## The setup manifest
 
 `setup/manifest.yaml` sits beside `config.yaml` and is committed with it. It
@@ -118,19 +126,28 @@ Re-run init on an initialised project and it updates instead of bootstrapping
    template-catalog research agents can be converted to generated ones.
 2. **Orient again.** Without web search, update still runs everything that
    doesn't need it and lists the rest as *pending*.
-3. **Find what changed** — re-detected facts vs the manifest, config values
+3. **Refresh the bundle itself** from the template repository
+   (`references/init/bundle.md`). `te bundle diff` compares every shipped file
+   — commands, skills, references, `te` — with the template's latest and with
+   the version the project last synced from: what only the template changed is
+   taken, what only you changed is kept, what both changed gets a per-file gate
+   (merge / take the template's / keep mine). Your config, manifest and agents
+   are never part of it. The refresh is its own commit, and init then re-reads
+   its refreshed instructions before going on — so new contracts from a bundle
+   upgrade reach your agents in the same run.
+4. **Find what changed** — re-detected facts vs the manifest, config values
    edited by hand (adopted, never reverted), research older than six months or
    behind a version bump, `te agent drift` (missing agents, contracts gone stale
    after a bundle upgrade, regions the project edited), new sources that
    deserve an agent, commands whose source changed — and the **assistants
    gate, asked again** on every update.
-4. **One plan, one gate** — Apply all / Choose / Cancel.
-5. **Execute** — re-research, re-check commands, regenerate agents region by
+5. **One plan, one gate** — Apply all / Choose / Cancel.
+6. **Execute** — re-research, re-check commands, regenerate agents region by
    region: untouched regions are regenerated, **edited regions go through a
    three-way gate** (last generated · yours · regenerated → merge / keep /
    take), user regions are never touched, contracts are refreshed from the
    kind; then emit for newly served assistants and re-run `te routers`.
-6. **One commit** — `ticket: init — update (…)`.
+7. **One commit** — `ticket: init — update (…)` (after the bundle-refresh commit, if there was one).
 
 ## Reads / writes
 

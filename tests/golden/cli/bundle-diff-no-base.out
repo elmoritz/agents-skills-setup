@@ -1,0 +1,12 @@
+ok=true
+new-upstream=.claude/references/new.md
+differs=.claude/skills/both.md
+new-upstream=.claude/skills/deleted.md
+local-only=.claude/skills/dropped-edited.md
+local-only=.claude/skills/dropped.md
+local-only=.claude/skills/extra.md
+differs=.claude/skills/local.md
+differs=.claude/skills/up.md
+files=9
+changed=8
+--- exit: 0

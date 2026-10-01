@@ -148,6 +148,16 @@ END {
     }
   }
 
+  # ---- M10: bundle provenance ----
+  if (has("bundle")) {
+    if (typ["bundle"] != "map") fail("manifest: bundle must be a map (source, commit, checked_at).")
+    if (val["bundle.source"] == "") fail("manifest: bundle.source is required — the template repository the bundle came from.")
+    bc = val["bundle.commit"]
+    if (bc != "unknown" && bc !~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+$/)
+      fail("manifest: bundle.commit must be a template commit SHA (7+ hex) or 'unknown', got '" bc "'.")
+    if (val["bundle.checked_at"] == "") fail("manifest: bundle.checked_at is required (ISO 8601).")
+  }
+
   # ---- M9: assistants ----
   nas = 0
   if (has("assistants")) {
