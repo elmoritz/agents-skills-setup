@@ -1,0 +1,5 @@
+ok=false
+where=manifest
+failed=manifest: commands[0] (test): a command that ran (verified) records its baseline and checked_at.
+recovery=the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing
+--- exit: 1

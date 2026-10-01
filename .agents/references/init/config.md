@@ -182,10 +182,10 @@ references:                 # confirmed discover-phase facts; null where none wa
   project_readme: <references.project_readme fact, or null>
 
 # --- Verification -----------------------------------------------------
-verification:
-  test_commands: []
-  build_command: null
-  pre_close_command: null
+verification:               # from the verification-commands phase
+  test_commands: [<kept typecheck, lint, test commands — cheapest first; [] if none>]
+  build_command: <kept build command, or null>
+  pre_close_command: null    # init never guesses a release gate; the user may name one
   max_loop_rounds: 3   # bound on /ticket-pick's implement -> check -> evaluate loop
 ```
 

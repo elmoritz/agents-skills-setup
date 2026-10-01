@@ -39,17 +39,40 @@ decisions:                   # one per config-relevant answer
   - key: backend.type        # the config key the decision fills
     value: filesystem
     provenance: asked        # asked | detected | default
+
+commands:                    # from the verification-commands phase
+  - role: test               # test | lint | typecheck | build
+    command: "npm test"
+    source: "package.json#scripts.test"
+    status: verified         # verified | failing | unavailable | unverified | skipped
+    baseline: "412 passed, 3 skipped in 48s"   # only when it ran
+    checked_at: "<ISO 8601>"                   # only when it ran
+
+research:                    # from the research phase
+  researched_at: "<ISO 8601>"
+  subjects:
+    - id: react-19
+      subject: "React 19.1"
+      status: done           # done | thin
+      notes: ".claude/setup/research/react-19.md"
+      sources: 9
+      queries:
+        - "react 19 performance pitfalls 2026"
 ```
 
 `environment.web_search`, `environment.subagents` and `environment.git` are
 required; other capability keys are recorded as they are probed. Decision keys
-are unique.
+are unique. A command that ran (`verified`, `failing`) carries `baseline` and
+`checked_at`. A `research:` block requires `environment.web_search: verified` —
+research is never recorded from a session that could not search — and every
+subject names its notes file and at least one query; a `done` subject cites at
+least one source.
 
 ## Writing it
 
 In the apply phase, after `config.yaml` validates:
 
-1. Write the manifest from the recorded probe, facts and decisions.
+1. Write the manifest from the recorded probe, facts, decisions, commands and research.
 2. Run `.claude/scripts/te manifest validate .claude/setup/manifest.yaml`. A
    failure here is an init bug: surface the exact message and stop before the
    commit, exactly like a config that fails validation.

@@ -36,7 +36,13 @@ reference when its phase runs.
 probe every capability it lists — web search, web fetch, subagents, git, gh —
 recording each as `verified` or `unavailable`. Nothing is recorded from memory.
 
-**Gate:** no config exists, and every capability has a probe result.
+**Web search is required for a fresh init.** If `web_search` is `unavailable`,
+stop here and redirect, as `environment.md` says: write nothing, tell the user
+what was tried and what failed, and name the kind of session to run init from.
+Everything init generates is grounded in research of this project's stack — an
+init built from memory would look complete while being stale.
+
+**Gate:** no config exists, every capability has a probe result, and web search is `verified`.
 
 ### Phase 1 — discover
 
@@ -57,28 +63,46 @@ profile, and the git branch workflow.
 
 **Gate:** every preference has a recorded answer.
 
-### Phase 3 — research agents
+### Phase 3 — research
+
+Read `.agents/references/init/research.md`. Research each confirmed stack
+subject — at its locked version — on the web: pitfalls, idioms and deprecations,
+security, testing, tooling. Write one notes file per subject under
+`.agents/setup/research/`, every finding with its source, every query recorded.
+
+**Gate:** every subject has a notes file and a manifest record (`done` or `thin`).
+
+### Phase 4 — verification commands
+
+Read `.agents/references/init/verification-commands.md`. For each candidate
+test, lint, typecheck and build command, ask whether to run it now; record what
+happened (`verified`, `failing`, `unavailable`, `unverified`, `skipped`) and keep
+the trusted ones for `verification:`.
+
+**Gate:** every candidate command has a recorded status.
+
+### Phase 5 — research agents
 
 Read `.agents/references/init/research-agents.md`: register existing agents,
 offer the catalog, fill in each selection, run the custom-sources loop.
 
 **Gate:** the research-agent set is recorded (an empty set is fine).
 
-### Phase 4 — assistants
+### Phase 6 — assistants
 
 Read `.agents/references/init/assistants.md` and record which assistants work in
 this repo.
 
 **Gate:** the assistant set is recorded.
 
-### Phase 5 — assemble the config
+### Phase 7 — assemble the config
 
 Read `.agents/references/init/config.md`, build the config from the recorded
 answers, show it, and gate on Apply / Edit / Cancel.
 
 **Gate:** the user chose Apply. On Cancel, nothing has been written — stop.
 
-### Phase 6 — apply
+### Phase 8 — apply
 
 Read `.agents/references/init/apply.md`: create a pending GitHub Project first,
 write and validate the config, write and validate the setup manifest
@@ -88,7 +112,7 @@ the starter template, and make the single init commit.
 
 **Gate:** the config and the manifest validate, and the init commit exists.
 
-### Phase 7 — report
+### Phase 9 — report
 
 Print a concise summary so the user knows what to do next:
 
@@ -107,13 +131,15 @@ Workflow labels created in <repo>: <count> labels.
 Issue types: <mapped: feature→Feature, bug→Bug | labels only>
 Project: <created #<number> "<title>" | linked to #<number> <title>>, Status <created to match your stages | matched to existing options>; other fields created: <list> | none>
 
+Research: <N subjects — <done> done, <thin> thin · notes in .agents/setup/research/>
+Verification: <commands kept, each with its status — e.g. `npm test` verified (412 passed), `npm run lint` unverified | none>
 Detected: <N facts — <M> corrected by you> · provenance recorded in .agents/setup/manifest.yaml
 Research agents: <N registered — <names> | none (ticket creation reads sources inline)>
 Review agents: code-reviewer, test-adequacy-reviewer (loop cap: <max_loop_rounds> rounds)
 Branch workflow: <enabled — merge: <merge_strategy>, PR: <github | none> | disabled>
 
 Next steps:
-- Fill in `references:` and `verification:` in .agents/config.yaml when you have them.
+- Review `references:` in .agents/config.yaml — it was filled from what the repository showed.
 - Run /ticket-new to capture your first ticket.
 ```
 
@@ -125,6 +151,9 @@ Next steps:
 - **Init never creates org issue types.** Unmapped config types fall back to `type:` labels; org taxonomy is the org admin's domain.
 - **Project linkage is github-only.** On the filesystem backend `projects.enabled` is always `false`; init never touches a Project there.
 - **A new Project is created before anything else in the apply phase.** If `gh project create` fails, stop before writing `config.yaml` or any other side effect — nothing has been created yet, so there is nothing to clean up. The written file always carries the real project number, never the preview's "(created on Apply)" placeholder.
+- **No web, no fresh init.** A fresh init whose `web_search` probe is `unavailable` stops at the orient phase and writes nothing.
+- **Commands run only with consent**, one at a time, each behind its own gate.
+- **Every finding has a source.** Research notes never carry a finding without the page it came from; a topic with nothing usable says so instead.
 - **Probe, don't remember.** A capability is `verified` only when its probe ran in this session; a fact is recorded only with the file or command it came from.
 - **Never leave an invalid config or manifest.** The apply phase runs the engine's `load_and_validate()` on the file right after writing it, and `te manifest validate` on the manifest; if either fails, surface the exact error and stop before side effects and commit. This shouldn't happen when init's gates are honored — it guards against an init bug, not user input.
 - **Single commit per init.** Folders + config + manifest + template + (optional) `.gitkeep` files = one commit. Label creation on GH is not a local file change; the commit covers `.agents/config.yaml`, the manifest, and any agent files.

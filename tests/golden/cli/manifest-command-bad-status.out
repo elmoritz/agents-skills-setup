@@ -1,0 +1,5 @@
+ok=false
+where=manifest
+failed=manifest: commands[1] (lint): status must be verified, failing, unavailable, unverified, or skipped, got 'maybe'.
+recovery=the manifest is machine-owned — re-run /ticket:init (update mode) to rewrite it rather than hand-fixing
+--- exit: 1

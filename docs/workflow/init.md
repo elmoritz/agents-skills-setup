@@ -19,14 +19,16 @@ when the phase starts, so the skill stays small and each phase stays focused.
 
 | Phase | Reference | What it settles |
 | --- | --- | --- |
-| 0 — Orient | `environment.md` | Refuses re-init; probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed |
+| 0 — Orient | `environment.md` | Refuses re-init; probes web search, web fetch, subagents, git, gh — each `verified` or `unavailable`, never assumed. **No web search, no init:** a fresh init stops and redirects, writing nothing |
 | 1 — Discover | `discovery.md` | Languages, frameworks, runtimes, datastores, CI, candidate test/lint/build commands, docs to reference, existing agents and assistant footprints — each with its source; confirmed in one gate |
 | 2 — Interview | `interview.md`, `github-project.md` | Preferences only: backend, prefix, inbox, milestones, Project board, NFR profile, branch workflow — a detected fact leads each gate as the recommended answer |
-| 3 — Research agents | `research-agents.md` | The research-agent set ticket creation dispatches |
-| 4 — Assistants | `assistants.md` | Which assistants work in the repo |
-| 5 — Assemble | `config.md` | The config, previewed, behind an Apply / Edit / Cancel gate |
-| 6 — Apply | `apply.md`, `manifest.md` | Config + manifest written and validated, side effects, agent files, template, one commit |
-| 7 — Report | — | What was set up and what to do next |
+| 3 — Research | `research.md` | The stack at its locked versions, researched on the web — pitfalls, idioms, security, testing, tooling — one sourced notes file per subject |
+| 4 — Verification commands | `verification-commands.md` | Each candidate test/lint/typecheck/build command: run it now (with consent), record it unverified, or skip it |
+| 5 — Research agents | `research-agents.md` | The research-agent set ticket creation dispatches |
+| 6 — Assistants | `assistants.md` | Which assistants work in the repo |
+| 7 — Assemble | `config.md` | The config, previewed, behind an Apply / Edit / Cancel gate |
+| 8 — Apply | `apply.md`, `manifest.md` | Config + manifest written and validated, side effects, agent files, template, one commit |
+| 9 — Report | — | What was set up and what to do next |
 
 ## Flow
 
@@ -35,11 +37,15 @@ flowchart TD
     Start(["/ticket:init"]) --> Guard{"config.yaml<br/>already exists?"}
     Guard -->|yes| Refuse["Stop — refuse to overwrite"]
     Guard -->|no| Probe["Probe environment<br/>web search · fetch · subagents · git · gh"]
-    Probe --> Discover["Read the repository —<br/>facts with sources"]
+    Probe --> Web{"web search<br/>verified?"}
+    Web -->|no| Redirect["Stop — nothing written;<br/>run init from a session with web search"]
+    Web -->|yes| Discover["Read the repository —<br/>facts with sources"]
     Discover --> Confirm{"Gate: detected facts<br/>look right?"}
     Confirm -->|correct some| Discover
     Confirm -->|yes| Interview["Preference gates,<br/>detected answers first"]
-    Interview --> Research["Research-agent set"]
+    Interview --> StackResearch["Research the stack on the web —<br/>sourced notes per subject"]
+    StackResearch --> Cmds{"Gate per command:<br/>run · record · skip"}
+    Cmds --> Research["Research-agent set"]
     Research --> Assist["Assistants"]
     Assist --> Assemble["Assemble config.yaml"]
     Assemble --> G9g{"Gate: Apply / Edit / Cancel"}
@@ -68,7 +74,7 @@ deliberate.
 
 ## Reads / writes
 
-- **Writes:** `config.yaml` (including the optional `nfr:` profile and `references:` filled from confirmed facts), `setup/manifest.yaml`, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
+- **Writes:** `config.yaml` (including the optional `nfr:` profile, `references:` filled from confirmed facts, and `verification:` from the commands the user kept), `setup/manifest.yaml`, `setup/research/<subject>.md` per researched subject, stage folders + `.gitkeep` (filesystem), `<root>/.ledger.yaml`, `<root>/TICKET_TEMPLATE.md`, `<agents-dir>/<name>.md` per research agent.
 - **Branch workflow gate:** decides the `git:` block — `branch_workflow`, `merge_strategy`, and (github backend only) `pr_integration`. Defaults to branch-per-ticket enabled with a `--no-ff` merge and no PR integration.
 - **GitHub side effects:** creates labels, verifies/creates issue-type map, creates the Project itself if none existed (before anything else in the apply step), verifies/creates Project fields (including a `Status` field seeded from the project's own stage labels, when one didn't already exist).
 
@@ -79,6 +85,7 @@ deliberate.
 | Bootstrapped | Config + manifest written, side effects applied, single commit made |
 | Refused re-init | Stopped immediately, nothing touched |
 | No git repository | Stopped at the orient phase, nothing touched |
+| No web search | Stopped at the orient phase, nothing touched — run init from a session with web search |
 | Invalid config or manifest | Stopped after writing the files, left uncommitted for inspection |
 | Cancelled at final gate | Nothing written |
 
