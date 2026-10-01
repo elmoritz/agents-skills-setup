@@ -49,13 +49,15 @@ echo "skills: $(echo "$SKILLS" | wc -w | tr -d ' ') ($(echo "$PUBLIC" | wc -w | 
 # stricter loader ("argument-hint must be a string") on a bundle that looked
 # clean to this script. Ruby's YAML lib ships on both CI images (ubuntu-latest,
 # macos-latest) with no install step, so use a real parser here instead of
-# teaching fm() to fake one.
+# teaching fm() to fake one. -EUTF-8 pins the encoding: under a C/POSIX locale
+# Ruby reads files as US-ASCII, raises on the first non-ASCII byte (an em dash in
+# any description), and the whole check silently counts nothing.
 while IFS= read -r line; do
   chk
   case "$line" in
     BAD:*) BAD "frontmatter" "${line#BAD:}" ;;
   esac
-done < <(find .agents .claude .gemini .github -name '*.md' 2>/dev/null | ruby -ryaml -e '
+done < <(find .agents .claude .gemini .github -name '*.md' 2>/dev/null | ruby -EUTF-8:UTF-8 -ryaml -e '
   STDIN.each_line do |f|
     f = f.chomp
     content = File.read(f)
