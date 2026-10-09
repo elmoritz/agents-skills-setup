@@ -1,0 +1,52 @@
+# Ticket questions — plain GitHub Actions, no AI, no AI credits.
+#
+#  * /answer Q<n>, /ask <question>, /obsolete Q<n> in issue comments
+#  * keeps the `open questions` label truthful on every issue edit
+#
+# Format contract: .github/ticket-system/ticket-format.md
+name: Ticket questions
+
+on:
+  issues:
+    # labeled/unlabeled: puts `open questions` back if someone removes it by hand
+    types: [opened, edited, reopened, labeled, unlabeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read   # checkout of the script
+  issues: write    # body updates, labels, comments, reactions
+
+# One run per issue at a time, in arrival order: two people answering at the same
+# moment must never overwrite each other, and no command may be dropped.
+concurrency:
+  group: ticket-questions-${{ github.event.issue.number }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  questions:
+    # Issues only (not PR comments); for comments, only when a command could be present.
+    if: >-
+      ${{ !github.event.issue.pull_request &&
+          (github.event_name == 'issues' ||
+           contains(github.event.comment.body, '/answer') ||
+           contains(github.event.comment.body, '/ask') ||
+           contains(github.event.comment.body, '/obsolete')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts/ticket-questions
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        env:
+          OPEN_LABEL: open questions          # keep in sync with config.yml → labels
+          FORMAT_ERROR_LABEL: ticket-format-error
+        with:
+          # The comment text is read from the event payload inside JS — never
+          # interpolated into a shell or script string (no script injection).
+          script: |
+            const run = require('./.github/scripts/ticket-questions/main.js');
+            await run({ github, context, core });
