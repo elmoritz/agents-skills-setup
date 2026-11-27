@@ -44,6 +44,34 @@ the detailed reference.
   research is refreshed, agents are regenerated region by region, and nothing
   you edited is overwritten without a three-way gate.
 
+## Let it run a milestone
+
+Once a milestone has a backlog, **`/ticket:auto`** (`/ticket-auto`, `$ticket-auto`
+on Codex) works through it on its own. It runs `/ticket:pick`'s loop one ticket
+after another. Each ticket gets a fresh implementer subagent, and every round
+dispatches fresh review agents, while your session only orchestrates. A ticket
+that blocks, or still fails review after the last round, is **parked** with the
+reason and its branch kept, and the loop moves on. Approved tickets land in
+review with a sign-off for you to verify, or are closed as shipped with
+`--close`. The run is resumable, and `--unattended --until 07:00` lets it run
+overnight.
+
+## Learn from each milestone
+
+When a milestone is done, **`/ticket:retro <milestone>`** (`/ticket-retro`,
+`$ticket-retro`) looks back at *how* it was built. It reads the loop's run log,
+the ticket history and the assistants' transcripts, and measures three things:
+
+- **Tokens:** which agents and sessions used the context.
+- **Time:** claim to hand-off, suite time, review rounds.
+- **Human in the loop:** gates and how long they waited, owner questions,
+  parks, rejects after a hand-off, review-stage waits.
+
+It ranks the findings that clear a significance bar and discusses each one with
+you. It then applies the process changes you accept, such as a command step, an
+agent's project notes or a config key, and checks them at the next retro.
+`/ticket:auto` runs it at wrap-up.
+
 ## Which bundle do I copy?
 
 The repo ships **two parallel, functionally-equal bundles** — pick the one that
@@ -140,7 +168,9 @@ whose init can update itself.
 
 Full documentation: **https://elmoritz.github.io/agents-skills-setup/**
 
-- [Workflow](https://elmoritz.github.io/agents-skills-setup/workflow/overview/) — the seven ticket commands, with a flow diagram of every step and gate
+- [Workflow](https://elmoritz.github.io/agents-skills-setup/workflow/overview/) — the nine ticket commands, with a flow diagram of every step and gate
+- [`/ticket:retro`](https://elmoritz.github.io/agents-skills-setup/workflow/retro/) — the milestone retrospective: what it measures, the bar a finding must clear, and how changes are applied
+- [`/ticket:auto`](https://elmoritz.github.io/agents-skills-setup/workflow/auto/) — run a whole milestone through the implement → review loop autonomously, unattended overnight if you like
 - [Skills](https://elmoritz.github.io/agents-skills-setup/skills/) — the shared execution/milestone/interview machinery
 - [`/ticket:init`](https://elmoritz.github.io/agents-skills-setup/workflow/init/) — the phases, the setup manifest, generated agents, and update mode
 - [Shipped agents](https://elmoritz.github.io/agents-skills-setup/agents/) — the six read-only agents wired into `/ticket:new` and `/ticket:pick`, shipped as default renderings that init regenerates for your stack, plus how generated agents are built

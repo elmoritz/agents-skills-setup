@@ -44,6 +44,9 @@ flowchart LR
     V --> CL["/ticket:close<br/>ship"]
     V -.->|failed| RJ["/ticket:reject<br/>back to in-progress"]
     RJ --> P
+    N --> A["/ticket:auto<br/>a whole milestone, unattended"]
+    A --> V
+    A --> RT["/ticket:retro<br/>learn from the milestone"]
 ```
 
 ## What's documented here
@@ -54,7 +57,7 @@ flowchart LR
 
     ---
 
-    The seven `/ticket:*` commands that take work from idea to shipped — what
+    The nine `/ticket:*` commands that take work from idea to shipped — what
     each one gates on, what it reads and writes, and where it can exit.
 
 - :material-puzzle:{ .lg .middle } **[Skills](skills/index.md)**

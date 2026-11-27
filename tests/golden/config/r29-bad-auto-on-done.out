@@ -1,0 +1,5 @@
+ok=false
+where=validation
+failed=auto.on_done must be 'review' or 'close', got 'ship'.
+recovery=fix tests/fixtures/config/r29-bad-auto-on-done/config.yaml per the message, then re-run — the engine never proceeds past a config error
+--- exit: 1

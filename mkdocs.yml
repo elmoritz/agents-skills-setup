@@ -78,6 +78,8 @@ nav:
       - "/ticket:review": workflow/review.md
       - "/ticket:reject": workflow/reject.md
       - "/ticket:close": workflow/close.md
+      - "/ticket:auto": workflow/auto.md
+      - "/ticket:retro": workflow/retro.md
   - Skills:
       - Overview: skills/index.md
       - ticket-engine: skills/ticket-engine.md

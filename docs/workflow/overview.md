@@ -1,7 +1,7 @@
 # Workflow overview
 
 A small, opinionated issue tracker that lives in your repo and runs through
-seven commands. The same commands work whether tickets are **Markdown files
+nine commands. The same commands work whether tickets are **Markdown files
 committed to the repo** (filesystem backend) or **GitHub issues** (github
 backend) — the choice lives in `config.yaml`, and every command delegates the
 actual reads, writes, and stage transitions to the [`ticket-engine`
@@ -20,6 +20,8 @@ prose — use this table to translate:
 | Verify | `/ticket:review` | `$ticket-review` | `/ticket-review` |
 | Send back | `/ticket:reject` | `$ticket-reject` | `/ticket-reject` |
 | Ship | `/ticket:close` | `$ticket-close` | `/ticket-close` |
+| Run a milestone | `/ticket:auto` | `$ticket-auto` | `/ticket-auto` |
+| Look back | `/ticket:retro` | `$ticket-retro` | `/ticket-retro` |
 
 ## Stages and roles
 
@@ -46,10 +48,11 @@ stateDiagram-v2
     review --> done: /ticket:close
     review --> in_progress: /ticket:reject
     in_progress --> done: /ticket:close (no review stage)
+    in_progress --> backlog: /ticket:auto parks
     done --> [*]
 ```
 
-## The seven commands
+## The nine commands
 
 | Command | What it does | Details |
 | --- | --- | --- |
@@ -60,6 +63,8 @@ stateDiagram-v2
 | `/ticket:review` | Print a read-only verification guide for a ticket in review. | [→](review.md) |
 | `/ticket:reject` | Send a ticket that failed verification back to in-progress, with the reason recorded. | [→](reject.md) |
 | `/ticket:close` | Close a ticket as shipped, trusting you've already verified the work. | [→](close.md) |
+| `/ticket:auto` | Run `/ticket:pick`'s loop over a whole milestone with no human at each gate. Each ticket gets a fresh implementer and every round fresh reviewers. Blocked tickets are parked, and approved ones go to review (or are closed with `--close`). Resumable and unattended-capable. | [→](auto.md) |
+| `/ticket:retro` | After a milestone, measure how it was built (tokens, time, human-in-the-loop interactions), rank the findings over a significance bar, discuss each with you, and apply the process changes you accept. | [→](retro.md) |
 
 ## Shared conventions
 

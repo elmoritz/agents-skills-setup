@@ -7,3 +7,4 @@
 # docs site — built by CI, not committed
 site/
 .venv-docs/
+__pycache__/

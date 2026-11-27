@@ -48,6 +48,8 @@ pick:.claude/commands/ticket/pick.md:.agents/skills/ticket-pick/SKILL.md
 review:.claude/commands/ticket/review.md:.agents/skills/ticket-review/SKILL.md
 reject:.claude/commands/ticket/reject.md:.agents/skills/ticket-reject/SKILL.md
 close:.claude/commands/ticket/close.md:.agents/skills/ticket-close/SKILL.md
+auto:.claude/commands/ticket/auto.md:.agents/skills/ticket-auto/SKILL.md
+retro:.claude/commands/ticket/retro.md:.agents/skills/ticket-retro/SKILL.md
 engine:.claude/skills/ticket-engine/SKILL.md:.agents/skills/ticket-engine/SKILL.md
 milestone-sync:.claude/skills/milestone-sync/SKILL.md:.agents/skills/milestone-sync/SKILL.md
 grill-me:.claude/skills/grill-me/SKILL.md:.agents/skills/grill-me/SKILL.md
@@ -67,6 +69,7 @@ test-adequacy-reviewer:.claude/agents/test-adequacy-reviewer.md:.agents/agents/t
 # are covered by scripts/gen-adapters.sh --check instead.
 IGNORE="
 .claude/settings.json
+.claude/references/auto-workflow/
 .claude/config.yaml
 .agents/config.yaml
 .claude/setup/
@@ -94,6 +97,8 @@ scripts:.claude/scripts/:.agents/scripts/
 NDIR_PAIRS="
 ref-init:.claude/references/init/:.agents/references/init/
 ref-agents:.claude/references/agents/:.agents/references/agents/
+ref-auto:.claude/references/auto/:.agents/references/auto/
+ref-retro:.claude/references/retro/:.agents/references/retro/
 "
 
 # Pairs whose two mirrors must be logic-identical (after frontmatter + fence

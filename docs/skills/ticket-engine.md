@@ -38,15 +38,15 @@ flowchart LR
 | `load_and_validate` | every command, first step |
 | `resolve_role` | every command that branches on stage presence |
 | `assign_next_id` | `/ticket:new` |
-| `read_artifact` | `/ticket:pick`, `/ticket:review`, `/ticket:refine` |
-| `list_artifacts` | `/ticket:pick`, `/ticket:refine`, `/ticket:reject`, `/ticket:close` |
+| `read_artifact` | `/ticket:pick`, `/ticket:auto`, `/ticket:review`, `/ticket:refine` |
+| `list_artifacts` | `/ticket:pick`, `/ticket:auto`, `/ticket:refine`, `/ticket:reject`, `/ticket:close` |
 | `create_artifact` | `/ticket:new`, `/ticket:refine` (approve path) |
-| `transition_artifact` | `/ticket:pick` (to review / abandon), `/ticket:reject` |
-| `claim_atomic` | `/ticket:pick` |
-| `update_frontmatter` | `/ticket:pick` (evidence, stale body rewrite) |
-| `close_artifact` | `/ticket:close`, `/ticket:refine` (wontfix path) |
+| `transition_artifact` | `/ticket:pick` (to review / abandon), `/ticket:auto` (to review / release / park — abandon with `keep_branch: true`), `/ticket:reject` |
+| `claim_atomic` | `/ticket:pick`, `/ticket:auto` |
+| `update_frontmatter` | `/ticket:pick` (evidence, stale body rewrite), `/ticket:auto` (owner decision, sign-off) |
+| `close_artifact` | `/ticket:close`, `/ticket:auto` (`--close`), `/ticket:refine` (wontfix path) |
 | `fold_artifact` | `/ticket:refine` (fold path) |
-| `save_as_inbox` | `/ticket:new` (any gate diversion) |
+| `save_as_inbox` | `/ticket:new` (any gate diversion), `/ticket:auto` (wrap-up follow-ups) |
 | `enforce_effort_cap` | `/ticket:new` |
 | `validate_type_body` | `/ticket:new` |
 | `scan_milestone_state` / `apply_milestone_flip` | `milestone-sync` |

@@ -65,6 +65,11 @@ setup manifest recording where every value came from, sourced research notes,
 and your project's agents. Full phase-by-phase reference: [`/ticket:init`
 reference](workflow/init.md).
 
+Once a milestone has a few backlog tickets, you can hand the whole milestone to
+[`/ticket:auto`](workflow/auto.md) (`/ticket-auto`, Codex `$ticket-auto`). It
+runs the pick loop ticket by ticket, parks what blocks, and leaves approved
+work in review for you to verify.
+
 ## Step 0: research agents
 
 Before you init, think through *which sources you'd otherwise paste into the

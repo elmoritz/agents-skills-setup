@@ -42,6 +42,10 @@ jobs:
 
       - name: te golden tests
         run: scripts/test-te.sh
+      - name: /ticket:auto workflow control flow (offline, scripted agents)
+        run: scripts/test-auto-workflow.sh
+      - name: /ticket:retro extractor self-test (synthetic transcripts and run log)
+        run: python3 -I .claude/scripts/retro-extract.py --self-test && python3 -I .agents/scripts/retro-extract.py --self-test
       - name: example flavors — end-to-end smoke
         run: scripts/test-examples.sh
       - name: per-skill engine operations (all flavors)
