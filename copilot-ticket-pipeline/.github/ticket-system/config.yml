@@ -1,0 +1,32 @@
+# Configuration for the ticket-create / ticket-refine skills.
+# The ticket-questions workflow reads its two label names from env vars in
+# .github/workflows/ticket-questions.yml — keep them in sync with `labels:` below.
+
+# GitHub repository for issues. Leave empty to use the repo of the current checkout.
+repo: ""
+
+# Project board (GitHub Projects v2). Lane moves are best effort: without the
+# `project` scope on your gh login (`gh auth refresh -s project`) the skills warn
+# and continue.
+project:
+  owner: my-org            # org or user that owns the project
+  number: 1                # number from the project URL
+  status_field: Status     # single-select field holding the lanes
+  lanes:                   # exact option names on the board (case-sensitive)
+    backlog: Backlog
+    ready: Ready
+
+# Sources the skills read. Empty path = not used.
+references:
+  arc42: docs/arc42        # directory or single file; only EXPLICIT statements answer questions
+  roadmap: docs/roadmap.md # a ticket can start from an entry in this file
+
+labels:
+  open_questions: open questions
+  format_error: ticket-format-error
+  type_prefix: "type:"     # → type:feature, type:bug
+
+# Ticket types and the extra body sections they carry (see ticket-format.md § 2).
+types:
+  feature: []
+  bug: [bug_details]
