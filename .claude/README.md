@@ -39,7 +39,9 @@ other fails loudly.
 │       ├── pick.md               /ticket:pick   — implement next ticket
 │       ├── review.md             /ticket:review — print a verification guide
 │       ├── reject.md             /ticket:reject — send failed review back
-│       └── close.md              /ticket:close  — close as shipped
+│       ├── close.md              /ticket:close  — close as shipped
+│       ├── auto.md               /ticket:auto   — run the loop over a milestone
+│       └── retro.md              /ticket:retro  — milestone retrospective
 ├── skills/                       auto-triggered skills + the workflow engine
 │   ├── ticket-engine/            execution layer behind every /ticket:* command
 │   ├── milestone-sync/           milestone-vs-tickets drift detection & repair
@@ -53,6 +55,9 @@ other fails loudly.
 │   └── test-adequacy-reviewer.md judges whether new tests can actually fail
 └── references/
     ├── init/                     /ticket:init's phase references (read when the phase runs)
+    ├── auto/                     /ticket:auto's implementer brief
+    ├── retro/                    /ticket:retro's report format, the bar, every metric
+    ├── auto-workflow/            /ticket:auto's Workflow script + its clerk operations (Claude-only)
     └── agents/                   how init generates agents
         ├── anatomy.md                the one skeleton every generated agent follows
         └── kinds/                    per-kind contract + generation guidance
@@ -69,7 +74,7 @@ by `/ticket:init` (see ["What gets created"](#what-gets-created-on-first-use) be
 
 ## The ticket workflow
 
-A small, opinionated issue tracker that lives in your repo and runs through seven
+A small, opinionated issue tracker that lives in your repo and runs through nine
 slash commands. The same commands work whether tickets are **Markdown files
 committed to the repo** (filesystem backend) or **GitHub issues** (github
 backend) — the choice lives in `.claude/config.yaml`, and every command delegates
@@ -84,6 +89,8 @@ the actual reads, writes, and stage transitions to the **`ticket-engine`** skill
 | `/ticket:review` | Print a read-only verification guide for a ticket in review. |
 | `/ticket:reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
 | `/ticket:close` | Close a ticket as shipped, trusting you've verified the work. |
+| `/ticket:retro` | After a milestone: measure how it was built — tokens, time, and what it asked of a human — rank the findings that cost the most, discuss each with you, and apply the process changes you accept. Run by `/ticket:auto` at wrap-up (report-only when unattended). |
+| `/ticket:auto` | Run `/ticket:pick`'s loop over a whole milestone with no human at each gate — a fresh implementer subagent per ticket, fresh review agents per round. Blocked tickets are parked with the reason; approved ones go to review (or are closed with `--close`). Resumable; can run unattended overnight. |
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress →
 review → done), each carrying a **role** the engine resolves against. Effort caps

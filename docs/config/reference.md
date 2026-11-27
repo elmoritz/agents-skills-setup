@@ -102,6 +102,9 @@ verification:              # init fills these from the commands you let it check
   build_command:      null
   pre_close_command:  null # init never guesses a release gate
   max_loop_rounds:    3
+
+auto:                      # optional — /ticket:auto
+  on_done: review          # review (default) | close
 ```
 
 ## Types
@@ -198,6 +201,20 @@ whose file goes missing with a warning. `/ticket:init` fills these lists: one
 research agent per source it designed with you, and a generated `checker` or
 `advisor` only when its research gave a concrete reason. See
 [Generated agents](../agents/generated.md).
+
+## Auto loop
+
+`auto.on_done` decides what [`/ticket:auto`](../workflow/auto.md) does with a
+ticket its loop approved (a **Done** evaluation over a green
+`verification.test_commands` run on the branch head):
+
+| Value | Meaning |
+| --- | --- |
+| `review` (default; also when the block is absent) | Move it to the review stage — or leave it in `in_progress` when there is none — with an `## Auto loop sign-off` section for a human to verify, then `/ticket:close` |
+| `close` | Close it as shipped through the engine's `close_artifact`: merge the branch per `git.merge_strategy`, run `verification.pre_close_command`, close — no human gate |
+
+`/ticket:auto --close` sets `close` for one run. The loop needs
+`git.branch_workflow: enabled` and refuses to start without it.
 
 ## Setup manifest
 

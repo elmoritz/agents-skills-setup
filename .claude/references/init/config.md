@@ -189,6 +189,13 @@ verification:               # from the verification-commands phase
   build_command: <kept build command, or null>
   pre_close_command: null    # init never guesses a release gate; the user may name one
   max_loop_rounds: 3   # bound on /ticket:pick's implement -> check -> evaluate loop
+
+# --- Auto loop (/ticket:auto; optional) ------------------------------------
+# What /ticket:auto does with a ticket its loop approved. Omit the block for the
+# default (review): approved tickets wait in the review stage for a human.
+# init never writes `close` on its own — only when the user asked for it.
+# auto:
+#   on_done: review          # review | close (close = merged and shipped, no human gate)
 ```
 
 Show the assembled YAML to the user. Gate (`AskUserQuestion`):

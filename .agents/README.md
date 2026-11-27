@@ -50,6 +50,8 @@ workflow. Neither ships in the bundle — they guard the template.
 │   ├── ticket-review/            /ticket-review — print a verification guide
 │   ├── ticket-reject/            /ticket-reject — send failed review back
 │   ├── ticket-close/             /ticket-close  — close as shipped
+│   ├── ticket-auto/              /ticket-auto   — run the loop over a milestone
+│   ├── ticket-retro/             /ticket-retro  — milestone retrospective
 │   ├── ticket-engine/            execution layer (internal, not user-invocable)
 │   ├── milestone-sync/           milestone-vs-tickets drift (internal)
 │   └── grill-me/                 relentless decision-tree interview
@@ -64,6 +66,8 @@ workflow. Neither ships in the bundle — they guard the template.
 ├── scripts/                      the te CLI — deterministic half of the engine
 └── references/
     ├── init/                     /ticket-init's phase references (read when the phase runs)
+    ├── auto/                     /ticket-auto's implementer brief
+    ├── retro/                    /ticket-retro's report format, the bar, every metric
     └── agents/                   how init generates agents
         ├── anatomy.md                the one skeleton every generated agent follows
         └── kinds/                    per-kind contract + generation guidance
@@ -95,6 +99,8 @@ stage transitions to the **`ticket-engine`** skill.
 | `/ticket-review` | Print a read-only verification guide for a ticket in review. |
 | `/ticket-reject` | Send a ticket that failed verification back to in-progress, with the reason recorded on the ticket. |
 | `/ticket-close` | Close a ticket as shipped, trusting you've verified the work. |
+| `/ticket-retro` | After a milestone: measure how it was built — tokens, time, and what it asked of a human — rank the findings that cost the most, discuss each with you, and apply the process changes you accept. Run by `/ticket-auto` at wrap-up (report-only when unattended). |
+| `/ticket-auto` | Run `/ticket-pick`'s loop over a whole milestone with no human at each gate — a fresh implementer subagent per ticket, fresh review agents per round. Blocked tickets are parked with the reason; approved ones go to review (or are closed with `--close`). Resumable; can run unattended overnight. |
 
 Tickets move through configurable **stages** (inbox → backlog → in-progress →
 review → done), each carrying a **role** the engine resolves against. Effort caps

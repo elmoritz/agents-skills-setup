@@ -106,7 +106,7 @@ layout: default
 | **`/ticket:review`** | Print a read-only verification guide |
 
 <div v-click class="pt-6 text-sm opacity-60">
-Not today: <code>/ticket:reject</code> and <code>/ticket:close</code> — same idea, ask me after
+Not today: <code>/ticket:reject</code> and <code>/ticket:close</code> — same idea, ask me after. A teaser for <code>/ticket:auto</code> follows pick.
 </div>
 
 <div v-click class="pt-8">
@@ -360,6 +360,26 @@ reply-check; a blocking checker that fails it twice counts as a blocking
 finding, never a silent pass. A blocking finding beats advisory every time in
 the evaluate step.
 -->
+
+---
+layout: default
+---
+
+# And then: `/ticket:auto`
+
+<v-clicks>
+
+- The same loop, run over a **whole milestone**, one ticket after another, with no gate per ticket
+- A **fresh implementer** subagent per ticket and **fresh reviewers** every round, while your session only orchestrates and never reads code
+- Blocked, contested, or still failing after the last round → **parked** with the reason, branch kept, and the loop moves on
+- Approved → review with a sign-off for you to verify (or shipped with `--close`)
+- `--unattended --until 07:00` runs it overnight. `run.log` makes it resumable
+
+</v-clicks>
+
+<div v-click class="pt-8 text-sm opacity-60">
+Only a human waives a blocking finding or approves a re-plan. The loop parks instead.
+</div>
 
 ---
 layout: section

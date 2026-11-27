@@ -110,6 +110,8 @@ done
 # Codex never auto-spawns custom subagents; the loop has to ask explicitly.
 chk; has_line .agents/skills/ticket-pick/SKILL.md "dispatch each by name" \
   || BAD "codex" "ticket-pick lacks an explicit dispatch instruction — Codex does not auto-delegate to subagents"
+chk; has_line .agents/skills/ticket-auto/SKILL.md "dispatch each by name" \
+  || BAD "codex" "ticket-auto lacks an explicit dispatch instruction — Codex does not auto-delegate to subagents"
 
 # --- Antigravity: .agents/workflows/*.md, 12,000-char cap, subagent: true ----
 for s in $PUBLIC; do

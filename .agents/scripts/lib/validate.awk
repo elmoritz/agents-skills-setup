@@ -319,6 +319,13 @@ END {
     }
   }
 
+  # ---- Rule 29: auto.on_done ----
+  # What /ticket:auto does with an approved ticket. Absent means `review`
+  # (the command's own default; no injected default, so resolved output of
+  # configs without an auto block is unchanged).
+  if (has("auto.on_done") && val["auto.on_done"] != "review" && val["auto.on_done"] != "close")
+    fail("auto.on_done must be 'review' or 'close', got '" val["auto.on_done"] "'.")
+
   # ---- Success: resolved config ----
   # Leaves in document order, plus an explicit marker for a *declared but empty*
   # container so a leaf-less entry (e.g. required_body_sections: []) survives to

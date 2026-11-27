@@ -12,7 +12,7 @@ The engine handles **tickets** today. The `artifact_type` parameter (default `ti
 ## Calling contract
 
 <!-- sync:divergent -->
-- **Who invokes**: `/ticket:new`, `/ticket:refine`, `/ticket:pick`, `/ticket:review`, `/ticket:reject`, `/ticket:close`, `/ticket:init`, and the `milestone-sync` skill.
+- **Who invokes**: `/ticket:new`, `/ticket:refine`, `/ticket:pick`, `/ticket:review`, `/ticket:reject`, `/ticket:close`, `/ticket:init`, `/ticket:auto`, and the `milestone-sync` skill.
 - **How**: via the Skill tool, no args. The caller's prompt names which engine operation it needs (e.g. "use the engine to claim IV-042"). Claude follows the matching § Operations entry.
 - **Returns**: every operation returns a **structured result** the caller paraphrases to the user — never raw tool output. On success: `{ ok: true, artifact: {...}, steps_taken: [...] }`. On failure: `{ ok: false, where: "<step>", completed: [...], failed: "<reason>", recovery: "<manual fix>" }`. The shapes are illustrative — Claude composes them in prose.
 - **No user gates inside the engine.** All `AskUserQuestion` prompts live in the calling command. The engine performs operations the caller has already decided on.
@@ -222,6 +222,7 @@ When `enabled`:
   - After a successful local merge, delete the branch (`git branch -d <branch>`); `gh pr merge --delete-branch` deletes both the remote and local branch when PR integration is active.
 - **Review-stage PR (optional, `git.pr_integration: github`, github backend only; default `none`).** When the artifact reaches the point `/ticket:pick` posts its sign-off report (whether or not that also moves it to a `review` stage), push the ticket branch and `gh pr create` referencing the issue — the PR becomes the review surface. With `pr_integration: none`, nothing is pushed and review happens the way it does today.
 - **Abandon.** The Abandon transition (pickable ← in_progress) discards the branch: after the abandon commit lands on base, delete the branch (`git branch -D <branch>` — force, since the work is intentionally discarded) and check out base. Note the discarded commit count in the `## Abandoned notes` payload; the commits are recoverable via reflog until garbage-collected.
+- **Park (Abandon with `keep_branch: true`).** `/ticket:auto` parks a ticket it could not finish: the same Abandon transition, payload headed `## Parked (auto loop)`, but the branch is **kept** — check out base and leave the branch and its commits untouched for a human. Nothing else about the transition changes.
 - **Non-shipped closure.** `close_artifact(id, "wontfix" | "duplicate")` discards the branch the same way Abandon does (delete without merging), after the terminal transition commits.
 - **Reject.** No branch action — the ticket returns to `in_progress` and the same branch keeps accumulating commits across another implementation pass.
 
@@ -467,7 +468,7 @@ External (non-slate) `depends_on` IDs are already real and pass through unchange
   4. § Message formatting + commit (FS) or conditional comment (GH).
 - **Returns**: updated artifact summary; or half-state report on partial failure.
 
-Used by the move-only transitions: `claim` (pickable → in_progress), `review` (in_progress → review), `reject` (review → in_progress), `abandon` (in_progress → pickable), `refine` (inbox → pickable, via promote path).
+Used by the move-only transitions: `claim` (pickable → in_progress), `review` (in_progress → review), `reject` (review → in_progress), `abandon` (in_progress → pickable; `keep_branch: true` is the park form, see § Git branch workflow), `refine` (inbox → pickable, via promote path).
 
 ### `claim_atomic(id)`
 

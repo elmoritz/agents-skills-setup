@@ -35,6 +35,8 @@ A backend-agnostic, in-repo issue tracker. Configuration lives in
 | `ticket-review` | `/ticket-review` | Print a read-only verification guide. |
 | `ticket-reject` | `/ticket-reject` | Send a ticket that failed verification back to in-progress, reason recorded. |
 | `ticket-close` | `/ticket-close` | Close a ticket as shipped. |
+| `ticket-auto` | `/ticket-auto` | Run the pick loop over a whole milestone autonomously — a fresh implementer per ticket, fresh reviewers per round; blocked tickets are parked, approved ones handed off to review (or closed with `--close`). Resumable, can run unattended. |
+| `ticket-retro` | `/ticket-retro` | Retrospective on a finished milestone: measure tokens, time and human-in-the-loop interactions from the loop's run log, the ticket history and the transcripts it can read; rank findings over a significance bar; discuss each with the owner and apply the accepted process changes. `/ticket-auto` runs it at wrap-up. |
 | `grill-me` | `/grill-me` | Stress-test a plan/design down each decision branch. |
 
 Two internal skills (`user-invocable: false`, loaded by the workflow, not the
@@ -125,6 +127,11 @@ Only these differences are intentional; everything else must stay identical:
 - **Frontmatter** — `.agents/` skills carry `name:` and (for internal skills)
   `user-invocable: false`; file layout differs (`.claude/commands/ticket/*.md` vs
   `.agents/skills/ticket-*/SKILL.md`).
+- **Auto-loop engine** — Claude's `/ticket:auto` runs its ticket loop as a
+  Claude Code `Workflow` script (`.claude/references/auto-workflow/`, Claude-only,
+  tested offline by `scripts/test-auto-workflow.sh`); `/ticket-auto` runs the
+  same loop in-session, since no AGENTS.md-class assistant has an equivalent
+  scripted-orchestration tool. Both follow the same steps and rules.
 - **Agent files** — `.claude/agents/<name>.md` carries `tools: Read, Grep, Glob,
   Bash`; `.agents/agents/<name>.md` carries `subagent: true` and leaves tools to
   the platform, with the read-only contract stated in the body. The bodies are

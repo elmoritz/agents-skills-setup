@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-EXPECT="ticket-init ticket-new ticket-refine ticket-pick ticket-review ticket-reject ticket-close grill-me"
+EXPECT="ticket-init ticket-new ticket-refine ticket-pick ticket-review ticket-reject ticket-close ticket-auto ticket-retro grill-me"
 DISCOVER_PROMPT="List the name of every skill available to you in this session, one name per line and nothing else. Do not read or search files; report only what is already loaded."
 FUNCTIONAL_PROMPT="Use the ticket-review skill on this repository and follow it. Report exactly what it tells you to do. Do not create any files."
 
